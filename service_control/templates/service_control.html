@@ -1,0 +1,178 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Saldos em Armazém{% endblock title %}
+{% load static %}
+
+{% block extra_head %}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.6.0/distribute/nouislider.min.css">
+<script src="https://cdn.jsdelivr.net/npm/nouislider@15.6.0/distribute/nouislider.min.js"></script>
+<link href="{% static 'coreui/coreui.css' %}" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/coreui@4/dist/js/coreui.bundle.min.js"></script>
+
+<style>
+    /* Importação de fontes */
+    @import url('https://fonts.googleapis.com/css2?family=Krona+One&family=Poppins&display=swap');
+    @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap");
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+    /* Estilização da página */
+    .header {
+        display: flex;
+        justify-content: space-between;
+        box-sizing: border-box;
+        width: 98%;
+        margin: 0px auto;
+    }
+
+    .wrapper {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 25px;
+        justify-content: center;
+        font-family: 'roboto', sans-serif;
+        margin-bottom: 20px;
+        margin-top: 30px;
+    }
+
+    /* Layout da seção de totalizadores */
+    .totalizadores {
+        width: 98%;
+        display: flex;
+        font-family: 'roboto', sans-serif;
+        font-size: 10;
+        margin: 0px auto;
+        margin-bottom: 30px;
+    }
+
+    .total {
+        background-color: var(--bg-color);
+        text-align: center;
+        border-left: 10px solid #f79821;
+        box-shadow: 3px 1px 5px var(--modal-border-color);
+        border-radius: 8px;
+        overflow: hidden;
+        width: 50%;
+        margin: 10px;
+    }
+
+    .total > span {
+        color: #f79821;
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .total > p {
+        margin-top: 5px;
+        margin-bottom: 5px;
+        color: var(--text-color);
+        font-size: 13px;
+    }
+
+    /* Estilização dos cards */
+    .card {
+        border: 1px solid rgb(189, 189, 189);
+        padding-top: 50px;
+        transition: 0.5s;
+        margin-top: 10px;
+        padding: 15px;
+        display: flex;
+        box-shadow: 1px 1px 5px 0px #9c9c9c;
+        border-radius: 15px;
+        width: 520px;
+        justify-content: center;
+        position: relative;
+        background-color: var(--bg-color);
+    }
+
+    .card:hover {
+        transform: scale(1.03);
+    }
+
+    .saldos {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 7px;
+        margin: 0px auto;
+        margin-bottom: 5px;
+        margin-top: 20px;
+        background-color: var(--card-bg-color);
+        border-radius: 15px;
+        box-shadow: 1px 1px 5px 0px #9c9c9c34;
+        padding: 10px;
+        width: 100%;
+    }
+</style>
+
+{% endblock extra_head %}
+
+{% block content %}
+
+<button class="btn" style="position: absolute; top: 5px; left: 20px;" onclick="window.history.back();">
+    <i class="fa-solid fa-arrow-left"></i>
+</button>
+
+<!-- Totalizadores com dados mocados -->
+<div class="totalizadores">
+    <section class="total">
+        <p>Qtd. Armazéns</p>
+        <span>12</span>
+    </section>
+    <section class="total">
+        <p>Vol. Nominal (Scs)</p>
+        <span>25,000</span>
+    </section>
+    <section class="total">
+        <p>Vol. Executado (Scs)</p>
+        <span>18,500</span>
+    </section>
+    <section class="total">
+        <p>Vol. Comprometido (Scs)</p>
+        <span>5,000</span>
+    </section>
+    <section class="total">
+        <p>Saldo em Armazém (Scs)</p>
+        <span>7,500</span>
+    </section>
+</div>
+
+<!-- Cards com dados mocados -->
+<div class="wrapper">
+    <div class="card">
+        <h2>Armazém: Central Logística</h2>
+        <div class="saldos">
+            <p>Vol. Nominal | <span>10,000</span></p>
+            <p>Saldo em Armazém | <span>3,000</span></p>
+            <p>Saldo Fiscal | <span>2,500</span></p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Armazém: Logística Oeste</h2>
+        <div class="saldos">
+            <p>Vol. Nominal | <span>8,000</span></p>
+            <p>Saldo em Armazém | <span>2,000</span></p>
+            <p>Saldo Fiscal | <span>1,800</span></p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Armazém: Armazenagem Brasil</h2>
+        <div class="saldos">
+            <p>Vol. Nominal | <span>7,000</span></p>
+            <p>Saldo em Armazém | <span>2,500</span></p>
+            <p>Saldo Fiscal | <span>2,000</span></p>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Página carregada com dados mocados.");
+    });
+</script>
+{% endblock extra_scripts %}

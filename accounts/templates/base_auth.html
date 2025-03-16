@@ -1,0 +1,1472 @@
+{% load static %}
+{% load custom_filters %}
+
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <!-- Meta tags para definir o charset e viewport para responsividade -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Título da página, definido dinamicamente usando Django block -->
+    <title id="pageTitle">Roupa de Gala</title>
+    <!-- Ícone da página, definido usando o template static do Django -->
+    <link rel="icon" href="{% static 'roupadegalalogo.png' %}">
+
+    <!-- Dependências de CSS externas -->
+    <!-- Boxicons para ícones e Bootstrap para layout responsivo e componentes -->
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-charts-enterprise@32.1.0/dist/ag-grid-charts-enterprise.js?t=1723108898451"></script>
+    <link href="{% static 'coreui/coreui.css' %}" rel="stylesheet" >
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@coreui/coreui-pro@5.4.2/dist/js/coreui.min.js" integrity="sha384-/i4kDAP1NQqOIyekNyJZXVAPOfmdlRQz/KY6qQFSaQ4RYk5JkNBemHOKT7tyM5yT" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    <link rel="stylesheet" href="{% static 'nouislider/dist/nouislider.css'  %}">
+    <script src="{% static 'nouislider/dist/nouislider.min.js' %}"></script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Estilos CSS personalizados -->
+    <style>
+
+    @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap");
+
+    :root {
+        --link-color: blue;
+        --icon-multiselect-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='rgba%28255, 255, 255, 0.87%29' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+        --bg-color: rgb(255, 255, 255); /* Cor de fundo principal */
+        --toast-bg: rgba(255, 255, 255, 0.85);
+        --text-color: rgb(49, 49, 49); /* Cor do texto principal */
+        --sidebar-bg: rgb(49, 49, 49); /* Cor de fundo da sidebar */
+        --sidebar-color: white; /* Cor do texto na sidebar */
+        --sidebar-hover-bg: rgb(0, 0, 0); /* Cor de fundo da sidebar ao passar o mouse */
+        --sidebar-focus-bg: rgb(4, 121, 0); /* Cor de fundo da sidebar ao focar */
+        --main-bg: #f3f3f3; /* Cor de fundo principal da área de conteúdo */
+        --toggle-bg-color: #121212; /* Cor de fundo do botão de alternância do modo escuro */
+        --toggle-text-color: #ffffff; /* Cor do texto no botão de alternância */
+        --hr-color: rgb(49, 49, 49); /* Cor das linhas horizontais */
+        --text-hover-color: #9b9b9b; /* Cor do texto ao passar o mouse */
+        --toggle-hover: #4f4f4f; /* Cor ao passar o mouse no botão de alternância */
+        --card-bg-color: #f0f0f0; /* Cor de fundo cards*/
+        --input-bg-color: #ffffff; /* Cor de fundo cards*/
+        --border-color: #dee2e6;
+        --placeholder-color: rgb(126, 126, 126);
+        --btn-color: #ff8c00;
+        --btn-border-color: rgba(49, 51, 63, 0.2);
+        --btn-text-color: black;
+        --nav-text-color: black;
+        --focus-bg-color: #fdfdfd;
+        --modal-bg-color: #f5f5f5;
+        --card-matriz-diferenca: black;
+        --matrix-bg: white;
+        --matrix-bg-batch-management: rgb(240, 240, 240);
+        --nav-color: #f79821;
+        --modal-border-color: rgb(194, 194, 194);
+        --btn-close-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+        --totalizer-color: #00582d;
+        --totalizer-color-batch-management: #f79821;
+        --btn-select-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        --btn-expander: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23212529' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
+        --secondary-text-color: rgb(77, 77, 77);
+    }
+
+    body.dark-mode {
+        --icon-multiselect-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+        --link-color: rgb(0, 140, 255);
+        --nav-color: #00aa41;
+        --nav-text-color: white;
+        --toast-bg: rgba(18, 18, 18, 0.85);
+        --card-bg-color: #31363F; /* Cor de fundo cards*/
+        --input-bg-color: #31363F; /* Cor de fundo cards*/
+        --bg-color: rgb(32, 32, 32); /* Cor de fundo principal no modo escuro */
+        --text-color: #e0e0e0; /* Cor do texto principal no modo escuro */
+        --sidebar-bg: #333333; /* Cor de fundo da sidebar no modo escuro */
+        --sidebar-color: #e0e0e0; /* Cor do texto na sidebar no modo escuro */
+        --sidebar-hover-bg: #444444; /* Cor de fundo da sidebar ao passar o mouse no modo escuro */
+        --sidebar-focus-bg: #1a73e8; /* Cor de fundo da sidebar ao focar no modo escuro */
+        --main-bg: #181818; /* Cor de fundo principal da área de conteúdo no modo escuro */
+        --toggle-bg-color: #ffffff; /* Cor de fundo do botão de alternância no modo escuro */
+        --toggle-text-color: #000000; /* Cor do texto no botão de alternância no modo escuro */
+        --hr-color: rgb(255, 255, 255); /* Cor das linhas horizontais no modo escuro */
+        --text-hover-color: #a7a7a7; /* Cor do texto ao passar o mouse no modo escuro */
+        --toggle-hover: #ffffff; /* Cor ao passar o mouse no botão de alternância no modo escuro */
+        --border-color: #dee2e6;
+        --card-matriz-diferenca: white;
+        --matrix-bg: black;
+        --matrix-bg-batch-management: black;
+        --placeholder-color: rgb(219, 219, 219);
+        --btn-color: #ffa600;
+        --btn-border-color: #ffa600;
+        --secondary-text-color: rgb(201, 201, 201);
+        --btn-text-color: #ffa600;
+        --focus-bg-color: #33363d;
+        --modal-bg-color: color-mix(in srgb, #fff, #182230 97%);
+        --modal-border-color: rgb(143, 143, 143);
+        --btn-close-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e");
+        --totalizer-color: #00aa41;
+        --totalizer-color-batch-management: #00aa41;
+        --btn-select-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        --btn-expander: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
+    }
+
+    /* Reset de margens e padding, e configuração de fonte padrão */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'roboto', sans-serif;
+        font-size: 1rem;
+        text-decoration: none;
+    }
+
+    /* Estilo do corpo da página, aplicando a cor de fundo e do texto */
+    body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+
+    }
+
+    input:-webkit-autofill, 
+    textarea:-webkit-autofill, 
+    select:-webkit-autofill {
+        box-shadow: 0 0 0px 1000px var(--card-bg-color) inset; /* Altere a cor de fundo */
+        -webkit-text-fill-color: var(--text-color) !important;  /* Cor do texto */
+        transition: background-color 5000s ease-in-out 0s;
+    }
+
+    .header .form-select {
+    width: 400px; /* Pode ajustar conforme necessário */
+    border: 1px solid var(--input-bg-color);
+    background-color: var(--input-bg-color);
+    box-shadow: 0 1px 5px var(--modal-border-color);
+    color: var(--text-color);
+    &::placeholder {
+
+        color: var(--placeholder-color);
+    }                 
+
+
+}
+
+.form-select {
+  border: 1px solid var(--modal-border-color);
+  background-color: var(--input-bg-color);
+  color: var(--text-color);
+}
+
+.form-select::placeholder {
+  color: var(--placeholder-color);
+}
+
+.search-container {
+    width: 500px;
+    height: 10px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    flex-grow: 1;
+    margin-top: 55px;
+}
+
+.search-form {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 550px;
+    position: relative;
+    border-radius: 50px;
+    box-shadow: 0 1px 5px var(--modal-border-color);
+    transition: box-shadow 0.3s ease;
+}
+
+.search-form:hover,
+.search-form:focus-within {
+    box-shadow: 0 6px 12px var(--modal-border-color);
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 50px;
+    background-color: var(--input-bg-color);
+    font-size: 16px;
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    color: var(--text-color);
+}
+
+.search-input::placeholder {
+
+color: var(--placeholder-color)
+}
+
+.search-input:focus {
+    box-shadow: none;
+    border: none;
+    outline: none;
+}
+
+.search-button {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    font-size: 20px;
+    color: var(--text-color);
+    outline: none;
+}
+
+.search-button:hover {
+    color: var(--text-hover-color);
+}
+
+.search-button i {
+    transition: color 0.3s ease;
+}
+
+.search-button:focus i {
+    color: var(--text-color);
+}
+
+.date-picker-input-group {
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--modal-border-color);
+}
+
+.date-picker-input::placeholder{
+    color: var(--placeholder-color);
+}
+
+.btn {
+  --bs-btn-color: var(--btn-text-color);
+  --bs-btn-border-color: var(--btn-border-color);
+  --bs-btn-hover-color: var(--btn-color);
+  --bs-btn-hover-bg: transparent;
+  --bs-btn-hover-border-color: var(--btn-color);
+  --bs-btn-focus-shadow-rgb: 220, 53, 69;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-active-bg: var(--btn-color);
+  --bs-btn-active-border-color: rgba(49, 51, 63, 0.2);
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color: var(--btn-color);
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--btn-color);
+  --bs-gradient: none;
+    border-radius: 0.5rem;
+}
+
+.btn.action{
+  --bs-btn-color: white;
+  background-color: #ff8c00;
+  --bs-btn-border-color: #ff8c00;
+  --bs-btn-hover-color: white;
+  --bs-btn-hover-bg: #ff7300;
+  --bs-btn-hover-border-color: #ff8c00;
+  --bs-btn-focus-shadow-rgb: 220, 53, 69;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-active-bg: #ff7300;
+  --bs-btn-active-border-color: rgba(49, 51, 63, 0.2);
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color: white;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--btn-color);
+  --bs-gradient: none;
+    border-radius: 0.5rem;
+
+}
+
+.btn.danger{
+  --bs-btn-color: white;
+  background-color: #eb2a2a;
+  --bs-btn-border-color: #ff0000;
+  --bs-btn-hover-color: white;
+  --bs-btn-hover-bg: #ff0000;
+  --bs-btn-hover-border-color: #ff0000;
+  --bs-btn-focus-shadow-rgb: 220, 53, 69;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-active-bg: #ad0000;
+  --bs-btn-active-border-color: rgba(49, 51, 63, 0.2);
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color: white;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: rgb(247, 66, 66);
+  --bs-gradient: none;
+  border-radius: 0.5rem;
+
+}
+
+.error {
+    font-family: 'system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue'', sans-serif;
+    width: 100%;
+    padding: 12px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: start;
+    background: #EF665B;
+    border-radius: 8px;
+    box-shadow: 0px 0px 5px -3px #111;
+    animation: slideInFromLeft 0.5s ease-out;
+}
+
+.error__icon {
+    width: 20px;
+    height: 20px;
+    transform: translateY(-2px);
+    margin-right: 10px;
+}
+
+.error__icon path {
+    fill: #fff;
+}
+
+.error__title {
+    font-weight: 500;
+    font-size: 14px;
+    color: #fff;
+}
+
+
+@keyframes slideInFromLeft {
+0% {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+100% {
+    transform: translateX(0);
+    opacity: 1;
+}
+}
+
+.sidebar .top {
+    margin-top: -20px; /* Sobe a logo */
+}
+
+.user {
+    margin-top: -30px; /* Sobe a foto de perfil e o nome */
+}
+
+.sidebar ul {
+    margin-top: -10px; /* Sobe os itens da sidebar */
+}
+/* Estilo da imagem do usuário na sidebar */
+.user-img {
+            position: relative;
+            margin: 5.5rem 5rem auto 0.75rem;
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 50%; /* Arredondamento para deixar a imagem circular */
+            border: 1px solid #ffffff; /* Borda branca ao redor da imagem */
+        }
+
+        /* Estilo do logotipo maior na sidebar
+        .logo-img {
+            margin-top: auto;
+            position: absolute;
+            top: 4rem;
+            left: 0.7rem;
+            height: 60px;
+            width: 60px;
+        } */
+        .logo-img {
+    display: block;
+    width: 95px; /* Aumenta um pouco o tamanho */
+    height: 95px; /* Mantém a proporção correta */
+    margin: 5px auto; /* Centraliza e reduz o espaçamento superior */
+    position: relative;
+    top: 0; /* Garante que não fique deslocada para cima */
+    transform: none; /* Remove qualquer transformação desnecessária */
+}
+
+
+        .form-select {
+            --bs-form-select-bg-img: var(--btn-select-bg)
+
+        }
+
+        /* Estilo do logotipo menor na sidebar */
+        .logo-img-min {
+            position: absolute;
+            left: 0.7rem;
+            top: 3.75rem;
+            height: 3.5rem;
+            width: 60px;
+        }
+
+        /* Estilo da sidebar, incluindo seu estado ativo */
+        .sidebar {
+            position: fixed; /* Fixa a sidebar no lado esquerdo da tela */
+            top: 0;
+            left: 0;
+            height: 100%; /* Altura total da tela */
+            width: 5.5rem; /* Largura inicial da sidebar */
+            background-color: var(--sidebar-bg); /* Cor de fundo da sidebar */
+            color: white; /* Cor do texto na sidebar */
+            transition: all 0.5s ease; /* Transição suave ao expandir/retrair a sidebar */
+        }
+
+        /* Estilo da área de conteúdo principal quando a sidebar está ativa */
+        .sidebar.active~.main-content {
+            margin-top: 0;
+            left: 15.62rem; /* Margem esquerda para acomodar a sidebar expandida */
+            width: calc(100% - 15.62rem); /* Largura ajustada para a área de conteúdo */
+        }
+
+        /* Estilo da sidebar quando ativa (expandida) */
+        .sidebar.active {
+            width: 15.5rem; /* Largura expandida da sidebar */
+        }
+
+        /* Estilo do botão de menu na sidebar */
+        .sidebar #btn {
+            position: relative;
+            top: 0.1rem;
+            left: 55%;
+            font-size: 1.6rem; /* Tamanho do ícone */
+            line-height: 3.125rem;
+            transform: translateX(-85%);
+            cursor: pointer; /* Cursor em formato de mão ao passar o mouse */
+        }
+
+        /* Estilo do botão de menu na sidebar quando ativa */
+        .sidebar.active #btn {
+            left: 88%;
+        }
+        /* Estilo do logotipo maior e menor na sidebar */
+        .sidebar .top .logo-img,
+        .sidebar.active .top .logo-img-min {
+            display: none; /* Esconde o logotipo maior ou menor dependendo do estado da sidebar */
+        }
+
+        .sidebar .top .logo-img {
+            display: flex;
+            opacity: 0;
+            align-items: center;
+            pointer-events: none;
+            transition: all 0.5s ease;
+        }
+
+        .sidebar.active .top .logo-img-min {
+            display: flex;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+
+        .sidebar .top .logo-img-min {
+            display: flex;
+            opacity: 1;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .sidebar.active .top .logo-img {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Estilo do nome de usuário na sidebar */
+        .sidebar.active .user p {
+            opacity: 1;
+            margin-left: 5rem;
+            margin-top: -2.5rem;
+            padding: auto auto;
+            transition: all 0.5s ease;
+        }
+
+        .sidebar .user p {
+            opacity: 0;
+            margin-left: 6rem;
+            transition: all 0.5s ease;
+        }
+
+        /* Estilo da lista de navegação na sidebar */
+        .sidebar ul {
+            position: relative;
+            top: -2rem;
+            margin-top: 0; /* Margem entre o logout do restante dos itens */
+        }
+
+        .sidebar.active ul {
+            position: relative;
+            top: 0rem;
+        }
+
+        /* Estilo dos itens da lista de navegação na sidebar */
+        .sidebar ul li {
+            top: 1rem;
+            position: relative;
+            align-items: center;
+            text-align: center;
+            margin: auto -2rem;
+            list-style-type: none; /* Remove os marcadores da lista */
+            width: 140%; /* Largura dos itens na lista */
+            transition: all 0.5s ease; /* Transição suave ao expandir/retrair os itens */
+        }
+
+        .sidebar.active ul li {
+            position: relative;
+            list-style-type: none; /* Remove os marcadores da lista */
+            height: 2rem;
+            width: 100%; /* Largura dos itens quando a sidebar está ativa */
+            margin: 0.8rem -1.5rem;
+            line-height: 1rem;
+            transition: all 0.5s ease; /* Transição suave ao expandir/retrair os itens */
+        }
+
+        /* Estilo dos links de navegação na sidebar */
+        .sidebar ul li a {
+            display: flex;
+            align-items: center;
+            text-decoration: none; /* Remove a decoração do texto (sublinhado) */
+            border-radius: 0.3rem; /* Arredondamento dos cantos */
+            color: var(--sidebar-color); /* Cor do texto */
+        }
+
+        .sidebar .logout {
+            position: absolute;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            text-decoration: none; /* Remove a decoração do texto (sublinhado) */
+            border-radius: 0.3rem; /* Arredondamento dos cantos */
+            color: var(--sidebar-color); /* Cor do texto */
+        }
+
+        /* Estilo dos links de navegação na sidebar ao passar o mouse */
+        .sidebar ul li a:hover, .logout:hover {
+            background-color: rgb(0, 0, 0); /* Cor de fundo ao passar o mouse */
+            color: rgb(255, 255, 255); /* Cor do texto ao passar o mouse */
+        }
+
+        /* Estilo dos links de navegação na sidebar ao focar */
+        .sidebar ul li a:focus , .logout:focus {
+            background-color: rgb(4, 121, 0); /* Cor de fundo ao focar */
+            color: rgb(255, 255, 255); /* Cor do texto ao focar */
+        }
+
+        /* Estilo dos ícones nos links de navegação na sidebar */
+        .sidebar ul li a i , .logout i {
+            min-width: 1.25rem;
+            height: 1.875rem;
+            margin: 0.9rem;
+            padding-left: 0.8rem;
+            text-align: center;
+            line-height: 1.875rem;
+            font-size: 1.5rem; /* Tamanho dos ícones */
+        }
+
+        .sidebar.active ul li a i {
+            min-width: 1.25rem;
+            height: 1.875rem;
+            margin: 0.5rem;
+            padding-left: 0px;
+            text-align: center;
+            line-height: 1.875rem;
+            font-size: 1.5rem; /* Tamanho dos ícones quando a sidebar está ativa */
+        }
+
+        /* Estilo dos itens de navegação na sidebar quando a sidebar está ativa */
+        .sidebar .nav-item {
+            left: 1.2rem;
+            opacity: 0;
+        }
+
+        .sidebar.active .nav-item {
+            opacity: 1;
+            color: white; /* Cor do texto na sidebar */
+            font-size: 15px;
+        }
+
+        /* Estilo das tooltips na sidebar */
+        .sidebar ul li .tooltip {
+            opacity: 0; /* Tooltips inicialmente ocultas */
+        }
+
+        /* Estilo do botão de logout na sidebar quando a sidebar está ativa */
+        .sidebar.active .logout {
+            min-width: 1.25rem;
+            height: 3.0rem;
+            margin: 0.5rem;
+            padding-left: 0px;
+            text-align: center;
+            line-height: 3.0rem;
+            font-size: 1.0rem;
+            position: absolute;
+            bottom: 0;
+            width: 75%;
+        }
+
+        .sidebar.active .logout i {
+            min-width: 1.25rem;
+            height: 1.875rem;
+            margin: 0.5rem;
+            padding-left: 0px;
+            text-align: center;
+            line-height: 1.875rem;
+            font-size: 1.5rem; /* Tamanho dos ícones de logout */
+        }
+
+        /* Estilo da área de conteúdo principal */
+        .main-content {
+            position: relative;
+            background-color: var(--main-bg); /* Cor de fundo da área de conteúdo */
+            min-height: 62.5rem; /* Altura mínima da área de conteúdo */
+            overflow-x: hidden; /* Esconde o overflow horizontal */
+            top: 0;
+            width: 96.8%; /* Largura da área de conteúdo */
+            left: 5rem; /* Margem esquerda para acomodar a sidebar */
+            font-size: 2.5rem; /* Tamanho da fonte da área de conteúdo */
+            transition: all 0.5s ease; /* Transição suave ao expandir/retrair a sidebar */
+        }
+
+        
+
+        /* Estilo do título na área de conteúdo principal */
+        .main-content__title {
+            font-size: 200%; /* Tamanho do título */
+            color: var(--text-color); /* Cor do título conforme o tema ativo */
+        }
+
+/* Estilo do contêiner para o botão de alternância de modo escuro */
+.toggle-container {
+    
+    justify-content: center;
+    display: flex;
+    align-items: center; /* Alinhamento vertical dos elementos */
+    position: relative; /* Posição fixa na tela */
+    margin-bottom: 10px;
+    margin-right: 30px;
+    margin-top: 30px;
+}
+
+/* Estilo do botão de alternância */
+.dark-mode-toggle {
+    cursor: pointer; /* Cursor de mão ao passar o mouse */
+    background-color: var(--toggle-bg-color); /* Cor de fundo do botão */
+    color: white; /* Cor do texto */
+    border: none; /* Remove borda padrão */
+    padding: 0.5rem 1rem; /* Espaçamento interno */
+    border-radius: 50px; /* Borda arredondada */
+    display: flex; /* Layout flexível para alinhamento */
+    align-items: center; /* Centraliza os elementos no eixo vertical */
+    transition: all 0.3s ease; /* Transição suave para mudanças de estado */
+    right: 0;
+    position: absolute;
+}
+
+
+/* Estilo do botão de alternância quando ativo */
+.dark-mode-toggle.active {
+    background-color: var(--toggle-bg-color); /* Cor de fundo do botão ativo */
+    color: var(--toggle-text-color); /* Cor do texto do botão ativo */
+}
+
+/* Efeito ao passar o mouse sobre o botão de alternância */
+.dark-mode-toggle:hover {
+    box-shadow: 0px 5px 10px 0px var(--toggle-hover); /* Sombra ao passar o mouse */
+}
+
+@keyframes slideInFromTop {
+  0% {
+    margin-top: -100px; /* Começa fora da tela acima */
+    opacity: 0; /* Inicia invisível */
+  }
+  100% {
+    margin-top: 0; /* Termina na posição original */
+    opacity: 1; /* Torna-se totalmente visível */
+  }
+}
+
+.modal-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    color: var(--text-color);
+    pointer-events: auto;
+    background-color: var(--modal-bg-color);
+}
+
+.modal-footer {
+  flex-wrap: nowrap;
+}
+
+.form-control{
+  border: 1px solid var(--modal-border-color);
+  background-color: var(--input-bg-color);
+  color: var(--text-color);
+}
+
+.form-control::placeholder {
+    color: var(--placeholder-color);
+}
+
+.input-group-text {
+  border: 1px solid var(--modal-border-color);
+  background-color: var(--modal-bg-color);
+  color: var(--text-color);
+  margin: 0;
+}
+
+.form-control:focus{
+  color: var(--text-color);
+  border-color: var(--border-color);
+  background-color: var(--focus-bg-color);
+
+}
+
+.modal {
+  --bs-modal-footer-border-color: var(--modal-border-color);
+  --bs-modal-header-border-color: var(--modal-border-color);
+}
+
+.modal-footer {
+  justify-content: space-between;
+}
+
+.btn-close {
+    --bs-btn-close-bg: var(--btn-close-bg);
+}
+
+.success-card {
+  overflow: hidden;
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  text-align: left;
+  border-radius: 0.5rem;
+  max-width: 290px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  background-color: var(--card-bg-color);
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  animation: slideInFromTop 0.6s ease forwards; /* Adiciona a animação */
+}
+
+.dismiss {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  background-color: var(--card-bg-color);
+  color: var(--text-color);
+  border: 2px solid var(--modal-border-color);
+  font-size: 1rem;
+  font-weight: 300;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  transition: .3s ease;
+}
+
+.dismiss:hover {
+  background-color: #ee0d0d;
+  border: 2px solid #ee0d0d;
+  color: var(--bs-btn-hover-color);
+}
+
+.header {
+  padding: 1.25rem 1rem 1rem 1rem;
+}
+
+.image {
+  display: flex;
+  margin-left: auto;
+  margin-right: auto;
+  flex-shrink: 0;
+  justify-content: center;
+  align-items: center;
+  width: 3rem;
+  background-color: #cfffe4;
+  height: 3rem;
+  border-radius: 9999px;
+  animation: animate .6s linear alternate-reverse infinite;
+  transition: .6s ease;
+}
+
+.image svg {
+  color: #0afa2a;
+  width: 2rem;
+  height: 2rem;
+}
+
+.contentsuccess {
+  margin-top: 0.75rem;
+  text-align: center;
+  background-color: var(--card-bg-color);
+  
+}
+
+.title {
+  color: #0b973a;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+}
+
+.message {
+  margin-top: 0.5rem;
+  color: var(--text-color);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.buttons {
+  margin: 0.75rem 1rem;
+}
+
+.agree {
+  display: inline-flex;
+  padding: 0.5rem 1rem;
+  background-color: #1aa06d;
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  justify-content: center;
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid #1aa06d;
+  box-shadow: 0 1px 2px 0 var(--modal-border-color);
+  transition: 0.5s;
+}
+
+.agree:hover {
+
+  color: #1aa06d;
+  background-color: transparent;
+}
+
+.agree:active{
+
+  background-color: #1aa06d;
+  color: #ffffff;
+}
+
+@keyframes animate {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.09);
+  }
+}
+
+#overlay, #overlay1, #overlay2, #overlay3{
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Fundo escuro com transparência */
+  z-index: 999; /* Deve estar abaixo do card de sucesso */
+  display: none; /* Inicialmente oculto */
+}
+
+.link {
+    font-size: 14px;
+    color: var(--link-color);
+    margin-top: 5px;
+    text-decoration: none;
+    transition: 1s;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 1366px) {
+    .sidebar.active {
+        width: 20rem;
+    }
+
+    .sidebar.active ul li {
+        margin: 8px;
+        margin-left: 0px;
+        margin-top: 20px;
+    }
+
+    .sidebar.active ul {
+        padding-left: 0.5rem;
+    }
+
+    .sidebar.active .logout {
+        min-width: 1.25rem;
+        height: 3.0rem;
+        margin: 0.5rem;
+        padding-left: 0px;
+        text-align: center;
+        line-height: 3.0rem;
+        font-size: 1.0rem;
+        margin-top: 25px;
+    }
+
+    .sidebar {
+        overflow: hidden; /* Esconde as barras de rolagem */
+        overflow-y: scroll; /* Permite rolagem vertical */
+    }
+
+
+    .sidebar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .main-content {
+        width: 94%;
+    }
+}
+
+.notifications {
+    width: 40px;
+    height: 35px;
+    right:65px;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--input-bg-color);
+    border-radius: 50%;
+    cursor: pointer;
+    transition-duration: .3s;
+    box-shadow:  1px 1px 10px var(--modal-border-color);
+    border: none;
+  }
+
+  .bell {
+    width: 15px;
+  }
+  
+  .bell path {
+    fill: var(--text-color);
+  }
+  
+  .notifications:hover {
+    
+    cursor: pointer;
+  }
+  
+  .notifications:hover .bell {
+    animation: bellRing 0.9s both;
+  }
+
+  /* bell ringing animation keyframes*/
+  @keyframes bellRing {
+    0%,
+    100% {
+      transform-origin: top;
+    }
+  
+    15% {
+      transform: rotateZ(10deg);
+    }
+  
+    30% {
+      transform: rotateZ(-10deg);
+    }
+  
+    45% {
+      transform: rotateZ(5deg);
+    }
+  
+    60% {
+      transform: rotateZ(-5deg);
+    }
+  
+    75% {
+      transform: rotateZ(2deg);
+    }
+  }
+
+  .notifications:active {
+    transform: scale(0.8);
+  }
+
+  .notification-card {
+    display: flex;
+    align-items: start;
+    margin: 15px 0;
+    padding: 15px;
+    position: relative;
+    border-radius: 8px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--card-bg-color);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.notification-card img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 15px;
+}
+
+.notification-content {
+    flex-grow: 1;
+}
+
+.notification-content h6 {
+    margin: 0;
+    font-weight: bold;
+}
+
+.notification-content p {
+    margin: 5px 0;
+    color: var(--secondary-text-color);
+}
+
+.notification-meta {
+    text-align: right;
+    position: absolute;
+    right: 50px;
+
+}
+
+.notification-meta small {
+    color: #6c757d;
+}
+
+.notifications .badge {
+position: absolute;
+top: -10px;
+right: -5px;
+background-color: red;
+color: white;
+border-radius: 50%;
+padding: 3px 5px;
+font-size: 0.8rem;
+font-weight: bold;
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+/* Ocultar o badge se o valor for 0 */
+.notifications .badge:empty {
+    display: none;
+}
+
+/* Indicador de mensagens não lidas */
+.unread-indicator {
+    position: absolute;
+    right: 5px;
+    top: -3px;
+    width: 10px;
+    height: 10px;
+    background-color: red;
+    border-radius: 50%;
+    z-index: 2; /* Certifica-se de que a bolinha apareça na frente */
+}
+
+.toast {
+
+    --bs-toast-color: var(--text-color);
+    --bs-toast-bg: var(--toast-bg);
+    --bs-toast-border-color: var(--modal-border-color);
+    --bs-toast-box-shadow: var(--modal-border-color);
+    --bs-toast-header-color: var(--text-color);
+    --bs-toast-header-bg: var(--toast-bg);
+    --bs-toast-header-border-color: var(--modal-border-color);
+
+
+}
+
+.wrapper {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    justify-content: center;
+    font-family: 'roboto', sans-serif;
+    margin-bottom: 20px;
+    margin-top: 30px;
+}
+
+.card {
+    border: 1px solid rgb(189, 189, 189);
+    padding-top: 50px;
+    transition: 0.5s;
+    margin-top: 10px;
+    padding: 15px;
+
+    display: flex;
+    box-shadow: 1px 1px 5px 0px #9c9c9c;
+    border-radius: 15px;
+    width: 520px;
+    justify-content: center;
+    position: relative;
+    background-color: var(--bg-color);
+}
+
+.card:hover {
+    transform: scale(1.03);
+}
+
+.card h2, .margemspan {
+    font-size: 18px;
+    margin-bottom: 0px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.saldos {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 colunas de tamanhos iguais */
+    gap: 7px; /* Espaçamento entre colunas, ajuste conforme necessário */
+    margin: 0px auto;
+    margin-bottom: 5px;
+    margin-top: 20px;
+    background-color: var(--card-bg-color);
+    border-radius: 15px;
+    box-shadow: 1px 1px 5px 0px #9c9c9c34;
+    padding: 10px;
+    width: 100%;
+}
+
+.saldos p {
+    margin-bottom: 0;
+    margin-left: 12px;
+    font-size: 13px;
+    color: var(--text-color);
+}
+
+.cliente-info, .contrato-info {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    position: relative;
+    margin-left: 10px;
+}
+
+.cliente-info p .info{
+    display: flex;
+    flex-direction: column;
+}
+
+.cliente-info p, span,
+.contrato-info p,span {
+    position: relative;
+    font-size: 13px;
+    margin: 10px 0;
+    color: var(--text-color);
+}
+
+
+
+</style>
+
+{% block extra_head %}
+{% endblock extra_head %}
+
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="top">
+            <i class="bx bx-menu" id="btn"></i>
+            <div class="logo">
+                <a href="#" style= "margin: 0px auto;"><img src="{% static 'roupadegalalogo.png' %}" alt="Logo Roupa de Gala" class="logo-img" ></a>
+            </div>
+            <div class="logo-min">
+                <a href="#"><img src="{% static 'roupadegalalogo.png' %}" alt="Logo Agromercantil" class="logo-img-min"></a>
+            </div>
+        </div>
+        <div class="user">
+            <img src="{% static 'redimensionadaterno.png' %}" alt="Foto de Perfil" class="user-img">
+            <div>
+                <p class="bold"><strong>Admin</strong></p>
+            </div>
+        </div>
+        <ul>
+            <li><a href="#" title="Ordens de Serviço"><i class='bi bi-card-checklist'></i><span class="nav-item">Ordens de Serviço</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Clientes"><i class="bi bi-people"></i> <span class="nav-item">Clientes</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Funcionários"><i class="bi bi-person-badge"></i> <span class="nav-item">Funcionários</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Controle de Estoque"><i class='bi bi-box-seam'></i><span class="nav-item">Controle de Estoque</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Fiscal"><i class='bi bi-file-earmark-text'></i><span class="nav-item">Fiscal</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Financeiro"><i class='bi bi-cash-stack'></i><span class="nav-item">Financeiro</span></a></li>
+        </ul>
+        <ul>
+            <li><a href="#" title="Estatísticas"><i class='bi bi-bar-chart'></i><span class="nav-item">Estatísticas</span></a></li>
+        </ul>
+        <!-- <ul>
+            <li><a href="#" title="Configurações"><i class='bi bi-tools'></i><span class="nav-item">Configurações</span></a></li>
+        </ul> -->
+        <li style="list-style: none;"><a title="Logout" class="logout" href="{% url 'logout' %}"><i class="bi bi-power"></i><span class="nav-item">Logout</span></a></li>
+    </div>
+
+    <div class="main-content">
+        <div class="toggle-container">
+            <h1 id="page-title" style="font-size: 20px; text-align: center; margin-bottom: 0;">Ordens de Serviço</h1>
+            <button class="dark-mode-toggle" id="darkModeToggle">
+                <i class='bx bx-moon'></i>
+            </button>
+            <!-- <button class="notifications" id="notifications"  data-ids="{{ notifications_not_read.ids|join:',' }}" data-bs-toggle="modal" data-bs-target="#notificationsModal">
+                <svg viewBox="0 0 448 512" class="bell"><path d="M224 0c-17.7 0-32 14.3-32 32V49.9C119.5 61.4 64 124.2 64 200v33.4c0 45.4-15.5 89.5-43.8 124.9L5.3 377c-5.8 7.2-6.9 17.1-2.9 25.4S14.8 416 24 416H424c9.2 0 17.6-5.3 21.6-13.6s2.9-18.2-2.9-25.4l-14.9-18.6C399.5 322.9 384 278.8 384 233.4V200c0-75.8-55.5-138.6-128-150.1V32c0-17.7-14.3-32-32-32zm0 96h8c57.4 0 104 46.6 104 104v33.4c0 47.9 13.9 94.6 39.7 134.6H72.3C98.1 328 112 281.3 112 233.4V200c0-57.4 46.6-104 104-104h8zm64 352H224 160c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3z"></path></svg>
+                {% if notifications_not_read %}
+                <span class="badge" id="notification-count">{{ notifications_not_read.qtd }}</span>
+                {% endif %}
+            </button> -->
+        </div>
+
+        <div class="modal fade" id="notificationsModal" tabindex="-1" aria-labelledby="notificationsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="notificationsModalLabel">Notificações{% if notifications_not_read.qtd >= 1 %} - {{notifications_not_read.qtd}} não lida(s){% endif %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if notifications %}
+                        {% for notification in notifications %}
+                                <div class="notification-card">
+                                {% if notification.lido_em is None %}
+                                
+                                    <span class="unread-indicator" title="Mensagem não lida"></span>
+                                {% endif %}
+
+                                    <img src="{% static 'favicon.png' %}" alt="User">
+                                    <div class="notification-content">
+                                        <div class="notification-meta">
+                                            <small>{{notification.criado_em}}</small>
+                                        </div>
+                                        <h6>Agromercantil <span class="text-danger">{{notification.urgencia}}</span> </h6>
+                                        
+                                        <p style="font-size: 15px; font-weight: bold;">{{notification.assunto|safe}}</p>
+                                        <p style="font-size: 15px;">{{notification.texto|safe}}</p>
+                                    </div>
+                                </div>
+                        {% endfor %}
+                        {% else %}
+                        <p style="text-align: center; color: var(--text-color); margin-bottom: 0px;">Sem notificações na sua caixa de entrada.</p>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer" style="justify-content: flex-end;">
+                        <button type="button" class="btn" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if notifications_not_read.qtd_urgente >= 1 %}
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+              <div class="toast-header">
+                <img src="{% static 'favicon.png' %}" class="rounded me-2" style="width: 23px;" alt="...">
+                <strong class="me-auto">Frete-e</strong>
+                <small id="toastTime">Agora mesmo</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body">
+                Você possui notificações urgentes. <a href="#" onclick="toastNotifications()">Clique aqui</a> para visualizá-las.
+              </div>
+            </div>
+        </div>
+          {% endif %}
+        
+
+        {% block content %}
+        {% endblock content %}
+    </div>
+
+    <script src="{% static 'js/aggrid-utils.js' %}"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+
+    
+    const datePicker = document.querySelectorAll('.core-ui-date_picker');
+    const dateRangePicker = document.querySelectorAll('.date-range-picker');
+
+        
+    let btn = document.querySelector('#btn');
+    let sidebar = document.querySelector('.sidebar');
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (localStorage.getItem('sidebarState') === 'active') {
+            sidebar.classList.add('active'); // Sidebar está expandida
+        } else {
+            sidebar.classList.remove('active'); // Sidebar está recolhida
+        }
+    });
+
+    btn.onclick = function () {
+        sidebar.classList.toggle('active');
+        if (sidebar.classList.contains('active')) {
+            localStorage.setItem('sidebarState', 'active'); // Salvar como ativa
+        } else {
+            localStorage.setItem('sidebarState', 'inactive'); // Salvar como inativa
+        }
+    };
+
+    const toggleButton = document.getElementById('darkModeToggle');
+    const body = document.body;
+
+    toggleButton.addEventListener('click', () => {
+    body.classList.toggle('dark-mode');
+    toggleButton.classList.toggle('active');
+
+    // Verifica se há elementos com as classes "ag-theme-quartz" ou "ag-theme-quartz-dark"
+    const agGridElements = document.querySelectorAll('.ag-theme-quartz, .ag-theme-quartz-dark');
+
+    if (agGridElements.length > 0) {
+        agGridElements.forEach(element => {
+            if (body.classList.contains('dark-mode')) {
+                element.classList.remove('ag-theme-quartz');
+                element.classList.add('ag-theme-quartz-dark');
+                localStorage.setItem('darkMode', 'enabled');
+                toggleButton.innerHTML = `<i class='bx bx-sun'></i>`;
+                toggleButton.classList.add('active');
+
+                if (dateRangePicker) {
+                    dateRangePicker.forEach(element => {
+                        element.setAttribute('data-coreui-theme', 'dark');
+                    });
+                    
+                }
+                if (datePicker.length > 0) {
+                    datePicker.forEach(element => {
+                        element.setAttribute('data-coreui-theme', 'dark');
+                    });
+                }
+               
+
+                
+            
+            } else {
+                element.classList.remove('ag-theme-quartz-dark');
+                element.classList.add('ag-theme-quartz');
+                localStorage.setItem('darkMode', 'disabled');
+
+                if (dateRangePicker) {
+                    dateRangePicker.forEach(element => {
+                        element.setAttribute('data-coreui-theme', 'light');
+                    });
+                }
+                if (datePicker.length > 0) {
+                    datePicker.forEach(element => {
+                        element.setAttribute('data-coreui-theme', 'light');
+                    });
+                }
+                
+
+                
+                    
+                
+                toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
+
+                
+            }
+        });
+    } else {
+        if (body.classList.contains('dark-mode')) {
+            localStorage.setItem('darkMode', 'enabled');
+            toggleButton.innerHTML = `<i class='bx bx-sun'></i>`;
+            toggleButton.classList.add('active');
+
+            if (dateRangePicker) {
+                    dateRangePicker.forEach(element => {
+                        element.setAttribute('data-coreui-theme', 'dark');
+                    });
+                }
+            if (datePicker.length > 0) {
+                datePicker.forEach(element => {
+                    element.setAttribute('data-coreui-theme', 'dark');
+                });
+            }
+
+            
+
+
+        
+        } else {
+            localStorage.setItem('darkMode', 'disabled');
+
+            if (dateRangePicker.length > 0) {
+                dateRangePicker.forEach(element => {
+                    element.setAttribute('data-coreui-theme', 'light');
+                });
+            }
+            if (datePicker.length > 0) {
+                datePicker.forEach(element => {
+                    element.setAttribute('data-coreui-theme', 'light');
+                });
+            }
+            
+
+                
+
+            
+            toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
+        }
+    }
+});
+
+// Preservar o estado do tema com localStorage
+window.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('darkMode') === 'enabled') {
+        body.classList.add('dark-mode');
+        toggleButton.innerHTML = `<i class='bx bx-sun'></i>`;
+        toggleButton.classList.add('active');
+
+        if (dateRangePicker.length > 0) {
+                dateRangePicker.forEach(element => {
+                    element.setAttribute('data-coreui-theme', 'dark');
+                });
+            }
+        if (datePicker.length > 0) {
+            datePicker.forEach(element => {
+                element.setAttribute('data-coreui-theme', 'dark');
+            });
+        }
+
+        
+
+        document.querySelectorAll('.ag-theme-quartz').forEach(element => {
+            element.classList.add('ag-theme-quartz-dark');
+            element.classList.remove('ag-theme-quartz');
+        });
+    } else {
+        if (dateRangePicker.length > 0) {
+                dateRangePicker.forEach(element => {
+                    element.setAttribute('data-coreui-theme', 'light');
+                });
+        if (datePicker.length > 0) {
+            datePicker.forEach(element => {
+                element.setAttribute('data-coreui-theme', 'light');
+            });
+        }
+
+        
+
+        toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
+    }
+}
+});
+
+
+</script>
+
+    {% block extra_scripts %}
+    {% endblock extra_scripts %}
+</body>
+
+</html>
