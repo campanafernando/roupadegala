@@ -1727,7 +1727,7 @@
       <tbody>
         ${this._view === 'days' ? monthDetails.map(week => {
       const date = convertToDateObject(week.weekNumber === 0 ? `${calendarDate.getFullYear()}W53` : `${calendarDate.getFullYear()}W${week.weekNumber}`, this._config.selectionType);
-      return `<tr 
+      return `<tr
               class="calendar-row ${this._config.selectionType === 'week' && this._sharedClassNames(date)}"
               tabindex="${this._config.selectionType === 'week' && week.days.some(day => day.month === 'current') && !isDateDisabled(date, this._config.minDate, this._config.maxDate, this._config.disabledDates) ? 0 : -1}"
               ${isDateSelected(date, this._startDate, this._endDate) ? 'aria-selected="true"' : ''}
@@ -1736,7 +1736,7 @@
               ${week.days.map(({
         date,
         month
-      }) => month === 'current' || this._config.showAdjacementDays ? `<td 
+      }) => month === 'current' || this._config.showAdjacementDays ? `<td
                   class="calendar-cell ${this._dayClassNames(date, month)}"
                   tabindex="${this._config.selectionType === 'day' && (month === 'current' || this._config.selectAdjacementDays) && !isDateDisabled(date, this._config.minDate, this._config.maxDate, this._config.disabledDates) ? 0 : -1}"
                   ${isDateSelected(date, this._startDate, this._endDate) ? 'aria-selected="true"' : ''}

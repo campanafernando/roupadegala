@@ -5,4 +5,3 @@ Este é um sistema desenvolvido em **Django** para gerenciar uma **loja de alugu
 ## 🚀 Tecnologias Utilizadas
 - **Python 3.12**, **Django 5.1.4**, **PostgreSQL (Docker)**
 - **Bootstrap, HTML, CSS E JS**
-

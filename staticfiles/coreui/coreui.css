@@ -2023,7 +2023,7 @@ select.form-multi-select {
   box-shadow: var(--cui-date-picker-focus-box-shadow);
 }
 
-/* 
+/*
   .date-picker-input {
   position: relative;
   flex: 1 1 auto;
@@ -2040,7 +2040,7 @@ select.form-multi-select {
   appearance: none;
   background: transparent;
   border: 0;
-} 
+}
 */
 
 .date-picker.show .date-picker-input {

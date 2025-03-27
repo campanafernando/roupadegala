@@ -1,0 +1,53 @@
+{% extends "base_auth.html" %}
+
+{% block title %} Funcionários {% endblock title %}
+{% load static %}
+{% block extra_head %}
+{% load custom_filters %}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Krona+One&family=Poppins&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+</style>
+{% endblock extra_head %}
+
+{% block content %}
+
+<a href="{% url 'service_control' %}"><button class="btn" style="position: absolute; top: 5px; left: 20px;"><i class="fa-solid fa-arrow-left"></i></button></a>
+
+<div class="wrapper">
+    <div class="card">
+        <h2 style="margin-bottom: 10px;">
+            <img src="{% static 'favicon.png' %}" alt="" style="width: 25px; margin-right: 10px;" title="Funcionários">
+            Cadastrar Funcionários
+        </h2>
+
+        <div class="cliente-info">
+            <p>
+                <i class="fa-solid fa-clipboard" style="margin-right: 5px;"></i>
+                Sobre: <span style="color: #9c9c9c;">Nesta área, é possível cadastrar novos funcionários, atualizando o banco de dados da empresa com informações importantes como nome, cargo, setor e data de admissão.</span>
+            </p>
+        </div>
+
+        <a href="#" class="stretched-link"></a>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom: 10px;">
+            <img src="{% static 'favicon.png' %}" alt="" style="width: 25px; margin-right: 10px;" title="Funcionários">
+            Estatísticas dos Funcionários
+        </h2>
+
+        <div class="cliente-info">
+            <p>
+                <i class="fa-solid fa-clipboard" style="margin-right: 5px;"></i>
+                Sobre: <span style="color: #9c9c9c;">Acompanhe métricas importantes sobre os funcionários, como número total por setor, tempo médio de casa, distribuição por cargo, entre outras estatísticas relevantes para a gestão de pessoas.</span>
+            </p>
+        </div>
+
+        <a href="{% url 'service_control' %}" class="stretched-link"></a>
+    </div>
+</div>
+
+{% endblock content %}

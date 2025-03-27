@@ -11,7 +11,7 @@ var localeText = {
     ariaAdvancedFilterBuilderJoinOperator: "Operador de Junção",
     ariaAdvancedFilterInput: "Entrada de Filtro Avançado",
     ariaLabelAdvancedFilterAutocomplete: "Autocompletar Filtro Avançado",
-    
+
     // Filtros Avançados
     advancedFilterContains: "contém",
     advancedFilterNotContains: "não contém",
@@ -33,7 +33,7 @@ var localeText = {
     advancedFilterOr: "OU",
     advancedFilterApply: "Aplicar",
     advancedFilterBuilder: "Construtor",
-    
+
     // Validações de Filtro Avançado
     advancedFilterValidationMissingColumn: "Coluna ausente",
     advancedFilterValidationMissingOption: "Opção ausente",
@@ -50,7 +50,7 @@ var localeText = {
     advancedFilterValidationExtraEndBracket: "Muitos parênteses de fechamento",
     advancedFilterValidationMessage: (variableValues) => `Expressão contém um erro. ${variableValues[0]} - ${variableValues[1]}.`,
     advancedFilterValidationMessageAtEnd: (variableValues) => `Expressão contém um erro. ${variableValues[0]} no final da expressão.`,
-    
+
     // Construtor de Filtro Avançado
     advancedFilterBuilderTitle: "Filtro Avançado",
     advancedFilterBuilderApply: "Aplicar",
@@ -69,7 +69,7 @@ var localeText = {
     advancedFilterBuilderValidationSelectColumn: "Deve selecionar uma coluna.",
     advancedFilterBuilderValidationSelectOption: "Deve selecionar uma opção.",
     advancedFilterBuilderValidationEnterValue: "Deve digitar um valor.",
-  
+
     // Menus
     pinColumn: 'Fixar Coluna',
     valueAgg: 'Valor Agregado',
@@ -99,7 +99,7 @@ var localeText = {
     noPin: 'Não Fixar',
     pinLeft: 'Fixar a Esquerda',
     pinRight: 'Fixar a Direita',
-  
+
     // Painéis
     columns: 'Colunas',
     filters: 'Filtros',
@@ -110,18 +110,18 @@ var localeText = {
     valueColumnsEmptyMessage: 'Arraste aqui para agregar',
     pivots: 'Rótulos de Coluna',
     pivotColumnsEmptyMessage: 'Arraste aqui para definir rótulos de coluna',
-  
+
     // Filtros
     selectAll: 'Selecionar Tudo',
     selectAllSearchResults: 'Selecionar Todos os Resultados da Busca',
     searchOoo: 'Procurar...',
     blanks: 'Em branco',
     noMatches: 'Sem Resultados',
-    
+
     // Filtros Numéricos e de Texto
     filterOoo: 'Filtrar...',
     applyFilter: 'Aplicar Filtro...',
-  
+
     // Filtros Numéricos
     equals: 'Igual',
     notEqual: 'Diferente',
@@ -130,35 +130,35 @@ var localeText = {
     lessThanOrEqual: 'Menor ou igual',
     greaterThanOrEqual: 'Maior ou igual',
     inRange: 'No intervalo',
-  
+
     // Filtros de Texto
     contains: 'Contém',
     notContains: 'Não contém',
     startsWith: 'Começa com',
     endsWith: 'Termina com',
-  
+
     // Filtros de Data
     dateFormatOoo: 'aaaa-mm-dd',
-  
+
     // Condições de Filtro
     andCondition: 'E',
     orCondition: 'OU',
-  
+
     // Botões de Filtro
     applyFilter: 'Aplicar',
     resetFilter: 'Redefinir',
     clearFilter: 'Limpar',
     cancelFilter: 'Cancelar',
-  
+
     // Títulos de Filtro
     textFilter: 'Filtro de Texto',
     numberFilter: 'Filtro Numérico',
     dateFilter: 'Filtro de Data',
     setFilter: 'Filtro de Conjunto',
-  
+
     // Barras de Status e Agregação
     noRowsToShow: 'Nenhuma linha para mostrar',
-  
+
     // Gráficos
     pivotChartAndPivotMode: 'Gráfico Pivot & Modo Pivot',
     pivotChart: 'Gráfico Pivot',
@@ -190,7 +190,7 @@ var localeText = {
     normalizedArea: 'Área Normalizada',
     histogram: 'Histograma',
   };
-  
+
 
   function toTitleCase(str) {
     return str.replace(/_/g, ' ').toLowerCase().replace(/\b(\w)/g, s => s.toUpperCase());

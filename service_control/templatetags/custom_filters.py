@@ -1,9 +1,11 @@
-from django import template
 import locale
+
+from django import template
 
 register = template.Library()
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')  # Define locale para BR
+locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")  # Define locale para BR
+
 
 @register.filter
 def brl_format(value):
@@ -22,12 +24,13 @@ def format_brl(value, decimal_places=2):
     :return: String formatada
     """
     try:
-        value = float(value)  
-        formatted_value = f"{value:,.{decimal_places}f}"  
-        return formatted_value.replace(",", "X").replace(".", ",").replace("X", ".")  
+        value = float(value)
+        formatted_value = f"{value:,.{decimal_places}f}"
+        return formatted_value.replace(",", "X").replace(".", ",").replace("X", ".")
     except (ValueError, TypeError):
-        return value 
-    
+        return value
+
+
 @register.filter
 def format_cpf_cnpj(value):
     """
@@ -38,13 +41,13 @@ def format_cpf_cnpj(value):
     :return: String formatada com a máscara de CPF ou CNPJ
     """
     try:
-        value = str(value) 
+        value = str(value)
 
         if len(value) == 11:
             return f"{value[:3]}.{value[3:6]}.{value[6:9]}-{value[9:]}"
         elif len(value) == 14:
             return f"{value[:2]}.{value[2:5]}.{value[5:8]}/{value[8:12]}-{value[12:]}"
         else:
-            return value  
+            return value
     except (ValueError, TypeError):
-        return value  
+        return value

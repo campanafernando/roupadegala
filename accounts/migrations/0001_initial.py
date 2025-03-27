@@ -125,7 +125,7 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
                     ),
-                )
+                ),
             ],
             options={
                 "db_table": "person",
@@ -190,7 +190,7 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         to="accounts.person",
                     ),
-                )
+                ),
             ],
             options={
                 "db_table": "persons_adresses",
@@ -254,7 +254,7 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         to="accounts.person",
                     ),
-                )
+                ),
             ],
             options={
                 "db_table": "persons_contacts",
@@ -305,7 +305,7 @@ class Migration(migrations.Migration):
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
-                ("type", models.CharField(max_length=50, unique=True))
+                ("type", models.CharField(max_length=50, unique=True)),
             ],
             options={
                 "db_table": "person_type",

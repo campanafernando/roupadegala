@@ -1,0 +1,51 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        args: ["--line-length=88"]
+
+        # O Black é um formatador de código opinativo para Python.
+        # Ele aplica regras de formatação automaticamente,
+        # garantindo um código padronizado e mais legível.
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.2
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=1000", "--ignore=E203,W503"]
+
+        # O Flake8 é um analisador de código Python que verifica
+        # problemas de estilo e qualidade, ajudando a manter um código limpo.
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+        # O isort organiza automaticamente as importações do Python,
+        # garantindo um código mais limpo e padronizado.
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+
+        # Remove espaços em branco desnecessários no final das linhas.
+
+      - id: end-of-file-fixer
+
+        # Garante que os arquivos terminem com uma linha em branco,
+        # evitando problemas de formatação.
+
+  # - repo: local
+  #   hooks:
+  #     - id: block-large-files
+  #       name: Bloqueia arquivos grandes
+  #       entry: bash -c "find . -type f -size +5M"
+  #       language: system
+  #       pass_filenames: false
+
+  #       # Impede que arquivos maiores que 5MB sejam adicionados ao repositório,
+  #       # ajudando a evitar commits acidentais de arquivos muito grandes.

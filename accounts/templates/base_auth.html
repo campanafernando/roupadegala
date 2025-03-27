@@ -26,7 +26,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.2"></script>
     <!-- <link rel="stylesheet" href="{% static 'nouislider/dist/nouislider.css'  %}"> -->
     <!-- <script src="{% static 'nouislider/dist/nouislider.min.js' %}"></script> -->
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css" rel="stylesheet" />
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <!-- Estilos CSS personalizados -->
@@ -127,8 +127,8 @@
 
     }
 
-    input:-webkit-autofill, 
-    textarea:-webkit-autofill, 
+    input:-webkit-autofill,
+    textarea:-webkit-autofill,
     select:-webkit-autofill {
         box-shadow: 0 0 0px 1000px var(--card-bg-color) inset; /* Altere a cor de fundo */
         -webkit-text-fill-color: var(--text-color) !important;  /* Cor do texto */
@@ -144,7 +144,7 @@
     &::placeholder {
 
         color: var(--placeholder-color);
-    }                 
+    }
 
 
 }
@@ -622,7 +622,7 @@ color: var(--placeholder-color)
             transition: all 0.5s ease; /* Transição suave ao expandir/retrair a sidebar */
         }
 
-        
+
 
         /* Estilo do título na área de conteúdo principal */
         .main-content__title {
@@ -632,7 +632,7 @@ color: var(--placeholder-color)
 
 /* Estilo do contêiner para o botão de alternância de modo escuro */
 .toggle-container {
-    
+
     justify-content: center;
     display: flex;
     align-items: center; /* Alinhamento vertical dos elementos */
@@ -800,7 +800,7 @@ color: var(--placeholder-color)
   margin-top: 0.75rem;
   text-align: center;
   background-color: var(--card-bg-color);
-  
+
 }
 
 .title {
@@ -942,16 +942,16 @@ color: var(--placeholder-color)
   .bell {
     width: 15px;
   }
-  
+
   .bell path {
     fill: var(--text-color);
   }
-  
+
   .notifications:hover {
-    
+
     cursor: pointer;
   }
-  
+
   .notifications:hover .bell {
     animation: bellRing 0.9s both;
   }
@@ -962,23 +962,23 @@ color: var(--placeholder-color)
     100% {
       transform-origin: top;
     }
-  
+
     15% {
       transform: rotateZ(10deg);
     }
-  
+
     30% {
       transform: rotateZ(-10deg);
     }
-  
+
     45% {
       transform: rotateZ(5deg);
     }
-  
+
     60% {
       transform: rotateZ(-5deg);
     }
-  
+
     75% {
       transform: rotateZ(2deg);
     }
@@ -1181,7 +1181,7 @@ align-items: center;
         <div class="user">
             <img src="{% static 'redimensionadaterno.png' %}" alt="Foto de Perfil" class="user-img">
             <div>
-                <p class="bold"><strong>Admin</strong></p>
+                <p class="bold"><strong>{{ user.username }}</strong></p>
             </div>
         </div>
         <ul>
@@ -1191,7 +1191,7 @@ align-items: center;
             <li><a href="#" title="Clientes"><i class="bi bi-people"></i> <span class="nav-item">Clientes</span></a></li>
         </ul>
         <ul>
-            <li><a href="#" title="Funcionários"><i class="bi bi-person-badge"></i> <span class="nav-item">Funcionários</span></a></li>
+            <li><a href="{% url 'employee_redirect' %}" title="Funcionários"><i class="bi bi-person-badge"></i> <span class="nav-item">Funcionários</span></a></li>
         </ul>
         <ul>
             <li><a href="#" title="Controle de Estoque"><i class='bi bi-box-seam'></i><span class="nav-item">Controle de Estoque</span></a></li>
@@ -1237,7 +1237,7 @@ align-items: center;
                         {% for notification in notifications %}
                                 <div class="notification-card">
                                 {% if notification.lido_em is None %}
-                                
+
                                     <span class="unread-indicator" title="Mensagem não lida"></span>
                                 {% endif %}
 
@@ -1247,7 +1247,7 @@ align-items: center;
                                             <small>{{notification.criado_em}}</small>
                                         </div>
                                         <h6>Agromercantil <span class="text-danger">{{notification.urgencia}}</span> </h6>
-                                        
+
                                         <p style="font-size: 15px; font-weight: bold;">{{notification.assunto|safe}}</p>
                                         <p style="font-size: 15px;">{{notification.texto|safe}}</p>
                                     </div>
@@ -1263,7 +1263,7 @@ align-items: center;
                 </div>
             </div>
         </div>
-        
+
         {% if notifications_not_read.qtd_urgente >= 1 %}
         <div class="toast-container position-fixed bottom-0 end-0 p-3">
             <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -1279,7 +1279,7 @@ align-items: center;
             </div>
         </div>
           {% endif %}
-        
+
 
         {% block content %}
         {% endblock content %}
@@ -1290,11 +1290,11 @@ align-items: center;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
 
-    
+
     const datePicker = document.querySelectorAll('.core-ui-date_picker');
     const dateRangePicker = document.querySelectorAll('.date-range-picker');
 
-        
+
     let btn = document.querySelector('#btn');
     let sidebar = document.querySelector('.sidebar');
 
@@ -1338,17 +1338,17 @@ align-items: center;
                     dateRangePicker.forEach(element => {
                         element.setAttribute('data-coreui-theme', 'dark');
                     });
-                    
+
                 }
                 if (datePicker.length > 0) {
                     datePicker.forEach(element => {
                         element.setAttribute('data-coreui-theme', 'dark');
                     });
                 }
-               
 
-                
-            
+
+
+
             } else {
                 element.classList.remove('ag-theme-quartz-dark');
                 element.classList.add('ag-theme-quartz');
@@ -1364,14 +1364,14 @@ align-items: center;
                         element.setAttribute('data-coreui-theme', 'light');
                     });
                 }
-                
 
-                
-                    
-                
+
+
+
+
                 toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
 
-                
+
             }
         });
     } else {
@@ -1391,10 +1391,10 @@ align-items: center;
                 });
             }
 
-            
 
 
-        
+
+
         } else {
             localStorage.setItem('darkMode', 'disabled');
 
@@ -1408,11 +1408,11 @@ align-items: center;
                     element.setAttribute('data-coreui-theme', 'light');
                 });
             }
-            
 
-                
 
-            
+
+
+
             toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
         }
     }
@@ -1436,7 +1436,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        
+
 
         document.querySelectorAll('.ag-theme-quartz').forEach(element => {
             element.classList.add('ag-theme-quartz-dark');
@@ -1453,7 +1453,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        
+
 
         toggleButton.innerHTML = `<i class='bx bx-moon'></i>`;
     }
