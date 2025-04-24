@@ -2,7 +2,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.http import require_GET
+
+from accounts.models import City
 
 
 def login_view(request):
@@ -57,3 +61,12 @@ def employee_redirect_view(request):
 def logout_view(request):
     logout(request)
     return redirect("login")
+
+
+@require_GET
+@login_required
+def city_search(request):
+    query = request.GET.get("q", "")
+    cities = City.objects.filter(name__icontains=query).values("id", "name")[:10]
+
+    return JsonResponse(list(cities), safe=False)

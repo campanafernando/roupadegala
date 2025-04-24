@@ -1,301 +1,251 @@
 {% extends "base_auth.html" %}
-
 {% load static %}
 
-{% block extra_head %}
+{% block title %}Ordens de Serviço{% endblock title %}
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.6.0/distribute/nouislider.min.css">
-<script src="https://cdn.jsdelivr.net/npm/nouislider@15.6.0/distribute/nouislider.min.js"></script>
-<link href="{% static 'coreui/coreui.css' %}" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/coreui@4/dist/js/coreui.bundle.min.js"></script>
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css" rel="stylesheet">
 
 <style>
-    /* Importação de fontes */
-    @import url('https://fonts.googleapis.com/css2?family=Krona+One&family=Poppins&display=swap');
-    @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap");
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+  .form-select, .form-control {
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--modal-border-color);
+  }
 
-    /* Estilização da página */
-    .header {
-        display: flex;
-        justify-content: space-between;
-        box-sizing: border-box;
-        width: 98%;
-        margin: 0px auto;
-    }
+  label {
+    font-weight: bold;
+  }
 
-    .totalizadores {
-        width: 98%;
-        display: flex;
-        font-family: 'roboto', sans-serif;
-        font-size: 10;
-        margin: 0px auto;
-        margin-bottom: 30px;
-    }
+  .card {
+    border: 1px solid rgb(189, 189, 189);
+    padding-top: 50px;
+    transition: 0.5s;
+    margin-top: 10px;
+    padding: 15px;
+    display: flex;
+    box-shadow: 1px 1px 5px 0px #9c9c9c;
+    border-radius: 15px;
+    width: 520px;
+    justify-content: center;
+    position: relative;
+    background-color: var(--bg-color);
+  }
 
-    .total {
-        background-color: var(--bg-color);
-        text-align: center;
-        border-left: 10px solid var(--totalizer-color);
-        box-shadow: 3px 1px 5px var(--modal-border-color);
-        border-radius: 8px;
-        overflow: hidden;
-        width: 50%;
-        margin: 10px;
-    }
-
-    .total > span {
-        color: var(--totalizer-color);
-        font-weight: bold;
-        font-size: 18px;
-    }
-
-    .total > p {
-        margin-top: 5px;
-        margin-bottom: 5px;
-        color: var(--text-color);
-        font-size: 13px;
-    }
-
-    .total-alert {
-        background-color: var(--bg-color);
-        text-align: center;
-        border-left: 10px solid crimson;
-        box-shadow: 3px 1px 5px var(--modal-border-color);
-        border-radius: 8px;
-        overflow: hidden;
-        width: 50%;
-        margin: 10px;
-    }
-
-    .total-alert > span {
-        color: crimson;
-        font-weight: bold;
-        font-size: 18px;
-    }
-
-    .total-alert > p {
-        margin-top: 5px;
-        margin-bottom: 5px;
-        color: var(--text-color);
-        font-size: 13px;
-    }
-
-    /* Estilização dos cards */
-    .card {
-        border: 1px solid rgb(189, 189, 189);
-        padding-top: 50px;
-        transition: 0.5s;
-        margin-top: 10px;
-        padding: 15px;
-        display: flex;
-        box-shadow: 1px 1px 5px 0px #9c9c9c;
-        border-radius: 15px;
-        width: 520px;
-        justify-content: center;
-        position: relative;
-        background-color: var(--bg-color);
-    }
-
-    .card:hover {
-        transform: scale(1.03);
-    }
-
-    .cliente-info, .contrato-info {
+  .cliente-info, .contrato-info {
     display: flex;
     flex-direction: column;
-    align-items: start;
-    position: relative;
     margin-left: 10px;
-    }
+  }
 
-    .cliente-info p .info{
-        display: flex;
-        flex-direction: column;
-    }
+  .cliente-info p, .contrato-info p {
+    font-size: 13px;
+    margin: 5px 0;
+    color: var(--text-color);
+  }
 
-    .cliente-info p, span,
-    .contrato-info p,span {
-        position: relative;
-        font-size: 13px;
-        margin: 10px 0;
-        color: var(--text-color);
-    }
-
-    .saldos {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 7px;
-        margin: 0px auto;
-        margin-bottom: 5px;
-        margin-top: 20px;
-        background-color: var(--card-bg-color);
-        border-radius: 15px;
-        box-shadow: 1px 1px 5px 0px #9c9c9c34;
-        padding: 10px;
-        width: 100%;
-    }
-
-    .pagination {
-      display: flex;
-      justify-content: center;
-    --bs-pagination-focus-color: #f79821;
-    --bs-pagination-color: var(--text-color);
-    --bs-pagination-bg: var(--bg-color);
-    --bs-pagination-hover-color: #f79821;
-    --bs-pagination-active-bg: #f79821;
-    --bs-pagination-active-border-color: #f79821;
-    --bs-pagination-disabled-bg: var(--card-bg-color);
-    --bs-pagination-disabled-border-color: var(--card-bg-color);
-    --bs-pagination-disabled-color: var(--text-color)
-    }
+  .saldos {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+    margin-top: 15px;
+    background-color: var(--card-bg-color);
+    border-radius: 15px;
+    padding: 10px;
+    width: 100%;
+  }
 </style>
-
 {% endblock extra_head %}
 
 {% block content %}
+<div class="container mt-4">
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item">
+      <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">Cadastrar OS</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">Listar OS</button>
+    </li>
+  </ul>
 
-<button class="btn" style="position: absolute; top: 5px; left: 20px;" onclick="window.history.back();">
-    <i class="fa-solid fa-arrow-left"></i>
-</button>
+  <div class="tab-content mt-3">
+    <!-- Aba de Cadastro -->
+    <div class="tab-pane fade show active" id="cadastro" role="tabpanel">
+      <form method="POST">
+        {% csrf_token %}
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Nome do Cliente</label>
+            <input type="text" name="cliente_nome" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label>Telefone</label>
+            <input type="text" name="telefone" class="form-control">
+          </div>
+        </div>
 
-<!-- Totalizadores com dados mocados -->
-<div class="totalizadores">
-    <section class="total">
-        <p>Total de OS</p>
-        <span>12</span>
-    </section>
-    <section class="total">
-        <p>Ordens Em Andamento</p>
-        <span>8</span>
-    </section>
-    <section class="total">
-        <p>Ordens Concluídas</p>
-        <span>3</span>
-    </section>
-    <section class="total-alert">
-        <p>Ordens C/ Pendências</p>
-        <span>1</span>
-    </section>
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Data do Evento</label>
+            <input type="date" name="data_evento" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Data da Retirada</label>
+            <input type="date" name="data_retirada" class="form-control">
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Data de Devolução</label>
+            <input type="date" name="data_devolucao" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Evento</label>
+            <input type="text" name="evento" class="form-control">
+          </div>
+        </div>
+
+        <hr>
+        <h5>Itens do Traje</h5>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Paletó Nº</label>
+            <input type="text" name="paleto" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Cor do Paletó</label>
+            <select name="cor_paleto" class="form-select color-select" required></select>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Camisa Nº</label>
+            <input type="text" name="camisa" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Cor da Camisa</label>
+            <select name="cor_camisa" class="form-select color-select" required></select>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label>Calça Nº</label>
+            <input type="text" name="calca" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Cor da Calça</label>
+            <select name="cor_calca" class="form-select color-select" required></select>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label>Sapato Nº</label>
+            <input type="text" name="sapato" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label>Gravata</label>
+            <input type="text" name="gravata" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label>Coletes / Suspensórios</label>
+            <input type="text" name="colete" class="form-control">
+          </div>
+        </div>
+
+        <hr>
+        <h5>Pagamento</h5>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label>Valor Total</label>
+            <input type="number" step="0.01" name="valor_total" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label>Valor Sinalizado</label>
+            <input type="number" step="0.01" name="valor_sinal" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label>Valor Restante</label>
+            <input type="number" step="0.01" name="valor_restante" class="form-control">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Salvar OS</button>
+      </form>
+    </div>
+
+    <!-- Aba de Listagem -->
+    <div class="tab-pane fade" id="listagem" role="tabpanel">
+      <div class="wrapper mt-4">
+        <div class="card">
+          <h2>OS: #00012</h2>
+          <div class="cliente-info">
+            <p><strong>Cliente:</strong> Vinícius</p>
+            <p><strong>Telefone:</strong> (34) 99999-9999</p>
+            <p><strong>Retirada:</strong> 17/04/2025</p>
+            <p><strong>Devolução:</strong> 20/05/2025</p>
+            <p><strong>Status:</strong> Em andamento</p>
+          </div>
+          <div class="saldos">
+            <p>Valor Total: <span>R$ 130,00</span></p>
+            <p>Valor Sinal: <span>R$ 50,00</span></p>
+            <p>Valor Restante: <span>R$ 80,00</span></p>
+            <p>Atendente: <span>MT</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-
-<!-- Cards com dados mocados -->
-<div class="wrapper">
-    <div class="card">
-        <h2 style="margin-bottom: 10px;">
-            <img src="{% static 'redimensionadaterno.png' %}" alt="" style="width: 25px; margin-right: 10px; border-radius: 100px;" title="Agromercantil">
-            OS: #00012
-        </h2>
-        <div class="cliente-info">
-            <p>
-                <i class="bi bi-file-earmark-person" style="margin-right: 5px;"></i>
-                Cliente: <a href="#">John Doe</a>
-            </p>
-            <p>
-                <i class="bi bi-telephone" style="margin-right: 5px;"></i>
-                Telefone de Contato: <span>(34) 99999-9999</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-check" style="margin-right: 5px;"></i>
-                Data de Retirada: <span>10/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-event" style="margin-right: 5px;"></i>
-                Data de Devolução: <span>14/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-hourglass-split" style="margin-right: 5px; color: rgb(255, 187, 0);"></i>
-                Status: <span>Em andamento</span>
-            </p>
-        </div>
-
-        <div class="saldos">
-            <p>Valor Total: <span>R$ 700</span></p>
-            <p>Valor Sinalizado: <span>R$ 350</span></p>
-            <p>Valor Pendente: <span>R$ 350</span></p>
-            <p>Atendente: <span>Linus Torvalds</span></p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2 style="margin-bottom: 10px;">
-            <img src="{% static 'redimensionadaterno.png' %}" alt="" style="width: 25px; margin-right: 10px; border-radius: 100px;" title="Agromercantil">
-            OS: #00012
-        </h2>
-        <div class="cliente-info">
-            <p>
-                <i class="bi bi-file-earmark-person" style="margin-right: 5px;"></i>
-                Cliente: <a href="#">Lorem Ipsum</a>
-            </p>
-            <p>
-                <i class="bi bi-telephone" style="margin-right: 5px;"></i>
-                Telefone de Contato: <span>(34) 99999-9999</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-check" style="margin-right: 5px;"></i>
-                Data de Retirada: <span>11/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-event" style="margin-right: 5px;"></i>
-                Data de Devolução: <span>14/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-hourglass-split" style="margin-right: 5px; color: crimson"></i>
-                Status: <span>Em Atraso</span>
-            </p>
-        </div>
-
-        <div class="saldos">
-            <p>Valor Total: <span>R$ 700</span></p>
-            <p>Valor Sinalizado: <span>R$ 350</span></p>
-            <p>Valor Pendente: <span>R$ 350</span></p>
-            <p>Atendente: <span>Bill Gates</span></p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2 style="margin-bottom: 10px;">
-            <img src="{% static 'redimensionadaterno.png' %}" alt="" style="width: 25px; margin-right: 10px; border-radius: 100px;" title="Agromercantil">
-            OS: #00012
-        </h2>
-        <div class="cliente-info">
-            <p>
-                <i class="bi bi-file-earmark-person" style="margin-right: 5px;"></i>
-                Cliente: <a href="#">Jane Doe</a>
-            </p>
-            <p>
-                <i class="bi bi-telephone" style="margin-right: 5px;"></i>
-                Telefone de Contato: <span>(34) 99999-9999</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-check" style="margin-right: 5px;"></i>
-                Data de Retirada: <span>10/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-calendar-event" style="margin-right: 5px;"></i>
-                Data de Devolução: <span>15/03/2025</span>
-            </p>
-            <p>
-                <i class="bi bi-hourglass-split" style="margin-right: 5px; color: greenyellow;"></i>
-                Status: <span>Concluída</span>
-            </p>
-        </div>
-
-        <div class="saldos">
-            <p>Valor Total: <span>R$ 700</span></p>
-            <p>Valor Sinalizado: <span>R$ 350</span></p>
-            <p>Valor Pendente: <span>R$ 350</span></p>
-            <p>Atendente: <span>Steve Jobs</span></p>
-        </div>
-    </div>
-</div>
-
 {% endblock content %}
 
 {% block extra_scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("Página carregada com dados mocados.");
+  document.addEventListener("DOMContentLoaded", function () {
+    // Mantém aba ativa
+    const savedTab = localStorage.getItem("activeTab");
+    if (savedTab) {
+      const triggerEl = document.querySelector(`[data-coreui-target="${savedTab}"]`);
+      if (triggerEl) new coreui.Tab(triggerEl).show();
+    }
+
+    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-coreui-target");
+        localStorage.setItem("activeTab", target);
+      });
     });
+
+    // Preenche todos os selects de cor
+    fetch("{% url 'list_colors' %}")
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        document.querySelectorAll(".color-select").forEach(select => {
+          select.innerHTML = '<option value="">Selecione uma cor</option>';
+          data.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.id;
+            option.textContent = item.description;
+            select.appendChild(option);
+          });
+        });
+      })
+      .catch(error => {
+        console.error("Erro ao carregar cores:", error);
+        document.querySelectorAll(".color-select").forEach(select => {
+          select.innerHTML = '<option value="">Erro ao carregar</option>';
+        });
+      });
+  });
 </script>
 {% endblock extra_scripts %}

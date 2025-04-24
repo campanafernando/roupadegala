@@ -9,7 +9,7 @@ def load_cities_from_sql(apps, schema_editor):
     Insere os dados do arquivo 'cities.sql' na tabela 'city' apenas se a tabela estiver vazia.
     """
     City = apps.get_model("accounts", "City")  # Garante que a tabela já existe
-    cities_sql_path = os.path.join(settings.BASE_DIR, "seed_aux_files", "cities.sql")
+    cities_sql_path = os.path.join(settings.BASE_DIR, ".aux_files", "cities.sql")
 
     if not os.path.exists(cities_sql_path):
         print(f"⚠️ Arquivo não encontrado: {cities_sql_path}")

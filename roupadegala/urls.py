@@ -19,18 +19,36 @@ from django.contrib import admin
 from django.urls import path
 
 from accounts.views import (
+    city_search,
     employee_redirect_view,
     login_view,
     logout_view,
     register_view,
 )
-from service_control.views import *
+from products.views import (
+    generate_product_qr,
+    list_colors,
+    product_dashboard,
+    update_product_stock,
+)
+from service_control.views import service_control_view, service_order_create
 
 urlpatterns = [
     path("admin/", admin.site.urls, name="admin"),
     path("", login_view, name="login"),
     path("registro/", register_view, name="register"),
     path("logout/", logout_view, name="logout"),
+    path("city-search/", city_search, name="city_search"),
+    path("list-colors/", list_colors, name="list_colors"),
     path("os/", service_control_view, name="service_control"),
+    path("create-os/", service_order_create, name="service_order_create"),
+    # path("list-os/", service_order_list, name="service_order_list"),
+    path("estoque/", product_dashboard, name="product_dashboard"),
+    path(
+        "products/<int:product_id>/generate_qr/",
+        generate_product_qr,
+        name="generate_product_qr",
+    ),
     path("funcionarios/", employee_redirect_view, name="employee_redirect"),
+    path("update-stock/", update_product_stock, name="update_product_stock"),
 ]

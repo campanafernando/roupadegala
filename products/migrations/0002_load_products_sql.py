@@ -8,7 +8,7 @@ def load_products_sql(apps, schema_editor):
     """
     Executa o script 'products.sql' apenas se as principais tabelas relacionadas a produto estiverem vazias.
     """
-    sql_path = os.path.join(settings.BASE_DIR, "seed_aux_files", "products.sql")
+    sql_path = os.path.join(settings.BASE_DIR, ".aux_files", "products.sql")
 
     if not os.path.exists(sql_path):
         print(f"⚠️ Arquivo não encontrado: {sql_path}")

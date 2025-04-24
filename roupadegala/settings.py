@@ -87,10 +87,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",  # PostgreSQL backend
         "NAME": "postgres",  # Database name
-        "USER": "admin",  # Database user
-        "PASSWORD": "admin",  # User password
+        "USER": "docker",  # Database user
+        "PASSWORD": "docker",  # User password
         "HOST": "localhost",  # Database host
-        "PORT": "5432",  # Database port (default: 5432)
+        "PORT": "1714",  # Database port (default: 5432)
         "CONN_MAX_AGE": 600,  # Mantém conexões abertas por 10 minutos
     }
 }
