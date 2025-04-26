@@ -1,12 +1,14 @@
+import json
+
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
-from accounts.models import City
+from accounts.models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 
 
 def login_view(request):
@@ -70,3 +72,55 @@ def city_search(request):
     cities = City.objects.filter(name__icontains=query).values("id", "name")[:10]
 
     return JsonResponse(list(cities), safe=False)
+
+
+@require_POST
+@login_required
+def register_client(request):
+    """
+    Recebe JSON com:
+      - nome, telefone, cpf, cep, rua, numero, bairro, cidade
+    Busca a City por nome e cria Person + PersonsContacts + PersonsAdresses.
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        nome = data.get("nome")
+        telefone = data.get("telefone")
+        cpf = data.get("cpf")
+        cep = data.get("cep")
+        rua = data.get("rua")
+        numero = data.get("numero")
+        bairro = data.get("bairro")
+        cidade_nome = data.get("cidade")
+
+        try:
+            city = City.objects.get(name__iexact=cidade_nome)
+        except City.DoesNotExist:
+            return JsonResponse({"error": "Cidade não encontrada"}, status=400)
+
+        pt, _ = PersonType.objects.get_or_create(type="CUSTOMER")
+
+        person = Person.objects.create(
+            name=nome, cpf=cpf, person_type=pt, created_by=request.user
+        )
+
+        PersonsContacts.objects.create(
+            phone=telefone, person=person, created_by=request.user
+        )
+
+        PersonsAdresses.objects.create(
+            address=f"{rua}, {numero}",
+            neighborhood=bairro,
+            city=city,
+            person=person,
+            created_by=request.user,
+        )
+
+        return JsonResponse(
+            {"id": person.id, "message": "Cliente cadastrado com sucesso"}
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

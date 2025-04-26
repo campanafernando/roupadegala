@@ -23,6 +23,7 @@ from accounts.views import (
     employee_redirect_view,
     login_view,
     logout_view,
+    register_client,
     register_view,
 )
 from products.views import (
@@ -37,6 +38,7 @@ urlpatterns = [
     path("admin/", admin.site.urls, name="admin"),
     path("", login_view, name="login"),
     path("registro/", register_view, name="register"),
+    path("api/register_client/", register_client, name="register_client"),
     path("logout/", logout_view, name="logout"),
     path("city-search/", city_search, name="city_search"),
     path("list-colors/", list_colors, name="list_colors"),

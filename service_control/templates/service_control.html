@@ -12,11 +12,9 @@
     color: var(--text-color);
     border: 1px solid var(--modal-border-color);
   }
-
   label {
     font-weight: bold;
   }
-
   .card {
     border: 1px solid rgb(189, 189, 189);
     padding-top: 50px;
@@ -31,19 +29,16 @@
     position: relative;
     background-color: var(--bg-color);
   }
-
   .cliente-info, .contrato-info {
     display: flex;
     flex-direction: column;
     margin-left: 10px;
   }
-
   .cliente-info p, .contrato-info p {
     font-size: 13px;
     margin: 5px 0;
     color: var(--text-color);
   }
-
   .saldos {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -61,10 +56,14 @@
 <div class="container mt-4">
   <ul class="nav nav-tabs" role="tablist">
     <li class="nav-item">
-      <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">Cadastrar OS</button>
+      <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">
+        Cadastrar OS
+      </button>
     </li>
     <li class="nav-item">
-      <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">Listar OS</button>
+      <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">
+        Listar OS
+      </button>
     </li>
   </ul>
 
@@ -73,105 +72,113 @@
     <div class="tab-pane fade show active" id="cadastro" role="tabpanel">
       <form method="POST">
         {% csrf_token %}
+
+        <!-- === Seção 1: Dados do Cliente === -->
+        <h5>Dados do Cliente</h5>
         <div class="row mb-3">
-          <div class="col-md-6">
-            <label>Nome do Cliente</label>
-            <input type="text" name="cliente_nome" class="form-control" required>
+          <div class="col-md-4">
+            <label for="cliente_nome">Nome do Cliente</label>
+            <input id="cliente_nome" type="text" name="cliente_nome" class="form-control" required>
           </div>
-          <div class="col-md-6">
-            <label>Telefone</label>
-            <input type="text" name="telefone" class="form-control">
+          <div class="col-md-4">
+            <label for="telefone">Telefone</label>
+            <input id="telefone" type="text" name="telefone" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label for="cpf">CPF</label>
+            <input id="cpf" type="text" name="cpf" class="form-control">
           </div>
         </div>
-
         <div class="row mb-3">
-          <div class="col-md-6">
-            <label>Data do Evento</label>
-            <input type="date" name="data_evento" class="form-control">
+          <div class="col-md-3">
+            <label for="cep">CEP</label>
+            <input id="cep" type="text" name="cep" class="form-control">
           </div>
           <div class="col-md-6">
-            <label>Data da Retirada</label>
-            <input type="date" name="data_retirada" class="form-control">
+            <label for="rua">Rua</label>
+            <input id="rua" type="text" name="rua" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label for="numero">Número</label>
+            <input id="numero" type="text" name="numero" class="form-control">
           </div>
         </div>
-
-        <div class="row mb-3">
+        <div class="row mb-4">
           <div class="col-md-6">
-            <label>Data de Devolução</label>
-            <input type="date" name="data_devolucao" class="form-control">
+            <label for="bairro">Bairro</label>
+            <input id="bairro" type="text" name="bairro" class="form-control">
           </div>
           <div class="col-md-6">
-            <label>Evento</label>
-            <input type="text" name="evento" class="form-control">
+            <label for="cidade">Cidade</label>
+            <input id="cidade" type="text" name="cidade" class="form-control">
           </div>
         </div>
 
         <hr>
+
+        <!-- === Seção 2: Itens do Traje === -->
         <h5>Itens do Traje</h5>
-
         <div class="row mb-3">
           <div class="col-md-6">
-            <label>Paletó Nº</label>
-            <input type="text" name="paleto" class="form-control">
+            <label for="paleto">Paletó Nº</label>
+            <input id="paleto" type="text" name="paleto" class="form-control">
           </div>
           <div class="col-md-6">
-            <label>Cor do Paletó</label>
-            <select name="cor_paleto" class="form-select color-select" required></select>
+            <label for="cor_paleto">Cor do Paletó</label>
+            <select id="cor_paleto" name="cor_paleto" class="form-select color-select" required></select>
           </div>
         </div>
-
         <div class="row mb-3">
           <div class="col-md-6">
-            <label>Camisa Nº</label>
-            <input type="text" name="camisa" class="form-control">
+            <label for="camisa">Camisa Nº</label>
+            <input id="camisa" type="text" name="camisa" class="form-control">
           </div>
           <div class="col-md-6">
-            <label>Cor da Camisa</label>
-            <select name="cor_camisa" class="form-select color-select" required></select>
+            <label for="cor_camisa">Cor da Camisa</label>
+            <select id="cor_camisa" name="cor_camisa" class="form-select color-select" required></select>
           </div>
         </div>
-
         <div class="row mb-3">
           <div class="col-md-6">
-            <label>Calça Nº</label>
-            <input type="text" name="calca" class="form-control">
+            <label for="calca">Calça Nº</label>
+            <input id="calca" type="text" name="calca" class="form-control">
           </div>
           <div class="col-md-6">
-            <label>Cor da Calça</label>
-            <select name="cor_calca" class="form-select color-select" required></select>
+            <label for="cor_calca">Cor da Calça</label>
+            <select id="cor_calca" name="cor_calca" class="form-select color-select" required></select>
           </div>
         </div>
-
-        <div class="row mb-3">
+        <div class="row mb-4">
           <div class="col-md-4">
-            <label>Sapato Nº</label>
-            <input type="text" name="sapato" class="form-control">
+            <label for="sapato">Sapato Nº</label>
+            <input id="sapato" type="text" name="sapato" class="form-control">
           </div>
           <div class="col-md-4">
-            <label>Gravata</label>
-            <input type="text" name="gravata" class="form-control">
+            <label for="gravata">Gravata</label>
+            <input id="gravata" type="text" name="gravata" class="form-control">
           </div>
           <div class="col-md-4">
-            <label>Coletes / Suspensórios</label>
-            <input type="text" name="colete" class="form-control">
+            <label for="colete">Coletes / Suspensórios</label>
+            <input id="colete" type="text" name="colete" class="form-control">
           </div>
         </div>
 
         <hr>
-        <h5>Pagamento</h5>
 
+        <!-- === Seção 3: Pagamento === -->
+        <h5>Pagamento</h5>
         <div class="row mb-3">
           <div class="col-md-4">
-            <label>Valor Total</label>
-            <input type="number" step="0.01" name="valor_total" class="form-control">
+            <label for="valor_total">Valor Total</label>
+            <input id="valor_total" type="number" step="0.01" name="valor_total" class="form-control">
           </div>
           <div class="col-md-4">
-            <label>Valor Sinalizado</label>
-            <input type="number" step="0.01" name="valor_sinal" class="form-control">
+            <label for="valor_sinal">Valor Sinalizado</label>
+            <input id="valor_sinal" type="number" step="0.01" name="valor_sinal" class="form-control">
           </div>
           <div class="col-md-4">
-            <label>Valor Restante</label>
-            <input type="number" step="0.01" name="valor_restante" class="form-control">
+            <label for="valor_restante">Valor Restante</label>
+            <input id="valor_restante" type="number" step="0.01" name="valor_restante" class="form-control">
           </div>
         </div>
 
@@ -179,7 +186,7 @@
       </form>
     </div>
 
-    <!-- Aba de Listagem -->
+    <!-- Aba de Listagem (sem alterações) -->
     <div class="tab-pane fade" id="listagem" role="tabpanel">
       <div class="wrapper mt-4">
         <div class="card">
@@ -206,46 +213,130 @@
 
 {% block extra_scripts %}
 <script>
+  // utilitário CSRF (igual antes)
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      document.cookie.split(';').forEach(c => {
+        c = c.trim();
+        if (c.startsWith(name + '=')) {
+          cookieValue = decodeURIComponent(c.substring(name.length + 1));
+        }
+      });
+    }
+    return cookieValue;
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
-    // Mantém aba ativa
+    // <<< desativa toda validação HTML5 >>>
+    const form = document.querySelector("form");
+    form.noValidate = true;
+
+    // --- 1) Mantém aba ativa ---
     const savedTab = localStorage.getItem("activeTab");
     if (savedTab) {
-      const triggerEl = document.querySelector(`[data-coreui-target="${savedTab}"]`);
-      if (triggerEl) new coreui.Tab(triggerEl).show();
+      const trigger = document.querySelector(`[data-coreui-target="${savedTab}"]`);
+      if (trigger) new coreui.Tab(trigger).show();
     }
-
-    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach((btn) => {
+    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach(btn => {
       btn.addEventListener("click", () => {
-        const target = btn.getAttribute("data-coreui-target");
-        localStorage.setItem("activeTab", target);
+        localStorage.setItem("activeTab", btn.getAttribute("data-coreui-target"));
       });
     });
 
-    // Preenche todos os selects de cor
+    // --- 2) Carrega cores ---
     fetch("{% url 'list_colors' %}")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
+      .then(res => res.ok ? res.json() : Promise.reject(res.statusText))
       .then(data => {
-        document.querySelectorAll(".color-select").forEach(select => {
-          select.innerHTML = '<option value="">Selecione uma cor</option>';
+        document.querySelectorAll(".color-select").forEach(sel => {
+          sel.innerHTML = '<option value="">Selecione uma cor</option>';
           data.forEach(item => {
-            const option = document.createElement("option");
-            option.value = item.id;
-            option.textContent = item.description;
-            select.appendChild(option);
+            const opt = document.createElement("option");
+            opt.value = item.id;
+            opt.textContent = item.description;
+            sel.appendChild(opt);
           });
         });
       })
-      .catch(error => {
-        console.error("Erro ao carregar cores:", error);
-        document.querySelectorAll(".color-select").forEach(select => {
-          select.innerHTML = '<option value="">Erro ao carregar</option>';
+      .catch(err => {
+        console.error("Erro ao carregar cores:", err);
+        document.querySelectorAll(".color-select").forEach(sel => {
+          sel.innerHTML = '<option value="">Erro ao carregar</option>';
         });
       });
+
+    // --- 3) ViaCEP + limpeza de campos se o CEP for apagado ---
+    const cepInput = document.getElementById("cep");
+    const ruaEl    = document.getElementById("rua");
+    const bairroEl = document.getElementById("bairro");
+    const cidadeEl = document.getElementById("cidade");
+
+    cepInput.addEventListener("blur", () => {
+      const raw = cepInput.value.replace(/\D/g, "");
+      if (raw.length === 8) {
+        fetch(`https://viacep.com.br/ws/${raw}/json/`)
+          .then(r => r.json())
+          .then(data => {
+            if (!data.erro) {
+              ruaEl.value    = data.logradouro;
+              bairroEl.value = data.bairro;
+              cidadeEl.value = data.localidade;
+            } else {
+              alert("CEP não encontrado.");
+              ruaEl.value = bairroEl.value = cidadeEl.value = "";
+            }
+          })
+          .catch(() => {
+            alert("Erro ao consultar CEP.");
+            ruaEl.value = bairroEl.value = cidadeEl.value = "";
+          });
+      } else {
+        // apagou ou inválido → limpa
+        ruaEl.value = bairroEl.value = cidadeEl.value = "";
+      }
+    });
+
+    // --- 4) Intercepta o submit e cadastra cliente via AJAX ---
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();  // já que estamos no teste, não submete o OS
+
+      const csrftoken = getCookie('csrftoken');
+      const payload = {
+        nome:     document.getElementById("cliente_nome").value,
+        telefone: document.getElementById("telefone").value,
+        cpf:      document.getElementById("cpf").value,
+        cep:      cepInput.value,
+        rua:      ruaEl.value,
+        numero:   document.getElementById("numero").value,
+        bairro:   bairroEl.value,
+        cidade:   cidadeEl.value
+      };
+
+      fetch("{% url 'register_client' %}", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json().then(json => ({ status: res.status, body: json })))
+      .then(({ status, body }) => {
+        if (status >= 200 && status < 300) {
+          console.log("✅ Cliente cadastrado:", body);
+          alert("Cliente cadastrado com sucesso! Confira o console.");
+        } else {
+          console.error("❌ Erro ao cadastrar cliente:", body);
+          alert("Falha ao cadastrar cliente: " + (body.error || "veja console"));
+        }
+      })
+      .catch(err => {
+        console.error("❌ Erro de rede:", err);
+        alert("Erro de rede ao cadastrar cliente.");
+      });
+    });
+
   });
 </script>
 {% endblock extra_scripts %}
