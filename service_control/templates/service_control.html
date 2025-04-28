@@ -1,342 +1,626 @@
 {% extends "base_auth.html" %}
 {% load static %}
 
-{% block title %}Ordens de Serviço{% endblock title %}
-
 {% block extra_head %}
-<link href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css" rel="stylesheet">
-
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
-  .form-select, .form-control {
-    background-color: var(--input-bg-color);
-    color: var(--text-color);
-    border: 1px solid var(--modal-border-color);
+  :root {
+    --primary: #0069d9;
+    --light-bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --danger: #dc3545;
   }
-  label {
-    font-weight: bold;
+  body {
+    background: var(--light-bg);
+    color: var(--text);
   }
-  .card {
-    border: 1px solid rgb(189, 189, 189);
-    padding-top: 50px;
-    transition: 0.5s;
-    margin-top: 10px;
-    padding: 15px;
-    display: flex;
-    box-shadow: 1px 1px 5px 0px #9c9c9c;
-    border-radius: 15px;
-    width: 520px;
-    justify-content: center;
-    position: relative;
-    background-color: var(--bg-color);
+
+  /* Layout */
+  .d-flex.main { gap: 1rem; }
+  .form-container {
+    flex-grow: 1;
+    max-width: calc(100% - 620px);
+    transition: max-width .3s ease;
   }
-  .cliente-info, .contrato-info {
-    display: flex;
-    flex-direction: column;
-    margin-left: 10px;
+  .list-mode .form-container {
+    max-width: 100% !important;
   }
-  .cliente-info p, .contrato-info p {
-    font-size: 13px;
-    margin: 5px 0;
-    color: var(--text-color);
+
+  .summary-sidebar {
+    width: 600px;
+    flex-shrink: 0;
+    background: var(--card-bg);
+    border-left: 2px solid var(--primary);
+    padding: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+    transition: opacity .3s ease, width .3s ease;
   }
-  .saldos {
+  .list-mode .summary-sidebar {
+    opacity: 0;
+    width: 0;
+    pointer-events: none;
+  }
+
+  /* Inputs padding (placeholder spacing) */
+  .form-control, .form-select {
+    padding: .75rem .75rem;
+  }
+
+  /* Stepper */
+  .stepper { display: flex; justify-content: space-between; margin: 2rem 0; position: relative; }
+  .stepper::before {
+    content: ''; position: absolute; top: 50%; left: 2rem; right: 2rem;
+    height: 2px; background: var(--border); z-index: 0;
+  }
+  .step { position: relative; z-index: 1; text-align: center; flex: 1; }
+  .step-circle {
+    display: inline-block; width: 2.5rem; height: 2.5rem;
+    line-height: 2.5rem; border-radius: 50%; border: 2px solid var(--border);
+    background: var(--card-bg); transition: .3s;
+  }
+  .step-label { margin-top: .3rem; font-size: .9rem; display: block; }
+  .step.active .step-circle, .step.completed .step-circle {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+  .step.active .step-label, .step.completed .step-label { color: var(--primary); }
+
+  /* Form Steps */
+  .form-step { display: none; animation: fadeIn .3s; }
+  .form-step.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+  /* Summary */
+  .summary-sidebar h5 { color: var(--primary); margin-bottom: 1rem; font-weight: 600; }
+  .summary-section { margin-bottom: 1.5rem; display: none; }
+  .summary-section h6 {
+    margin-bottom: .5rem; font-weight: 600; font-size: 1rem; color: var(--primary);
+  }
+  .summary-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 7px;
-    margin-top: 15px;
-    background-color: var(--card-bg-color);
-    border-radius: 15px;
-    padding: 10px;
-    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .5rem;
   }
+  .summary-item {
+    background: var(--light-bg);
+    border: 1px solid var(--border);
+    border-radius: .25rem;
+    padding: .4rem .6rem;
+    font-size: .85rem;
+  }
+  .summary-item .label { font-weight: 600; margin-right: .25rem; }
+
+  /* Toast */
+  .toast-body ul { margin: 0; padding-left: 1rem; }
 </style>
-{% endblock extra_head %}
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <ul class="nav nav-tabs" role="tablist">
-    <li class="nav-item">
-      <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">
-        Cadastrar OS
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">
-        Listar OS
-      </button>
-    </li>
-  </ul>
+<div class="container my-4">
+  <div class="d-flex main">
 
-  <div class="tab-content mt-3">
-    <!-- Aba de Cadastro -->
-    <div class="tab-pane fade show active" id="cadastro" role="tabpanel">
-      <form method="POST">
-        {% csrf_token %}
+    <!-- Form -->
+    <div class="form-container">
+      <div class="card shadow-sm">
+        <div class="card-body">
 
-        <!-- === Seção 1: Dados do Cliente === -->
-        <h5>Dados do Cliente</h5>
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <label for="cliente_nome">Nome do Cliente</label>
-            <input id="cliente_nome" type="text" name="cliente_nome" class="form-control" required>
-          </div>
-          <div class="col-md-4">
-            <label for="telefone">Telefone</label>
-            <input id="telefone" type="text" name="telefone" class="form-control">
-          </div>
-          <div class="col-md-4">
-            <label for="cpf">CPF</label>
-            <input id="cpf" type="text" name="cpf" class="form-control">
-          </div>
-        </div>
-        <div class="row mb-3">
-          <div class="col-md-3">
-            <label for="cep">CEP</label>
-            <input id="cep" type="text" name="cep" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label for="rua">Rua</label>
-            <input id="rua" type="text" name="rua" class="form-control">
-          </div>
-          <div class="col-md-3">
-            <label for="numero">Número</label>
-            <input id="numero" type="text" name="numero" class="form-control">
-          </div>
-        </div>
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <label for="bairro">Bairro</label>
-            <input id="bairro" type="text" name="bairro" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label for="cidade">Cidade</label>
-            <input id="cidade" type="text" name="cidade" class="form-control">
-          </div>
-        </div>
+          <!-- Nav -->
+          <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+              <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro">
+                📝 Cadastrar OS
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem">
+                📋 Listar OS
+              </button>
+            </li>
+          </ul>
 
-        <hr>
+          <div class="tab-content">
 
-        <!-- === Seção 2: Itens do Traje === -->
-        <h5>Itens do Traje</h5>
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <label for="paleto">Paletó Nº</label>
-            <input id="paleto" type="text" name="paleto" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label for="cor_paleto">Cor do Paletó</label>
-            <select id="cor_paleto" name="cor_paleto" class="form-select color-select" required></select>
-          </div>
-        </div>
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <label for="camisa">Camisa Nº</label>
-            <input id="camisa" type="text" name="camisa" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label for="cor_camisa">Cor da Camisa</label>
-            <select id="cor_camisa" name="cor_camisa" class="form-select color-select" required></select>
-          </div>
-        </div>
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <label for="calca">Calça Nº</label>
-            <input id="calca" type="text" name="calca" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label for="cor_calca">Cor da Calça</label>
-            <select id="cor_calca" name="cor_calca" class="form-select color-select" required></select>
-          </div>
-        </div>
-        <div class="row mb-4">
-          <div class="col-md-4">
-            <label for="sapato">Sapato Nº</label>
-            <input id="sapato" type="text" name="sapato" class="form-control">
-          </div>
-          <div class="col-md-4">
-            <label for="gravata">Gravata</label>
-            <input id="gravata" type="text" name="gravata" class="form-control">
-          </div>
-          <div class="col-md-4">
-            <label for="colete">Coletes / Suspensórios</label>
-            <input id="colete" type="text" name="colete" class="form-control">
-          </div>
-        </div>
+            <!-- CADASTRO -->
+            <div class="tab-pane fade show active" id="cadastro">
 
-        <hr>
+              <!-- Stepper -->
+              <div class="stepper">
+                <div class="step active" data-step="1"><span class="step-circle">🤍</span><span class="step-label">Cliente</span></div>
+                <div class="step" data-step="2"><span class="step-circle">🧥</span><span class="step-label">Paletó</span></div>
+                <div class="step" data-step="3"><span class="step-circle">👕</span><span class="step-label">Camisa</span></div>
+                <div class="step" data-step="4"><span class="step-circle">👖</span><span class="step-label">Calça</span></div>
+                <div class="step" data-step="5"><span class="step-circle">💎</span><span class="step-label">Acessórios</span></div>
+                <div class="step" data-step="6"><span class="step-circle">💰</span><span class="step-label">Pagamento</span></div>
+              </div>
 
-        <!-- === Seção 3: Pagamento === -->
-        <h5>Pagamento</h5>
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <label for="valor_total">Valor Total</label>
-            <input id="valor_total" type="number" step="0.01" name="valor_total" class="form-control">
-          </div>
-          <div class="col-md-4">
-            <label for="valor_sinal">Valor Sinalizado</label>
-            <input id="valor_sinal" type="number" step="0.01" name="valor_sinal" class="form-control">
-          </div>
-          <div class="col-md-4">
-            <label for="valor_restante">Valor Restante</label>
-            <input id="valor_restante" type="number" step="0.01" name="valor_restante" class="form-control">
-          </div>
-        </div>
+              <form id="osForm" novalidate>
+                {% csrf_token %}
 
-        <button class="btn btn-primary" type="submit">Salvar OS</button>
-      </form>
-    </div>
+                <!-- STEP 1: Cliente -->
+                <div class="form-step active" data-step="1">
+                  <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">Nome *</label><input name="cliente_nome" type="text" class="form-control" placeholder="Digite o nome" required></div>
+                    <div class="col-md-6"><label class="form-label">Telefone *</label><input name="telefone" type="text" class="form-control" placeholder="(__) _____-____" required></div>
+                    <div class="col-md-6"><label class="form-label">CPF *</label><input name="cpf" type="text" class="form-control" placeholder="___.___.___-__" required></div>
+                    <div class="col-md-6"><label class="form-label">CEP</label><input id="cep" name="cep" type="text" class="form-control" placeholder="_____-___"></div>
+                    <div class="col-md-6"><label class="form-label">Rua</label><input id="rua" name="rua" type="text" class="form-control" readonly></div>
+                    <div class="col-md-3"><label class="form-label">Número</label><input id="numero" name="numero" type="text" class="form-control"></div>
+                    <div class="col-md-3"><label class="form-label">Bairro</label><input id="bairro" name="bairro" type="text" class="form-control" readonly></div>
+                    <div class="col-md-6"><label class="form-label">Cidade</label><input id="cidade" name="cidade" type="text" class="form-control" readonly></div>
+                  </div>
+                  <div class="d-flex justify-content-end mt-3">
+                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
+                  </div>
+                </div>
 
-    <!-- Aba de Listagem (sem alterações) -->
-    <div class="tab-pane fade" id="listagem" role="tabpanel">
-      <div class="wrapper mt-4">
-        <div class="card">
-          <h2>OS: #00012</h2>
-          <div class="cliente-info">
-            <p><strong>Cliente:</strong> Vinícius</p>
-            <p><strong>Telefone:</strong> (34) 99999-9999</p>
-            <p><strong>Retirada:</strong> 17/04/2025</p>
-            <p><strong>Devolução:</strong> 20/05/2025</p>
-            <p><strong>Status:</strong> Em andamento</p>
-          </div>
-          <div class="saldos">
-            <p>Valor Total: <span>R$ 130,00</span></p>
-            <p>Valor Sinal: <span>R$ 50,00</span></p>
-            <p>Valor Restante: <span>R$ 80,00</span></p>
-            <p>Atendente: <span>MT</span></p>
+                <!-- STEP 2: Paletó -->
+                <div class="form-step" data-step="2">
+                  <div class="row g-3">
+                    <div class="col-md-2"><label class="form-label">Nº</label><input name="paleto" type="text" class="form-control" placeholder="e.g. 001" required></div>
+                    <div class="col-md-2"><label class="form-label">Cor</label><select name="cor_paleto" class="form-select color-select" required></select></div>
+                    <div class="col-md-2"><label class="form-label">Mg</label><input name="paleto_mg" type="number" class="form-control" placeholder="e.g. 42" required></div>
+                    <div class="col-md-2"><label class="form-label">Ajuste?</label><select name="paleto_ajuste" class="form-select toggle-dependent" data-target=".paleto-ajuste"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 paleto-ajuste dependent-field" style="display:none"><label class="form-label">Ajuste (cm)</label><input name="paleto_ajuste_cm" type="number" step="0.5" class="form-control" placeholder="e.g. 1.5" disabled></div>
+                    <div class="col-md-2"><label class="form-label">Extras</label><input name="paleto_ajustes_adicionais" type="text" class="form-control" placeholder="observações"></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">
+                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
+                  </div>
+                </div>
+
+                <!-- STEP 3: Camisa -->
+                <div class="form-step" data-step="3">
+                  <div class="row g-3">
+                    <div class="col-md-2"><label class="form-label">Nº</label><input name="camisa" type="text" class="form-control" placeholder="e.g. 002" required></div>
+                    <div class="col-md-2"><label class="form-label">Cor</label><select name="cor_camisa" class="form-select color-select" required></select></div>
+                    <div class="col-md-2"><label class="form-label">Mg</label><input name="camisa_mg" type="number" class="form-control" placeholder="e.g. M" required></div>
+                    <div class="col-md-2"><label class="form-label">Ajuste?</label><select name="camisa_ajuste" class="form-select toggle-dependent" data-target=".camisa-ajuste"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 camisa-ajuste dependent-field" style="display:none"><label class="form-label">Ajuste (cm)</label><input name="camisa_ajuste_cm" type="number" step="0.5" class="form-control" placeholder="e.g. 0.5" disabled></div>
+                    <div class="col-md-2"><label class="form-label">Extras</label><input name="camisa_ajustes_adicionais" type="text" class="form-control" placeholder="observações"></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">
+                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
+                  </div>
+                </div>
+
+                <!-- STEP 4: Calça -->
+                <div class="form-step" data-step="4">
+                  <div class="row g-3">
+                    <div class="col-md-2"><label class="form-label">Nº</label><input name="calca" type="text" class="form-control" placeholder="e.g. 003" required></div>
+                    <div class="col-md-2"><label class="form-label">Cor</label><select name="cor_calca" class="form-select color-select" required></select></div>
+                    <div class="col-md-2"><label class="form-label">Cp</label><input name="calca_cp" type="number" class="form-control" placeholder="e.g. 80" required></div>
+                    <div class="col-md-2"><label class="form-label">Perna</label><input name="calca_perna" type="number" class="form-control" placeholder="cm" required></div>
+                    <div class="col-md-2"><label class="form-label">Ajuste?</label><select name="calca_ajuste" class="form-select toggle-dependent" data-target=".calca-ajuste"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 calca-ajuste dependent-field" style="display:none"><label class="form-label">Ajuste (cm)</label><input name="calca_ajuste_cm" type="number" step="0.5" class="form-control" placeholder="e.g. 2.0" disabled></div>
+                    <div class="col-md-4"><label class="form-label">Extras</label><input name="calca_ajustes_adicionais" type="text" class="form-control" placeholder="observações"></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">
+                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
+                  </div>
+                </div>
+
+                <!-- STEP 5: Acessórios -->
+                <div class="form-step" data-step="5">
+                  <div class="row g-3">
+                    <div class="col-md-2"><label class="form-label">Suspensório?</label><select name="suspensorio_sim" class="form-select toggle-dependent" data-target=".suspensorio-info"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 suspensorio-info dependent-field" style="display:none"><label class="form-label">Cor</label><select name="suspensorio_cor" class="form-select color-select"></select></div>
+                    <div class="col-md-2"><label class="form-label">Lenço?</label><select name="lenco_sim" class="form-select toggle-dependent" data-target=".lenco-info"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 lenco-info dependent-field" style="display:none"><label class="form-label">Cor</label><select name="lenco_cor" class="form-select color-select"></select></div>
+                    <div class="col-md-2"><label class="form-label">Passante?</label><select name="passante_sim" class="form-select toggle-dependent" data-target=".passante-info"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 passante-info dependent-field" style="display:none"><label class="form-label">Cor</label><select name="passante_cor" class="form-select color-select"></select></div>
+                    <div class="col-md-2"><label class="form-label">Sapato?</label><select name="sapato_sim" class="form-select toggle-dependent" data-target=".sapato-info"><option value="">--</option><option value="yes">Sim</option><option value="no">Não</option></select></div>
+                    <div class="col-md-2 sapato-info dependent-field" style="display:none"><label class="form-label">Tipo</label><input name="sapato_tipo" type="text" class="form-control"></div>
+                    <div class="col-md-2 sapato-info dependent-field" style="display:none"><label class="form-label">Nº</label><input name="sapato_numero" type="number" class="form-control"></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">
+                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
+                  </div>
+                </div>
+
+                <!-- STEP 6: Pagamento + Salvar -->
+                <div class="form-step" data-step="6">
+                  <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label">Total (R$) *</label><input name="valor_total" type="text" class="form-control" placeholder="0.00" required></div>
+                    <div class="col-md-4"><label class="form-label">Sinal (R$) *</label><input name="valor_sinal" type="text" class="form-control" placeholder="0.00" required></div>
+                    <div class="col-md-4"><label class="form-label">Restante (R$) *</label><input name="valor_restante" type="text" class="form-control" placeholder="0.00" readonly></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">   
+                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="submit" class="btn btn-success">Salvar OS</button>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- LISTAGEM -->
+            <div class="tab-pane fade" id="listagem">
+              <div class="row g-4">
+                {% for os in ordens %}
+                  <div class="col-md-4">
+                    <div class="card h-100">
+                      <div class="card-header">OS #{{ os.id }}</div>
+                      <div class="card-body">
+                        <p><strong>Cliente:</strong> {{ os.cliente.nome }}</p>
+                        <p><strong>Telefone:</strong> {{ os.cliente.telefone }}</p>
+                        <p><strong>Status:</strong> {{ os.status }}</p>
+                        <hr>
+                        <p><strong>Total:</strong> R$ {{ os.valor_total }}</p>
+                        <p><strong>Sinal:</strong> R$ {{ os.valor_sinal }}</p>
+                        <p><strong>Restante:</strong> R$ {{ os.valor_restante }}</p>
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="col-12 text-center text-muted">Nenhuma ordem cadastrada.</div>
+                {% endfor %}
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Summary Sidebar -->
+    <div class="summary-sidebar">
+      <h5>📋 Resumo</h5>
+      <div id="liveSummary">
+        <div class="summary-section" data-section="Cliente">
+          <h6>👤 Cliente</h6>
+          <div class="summary-grid"></div>
+        </div>
+        <div class="summary-section" data-section="Itens">
+          <h6>👔 Itens</h6>
+          <div class="summary-grid"></div>
+        </div>
+        <div class="summary-section" data-section="Acessórios">
+          <h6>💎 Acessórios</h6>
+          <div class="summary-grid"></div>
+        </div>
+        <div class="summary-section" data-section="Pagamento">
+          <h6>💰 Pagamento</h6>
+          <div class="summary-grid"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
-{% endblock content %}
+
+<!-- Error Toast -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index:1100;">
+  <div id="errorToast" class="toast align-items-center border border-danger" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body text-danger"></div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
 
 {% block extra_scripts %}
 <script>
-  // utilitário CSRF (igual antes)
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      document.cookie.split(';').forEach(c => {
-        c = c.trim();
-        if (c.startsWith(name + '=')) {
-          cookieValue = decodeURIComponent(c.substring(name.length + 1));
-        }
-      });
-    }
-    return cookieValue;
-  }
-
-  document.addEventListener("DOMContentLoaded", function () {
-    // <<< desativa toda validação HTML5 >>>
-    const form = document.querySelector("form");
-    form.noValidate = true;
-
-    // --- 1) Mantém aba ativa ---
-    const savedTab = localStorage.getItem("activeTab");
-    if (savedTab) {
-      const trigger = document.querySelector(`[data-coreui-target="${savedTab}"]`);
-      if (trigger) new coreui.Tab(trigger).show();
-    }
-    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach(btn => {
-      btn.addEventListener("click", () => {
-        localStorage.setItem("activeTab", btn.getAttribute("data-coreui-target"));
-      });
+document.addEventListener('DOMContentLoaded', () => {
+  // Steps/navigation
+  const steps = document.querySelectorAll('.step');
+  const forms = document.querySelectorAll('.form-step');
+  const form  = document.getElementById('osForm');
+  const toast = new bootstrap.Toast(document.getElementById('errorToast'));
+  let current = 1;
+  function showStep(n) {
+    forms.forEach(f => f.classList.toggle('active', +f.dataset.step === n));
+    steps.forEach(s => {
+      const idx = +s.dataset.step;
+      s.classList.toggle('active', idx === n);
+      s.classList.toggle('completed', idx < n);
     });
+    current = n;
+  }
+  document.querySelectorAll('[data-action=next]').forEach(btn =>
+    btn.addEventListener('click', () => { if (current < forms.length) showStep(current + 1); })
+  );
+  document.querySelectorAll('[data-action=prev]').forEach(btn =>
+    btn.addEventListener('click', () => { if (current > 1) showStep(current - 1); })
+  );
+  form.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
+  });
+  document.querySelectorAll('[data-coreui-toggle="tab"]').forEach(link =>
+    link.addEventListener('click', () => {
+      document.body.classList.toggle('list-mode', link.getAttribute('data-coreui-target') === '#listagem');
+    })
+  );
 
-    // --- 2) Carrega cores ---
-    fetch("{% url 'list_colors' %}")
-      .then(res => res.ok ? res.json() : Promise.reject(res.statusText))
-      .then(data => {
-        document.querySelectorAll(".color-select").forEach(sel => {
-          sel.innerHTML = '<option value="">Selecione uma cor</option>';
-          data.forEach(item => {
-            const opt = document.createElement("option");
-            opt.value = item.id;
-            opt.textContent = item.description;
-            sel.appendChild(opt);
+  // Summary wiring
+  ['input','change'].forEach(evt => form.addEventListener(evt, updateSummary));
+
+  // --- Masks & Validations ---
+
+  // Telefone
+  const telEl = form.querySelector('input[name="telefone"]');
+  telEl.addEventListener('input', () => {
+    let v = telEl.value.replace(/\D/g, '').slice(0,11);
+    if (v.length > 2) {
+      const d = v.slice(0,2), n = v.slice(2);
+      if (n.length > 8) v = `(${d}) ${n.slice(0,5)}-${n.slice(5)}`;
+      else if (n.length > 4) v = `(${d}) ${n.slice(0,4)}-${n.slice(4)}`;
+      else v = `(${d}) ${n}`;
+    }
+    telEl.value = v;
+  });
+
+  // CPF
+  const cpfEl = form.querySelector('input[name="cpf"]');
+  cpfEl.addEventListener('input', () => {
+    let v = cpfEl.value.replace(/\D/g, '').slice(0,11);
+    if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/(\d{3})(\d{0,3})/, '$1.$2');
+    cpfEl.value = v;
+  });
+
+  // CEP + ViaCEP
+  const cepEl = document.getElementById('cep');
+  cepEl.addEventListener('input', () => {
+    let v = cepEl.value.replace(/\D/g, '').slice(0,8);
+    if (v.length > 5) v = v.replace(/(\d{5})(\d{0,3})/, '$1-$2');
+    cepEl.value = v;
+  });
+  ['blur','input'].forEach(evt => cepEl.addEventListener(evt, async () => {
+    const v = cepEl.value.replace(/\D/g,'');
+    if (v.length === 8) {
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${v}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          ['logradouro','bairro','localidade'].forEach((f,i) => {
+            ['rua','bairro','cidade'][i] && (document.getElementById(['rua','bairro','cidade'][i]).value = data[f]);
           });
-        });
-      })
-      .catch(err => {
-        console.error("Erro ao carregar cores:", err);
-        document.querySelectorAll(".color-select").forEach(sel => {
-          sel.innerHTML = '<option value="">Erro ao carregar</option>';
-        });
-      });
+        }
+      } catch {}
+    } else if (!v) {
+      ['rua','bairro','cidade'].forEach(id => document.getElementById(id).value = '');
+    }
+    updateSummary();
+  }));
 
-    // --- 3) ViaCEP + limpeza de campos se o CEP for apagado ---
-    const cepInput = document.getElementById("cep");
-    const ruaEl    = document.getElementById("rua");
-    const bairroEl = document.getElementById("bairro");
-    const cidadeEl = document.getElementById("cidade");
+  // Numeric clamp ≤200 for base fields
+  ['paleto_mg','camisa_mg','calca_cp','calca_perna','numero'].forEach(name => {
+    const el = form.querySelector(`[name="${name}"]`);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const n = parseFloat(el.value);
+      if (!isNaN(n)) {
+        if (n > 200) el.value = 200;
+        else if (n < 0) el.value = '';
+      }
+    });
+  });
 
-    cepInput.addEventListener("blur", () => {
-      const raw = cepInput.value.replace(/\D/g, "");
-      if (raw.length === 8) {
-        fetch(`https://viacep.com.br/ws/${raw}/json/`)
-          .then(r => r.json())
-          .then(data => {
-            if (!data.erro) {
-              ruaEl.value    = data.logradouro;
-              bairroEl.value = data.bairro;
-              cidadeEl.value = data.localidade;
-            } else {
-              alert("CEP não encontrado.");
-              ruaEl.value = bairroEl.value = cidadeEl.value = "";
-            }
-          })
-          .catch(() => {
-            alert("Erro ao consultar CEP.");
-            ruaEl.value = bairroEl.value = cidadeEl.value = "";
-          });
+  // Ajuste logic: only enable when base exists & < base
+  [
+    { adj: 'paleto_ajuste_cm', base: 'paleto_mg', toggle: 'paleto_ajuste', step: 0.5 },
+    { adj: 'camisa_ajuste_cm', base: 'camisa_mg', toggle: 'camisa_ajuste', step: 0.5 },
+    { adj: 'calca_ajuste_cm',  base: 'calca_perna', toggle: 'calca_ajuste',  step: 0.5 },
+  ].forEach(({adj, base, toggle, step}) => {
+    const adjEl    = form.querySelector(`[name="${adj}"]`);
+    const baseEl   = form.querySelector(`[name="${base}"]`);
+    const toggleEl = form.querySelector(`[name="${toggle}"]`);
+    const wrapper  = adjEl.closest('.dependent-field');
+
+    function updateAdjustVisibility() {
+      const bv = parseFloat(baseEl.value);
+      if (toggleEl.value === 'yes' && !isNaN(bv)) {
+        wrapper.style.display = 'block';
+        adjEl.disabled = false;
+        adjEl.setAttribute('max', bv - step);
       } else {
-        // apagou ou inválido → limpa
-        ruaEl.value = bairroEl.value = cidadeEl.value = "";
+        wrapper.style.display = 'none';
+        adjEl.value = '';
+        adjEl.disabled = true;
+      }
+    }
+
+    toggleEl.addEventListener('change', updateAdjustVisibility);
+    baseEl.addEventListener('input', updateAdjustVisibility);
+
+    adjEl.addEventListener('input', () => {
+      const av = parseFloat(adjEl.value);
+      const max = parseFloat(adjEl.max);
+      if (!isNaN(av) && !isNaN(max) && av >= max) {
+        adjEl.value = max;
       }
     });
 
-    // --- 4) Intercepta o submit e cadastra cliente via AJAX ---
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();  // já que estamos no teste, não submete o OS
+    // init
+    updateAdjustVisibility();
+  });
 
-      const csrftoken = getCookie('csrftoken');
-      const payload = {
-        nome:     document.getElementById("cliente_nome").value,
-        telefone: document.getElementById("telefone").value,
-        cpf:      document.getElementById("cpf").value,
-        cep:      cepInput.value,
-        rua:      ruaEl.value,
-        numero:   document.getElementById("numero").value,
-        bairro:   bairroEl.value,
-        cidade:   cidadeEl.value
-      };
+  // Payment logic
+  const totalEl = form.querySelector('input[name="valor_total"]');
+  const sinalEl = form.querySelector('input[name="valor_sinal"]');
+  const restEl  = form.querySelector('input[name="valor_restante"]');
+  restEl.setAttribute('readonly','readonly');
 
-      fetch("{% url 'register_client' %}", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrftoken
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.json().then(json => ({ status: res.status, body: json })))
-      .then(({ status, body }) => {
-        if (status >= 200 && status < 300) {
-          console.log("✅ Cliente cadastrado:", body);
-          alert("Cliente cadastrado com sucesso! Confira o console.");
-        } else {
-          console.error("❌ Erro ao cadastrar cliente:", body);
-          alert("Falha ao cadastrar cliente: " + (body.error || "veja console"));
-        }
-      })
-      .catch(err => {
-        console.error("❌ Erro de rede:", err);
-        alert("Erro de rede ao cadastrar cliente.");
+  function fmtDec(el) {
+    let parts = el.value.replace(/[^0-9\.]/g,'').split('.');
+    if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
+    el.value = parts[0] + (parts[1] ? '.' + parts[1].slice(0,2) : '');
+  }
+
+  // on total input: format + recalc rest
+  totalEl.addEventListener('input', () => {
+    fmtDec(totalEl);
+    const t = parseFloat(totalEl.value);
+    const s = parseFloat(sinalEl.value);
+    if (!isNaN(t)) {
+      if (isNaN(s)) restEl.value = t.toFixed(2);
+      else restEl.value = (t - s).toFixed(2);
+    } else {
+      restEl.value = '';
+    }
+  });
+  // on sinal input: format + recalc rest fluidly
+  sinalEl.addEventListener('input', () => {
+    fmtDec(sinalEl);
+    const t = parseFloat(totalEl.value);
+    const s = parseFloat(sinalEl.value);
+    if (!isNaN(t)) {
+      if (isNaN(s)) restEl.value = t.toFixed(2);
+      else restEl.value = (t - s).toFixed(2);
+    } else {
+      restEl.value = '';
+    }
+  });
+  // on blur: enforce clamp sinal ≤ total
+  [totalEl, sinalEl].forEach(el => {
+    el.addEventListener('blur', () => {
+      const t = parseFloat(totalEl.value);
+      let s = parseFloat(sinalEl.value);
+      if (!isNaN(t)) {
+        if (isNaN(s) || s < 0) s = 0;
+        if (s > t) s = t;
+        sinalEl.value = s.toFixed(2);
+        restEl.value  = (t - s).toFixed(2);
+      }
+    });
+  });
+
+  // Load colors
+  fetch("{% url 'list_colors' %}")
+    .then(r => r.json())
+    .then(colors => {
+      document.querySelectorAll('.color-select').forEach(sel => {
+        sel.innerHTML = '<option value="">--</option>' +
+          colors.map(c => `<option value="${c.id}">${c.description}</option>`).join('');
       });
     });
 
+  // Toggle dependent fields (other accessories)
+  document.querySelectorAll('.toggle-dependent').forEach(sel => sel.addEventListener('change', () => {
+    document.querySelectorAll(sel.dataset.target).forEach(el => {
+      el.style.display = sel.value === 'yes' ? 'block' : 'none';
+    });
+    updateSummary();
+  }));
+
+  // Build summary
+  const itemGroups = [
+    ['Paletó', [
+      ['paleto','Nº'],['cor_paleto','Cor'],['paleto_mg','Mg'],
+      ['paleto_ajuste_cm','Ajuste', f=>f.get('paleto_ajuste')==='yes'],
+      ['paleto_ajustes_adicionais','Extras']
+    ]],
+    ['Camisa', [
+      ['camisa','Nº'],['cor_camisa','Cor'],['camisa_mg','Mg'],
+      ['camisa_ajuste_cm','Ajuste', f=>f.get('camisa_ajuste')==='yes'],
+      ['camisa_ajustes_adicionais','Extras']
+    ]],
+    ['Calça', [
+      ['calca','Nº'],['cor_calca','Cor'],['calca_cp','Cp'],['calca_perna','Perna'],
+      ['calca_ajuste_cm','Ajuste', f=>f.get('calca_ajuste')==='yes'],
+      ['calca_ajustes_adicionais','Extras']
+    ]]
+  ];
+  const schema = {
+    'Cliente': [
+      ['cliente_nome','Nome'],['telefone','Telefone'],['cpf','CPF'],
+      ['rua','Rua'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade']
+    ],
+    'Acessórios': [
+      ['suspensorio_sim','Suspensório'],['suspensorio_cor','Cor', f=>f.get('suspensorio_sim')==='yes'],
+      ['lenco_sim','Lenço'],['lenco_cor','Cor', f=>f.get('lenco_sim')==='yes'],
+      ['passante_sim','Passante'],['passante_cor','Cor', f=>f.get('passante_sim')==='yes'],
+      ['sapato_sim','Sapato'],['sapato_tipo','Tipo', f=>f.get('sapato_sim')==='yes'],
+      ['sapato_numero','Nº', f=>f.get('sapato_sim')==='yes']
+    ],
+    'Pagamento': [
+      ['valor_total','Total'],['valor_sinal','Sinal'],['valor_restante','Restante']
+    ]
+  };
+  function updateSummary() {
+    const fd = new FormData(form);
+    ['Cliente','Itens','Acessórios','Pagamento'].forEach(section => {
+      const secEl = document.querySelector(`.summary-section[data-section="${section}"]`);
+      const grid  = secEl.querySelector('.summary-grid');
+      grid.innerHTML = '';
+      if (section==='Itens') {
+        itemGroups.forEach(([title, fields]) => {
+          const parts = [];
+          fields.forEach(([k,label,cond]) => {
+            if ((!cond||cond(fd)) && fd.get(k)) {
+              let v = fd.get(k);
+              const el = form.querySelector(`[name="${k}"]`);
+              if (el && el.tagName==='SELECT') v = el.options[el.selectedIndex]?.text||v;
+              parts.push(`<span class="label">${label}:</span>${v}`);
+            }
+          });
+          if (parts.length) {
+            const div = document.createElement('div');
+            div.className = 'summary-item';
+            div.innerHTML = `<strong>${title}:</strong> `+parts.join(' | ');
+            grid.appendChild(div);
+          }
+        });
+      } else {
+        schema[section].forEach(([k,label,cond]) => {
+          if ((!cond||cond(fd)) && fd.get(k)) {
+            const div = document.createElement('div');
+            div.className = 'summary-item';
+            if (k.endsWith('_sim')) {
+              if (fd.get(k)==='yes') div.innerHTML = `<span class="label">${label}</span>✅`;
+            } else {
+              let v = fd.get(k);
+              const el = form.querySelector(`[name="${k}"]`);
+              if (el && el.tagName==='SELECT') v = el.options[el.selectedIndex]?.text||v;
+              div.innerHTML = `<span class="label">${label}:</span>${v}`;
+            }
+            grid.appendChild(div);
+          }
+        });
+      }
+      secEl.style.display = grid.children.length ? 'block' : 'none';
+    });
+  }
+
+  // Validate & submit
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const missing = [];
+    ['Cliente','Itens','Acessórios','Pagamento'].forEach(section => {
+      if (section==='Itens') {
+        itemGroups.forEach(([title,fields]) => {
+          const [k] = fields[0];
+          if (!form.querySelector(`[name="${k}"]`).value) missing.push(title);
+        });
+      } else {
+        schema[section].forEach(([k,label,cond]) => {
+          if ((!cond||cond(new FormData(form))) && !form.querySelector(`[name="${k}"]`).value) {
+            missing.push(label);
+          }
+        });
+      }
+    });
+    if (missing.length) {
+      const body = document.getElementById('errorToast').querySelector('.toast-body');
+      const uniq = [...new Set(missing)];
+      body.innerHTML = '<strong>Campos faltando:</strong><ul>' + uniq.map(l=>`<li>${l}</li>`).join('') + '</ul>';
+      toast.show();
+    } else {
+      form.submit();
+    }
   });
+
+  // Initialize
+  showStep(1);
+  updateSummary();
+});
 </script>
-{% endblock extra_scripts %}
+{% endblock %}

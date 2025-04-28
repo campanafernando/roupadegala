@@ -94,7 +94,9 @@ class PersonsContacts(BaseModel):
 
 
 class PersonsAdresses(BaseModel):
-    address = models.CharField(max_length=255)
+    street = models.CharField(max_length=255)
+    number = models.CharField(max_length=255, null=True, blank=True)
+    cep = models.CharField(max_length=255)
     neighborhood = models.CharField(max_length=255)
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     person = models.ForeignKey(Person, on_delete=models.CASCADE)

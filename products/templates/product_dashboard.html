@@ -4,207 +4,150 @@
 {% block title %}Produtos{% endblock title %}
 
 {% block extra_head %}
-<link href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css" rel="stylesheet">
-{% comment %} <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.noStyle.js"></script> {% endcomment %}
-
-<style>
-  .ag-theme-quartz, .ag-theme-quartz-dark {
-    width: 100%;
-    height: 500px;
-    margin-top: 20px;
-  }
-
-  body:not(.dark-mode) .nav-tabs .nav-link {
-    color: black;
-  }
-
-  body.dark-mode .nav-tabs .nav-link {
-    color: white;
-  }
-
-  .nav-tabs .nav-link.active {
-    background-color:rgb(49, 0, 133);
-    color: white !important;
-  }
-
-  .nav-tabs .nav-link:hover {
-    color: rgb(49, 0, 133);
-  }
-
-  .btn-primary {
-    background-color: rgb(49, 0, 133);
-    border-color: rgb(49, 0, 133);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: #6a44b8;
-    border-color: #6a44b8;
-  }
-
-  .form-select, .form-control {
-    background-color: var(--input-bg-color);
-    color: var(--text-color);
-    border: 1px solid var(--modal-border-color);
-  }
-
-  label {
-    font-weight: bold;
-  }
-</style>
+  <link href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css" rel="stylesheet">
+  <style>
+    .ag-theme-quartz, .ag-theme-quartz-dark {
+      height: 500px;
+      margin-top: 1rem;
+    }
+    body.dark-mode .nav-tabs .nav-link { color: #eee; }
+    body:not(.dark-mode) .nav-tabs .nav-link { color: #333; }
+  </style>
 {% endblock extra_head %}
 
 {% block content %}
-<h1 style="font-size: 20px; text-align: center; margin-bottom: 0;">Controle de Estoque</h1>
-
-<div class="container mt-4">
-  <ul class="nav nav-tabs" role="tablist">
-    <li class="nav-item">
-      <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">Cadastrar Produto</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">Estoque</button>
-    </li>
-  </ul>
-
-  <div class="tab-content mt-3">
-    <!-- Cadastro -->
-    <div class="tab-pane fade show active" id="cadastro" role="tabpanel">
-      <form method="POST">
-        {% csrf_token %}
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <label>Tipo</label>
-            <select name="product_type" class="form-select" required>
-              {% for pt in product_types %}<option value="{{ pt.id }}">{{ pt.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label>Marca</label>
-            <select name="brand" class="form-select" required>
-              {% for b in brands %}<option value="{{ b.id }}">{{ b.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label>Tecido</label>
-            <select name="fabric" class="form-select" required>
-              {% for f in fabrics %}<option value="{{ f.id }}">{{ f.description }}</option>{% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <label>Catálogo de Cores</label>
-            <select name="color_catalogue" class="form-select" required>
-              {% for c in color_catalogues %}<option value="{{ c.id }}">{{ c.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label>Intensidade da Cor</label>
-            <select name="color_intensity" class="form-select" required>
-              {% for ci in color_intensities %}<option value="{{ ci.id }}">{{ ci.description }}</option>{% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <label>Padrão</label>
-            <select name="pattern" class="form-select">
-              <option value="">---</option>
-              {% for p in patterns %}<option value="{{ p.id }}">{{ p.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label>Botão</label>
-            <select name="button" class="form-select">
-              <option value="">---</option>
-              {% for b in buttons %}<option value="{{ b.id }}">{{ b.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label>Lapela</label>
-            <select name="lapel" class="form-select">
-              <option value="">---</option>
-              {% for l in lapels %}<option value="{{ l.id }}">{{ l.description }}</option>{% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-6">
-            <label>Modelo</label>
-            <select name="model" class="form-select">
-              <option value="">---</option>
-              {% for m in models %}<option value="{{ m.id }}">{{ m.description }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label>Estoque</label>
-            <select name="on_stock" class="form-select">
-              <option value="true">Sim</option>
-              <option value="false">Não</option>
-            </select>
-          </div>
-        </div>
-
-        <button class="btn btn-primary" type="submit">Salvar Produto</button>
-      </form>
+<div class="container py-4">
+  <div class="card shadow-sm">
+    <div class="card-header bg-transparent border-0 pb-0">
+      <ul class="nav nav-tabs" id="produtosTabs" role="tablist">
+        <li class="nav-item">
+          <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro" type="button">Cadastrar</button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem" type="button">Estoque</button>
+        </li>
+      </ul>
     </div>
+    <div class="card-body">
+      <div class="tab-content">
 
-    <!-- Estoque -->
-    <div class="tab-pane fade" id="listagem" role="tabpanel">
-      <div id="productGrid"></div>
+        <!-- Cadastro -->
+        <div class="tab-pane fade show active" id="cadastro">
+          <form method="POST" class="row g-3">
+            {% csrf_token %}
+
+            <div class="col-md-4">
+              <label class="form-label">Tipo</label>
+              <select name="product_type" class="form-select" required>
+                {% for pt in product_types %}<option value="{{ pt.id }}">{{ pt.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Marca</label>
+              <select name="brand" class="form-select" required>
+                {% for b in brands %}<option value="{{ b.id }}">{{ b.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Tecido</label>
+              <select name="fabric" class="form-select" required>
+                {% for f in fabrics %}<option value="{{ f.id }}">{{ f.description }}</option>{% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Catálogo de Cores</label>
+              <select name="color_catalogue" class="form-select" required>
+                {% for c in color_catalogues %}<option value="{{ c.id }}">{{ c.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Intensidade da Cor</label>
+              <select name="color_intensity" class="form-select" required>
+                {% for ci in color_intensities %}<option value="{{ ci.id }}">{{ ci.description }}</option>{% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label">Padrão</label>
+              <select name="pattern" class="form-select">
+                <option value="">—</option>
+                {% for p in patterns %}<option value="{{ p.id }}">{{ p.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Botão</label>
+              <select name="button" class="form-select">
+                <option value="">—</option>
+                {% for b in buttons %}<option value="{{ b.id }}">{{ b.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Lapela</label>
+              <select name="lapel" class="form-select">
+                <option value="">—</option>
+                {% for l in lapels %}<option value="{{ l.id }}">{{ l.description }}</option>{% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Modelo</label>
+              <select name="model" class="form-select">
+                <option value="">—</option>
+                {% for m in models %}<option value="{{ m.id }}">{{ m.description }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Estoque</label>
+              <select name="on_stock" class="form-select">
+                <option value="true">Sim</option>
+                <option value="false">Não</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">Salvar Produto</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Listagem -->
+        <div class="tab-pane fade" id="listagem">
+          <div id="productGrid" class="ag-theme-quartz w-100"></div>
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Modal -->
-<div class="modal fade" id="stockModal" tabindex="-1" aria-labelledby="stockModalLabel" aria-hidden="true">
+<!-- Modal de status -->
+<div class="modal fade" id="stockModal" tabindex="-1">
   <div class="modal-dialog">
-    <form id="updateStockForm" method="POST">
+    <form id="updateStockForm" class="modal-content">
       {% csrf_token %}
       <input type="hidden" name="product_id" id="modalProductId">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Alterar Status do Produto</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
+      <div class="modal-header">
+        <h5 class="modal-title">Alterar Status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
       <div class="modal-body">
         <div class="form-check form-switch mb-2">
-          <input class="form-check-input" type="checkbox" role="switch" id="confirmToggleStock" name="on_stock">
-          <label class="form-check-label" for="confirmToggleStock">Produto em estoque</label>
+          <input class="form-check-input" type="checkbox" id="confirmToggleStock" name="on_stock">
+          <label class="form-check-label" for="confirmToggleStock">Em estoque</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="confirmToggleCanceled" name="canceled">
+          <label class="form-check-label" for="confirmToggleCanceled">Remover produto</label>
         </div>
         <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="confirmToggleCanceled" name="canceled">
-          <label class="form-check-label" for="confirmToggleCanceled">Remover Produto</label>
-        </div>
-        <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" role="switch" id="generateQRCode" name="generate_qr_code">
-        <label class="form-check-label" for="generateQRCode">Gerar QR Code</label>
+          <input class="form-check-input" type="checkbox" id="generateQRCode" name="generate_qr_code">
+          <label class="form-check-label" for="generateQRCode">Gerar QR Code</label>
         </div>
       </div>
-
-      <!-- Modal QR Code -->
-      <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-sm modal-dialog-centered">
-        <div class="modal-content text-center">
-          <div class="modal-header">
-            <h5 class="modal-title">QR Code do Produto</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-          </div>
-          <div class="modal-body">
-            <img id="qrCodeImage" src="" alt="QR Code" style="width: 100%; height: auto;">
-          </div>
-        </div>
-      </div>
-      </div>
-
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">Salvar</button>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
       </div>
     </form>
   </div>
@@ -213,169 +156,77 @@
 
 {% block extra_scripts %}
 <script>
+(function(){
   const rowData = {{ products_aggrid_data|safe }};
-  let grid;
-  let previousCheckbox = null;
-
   const gridOptions = {
     columnDefs: [
-      {
-        headerName: "Ações",
-        field: "id",
-        width: 100,
-        cellRenderer: (params) => {
-          // Sempre desmarcada
-          return `<input type="checkbox" class="toggle-stock" data-id="${params.data.id}" />`;
-        },
-        suppressHeaderMenuButton: true,
-        sortable: false,
-        filter: false
-      },
-      { headerName: "Tipo", field: "product_type" },
-      { headerName: "Marca", field: "brand" },
-      { headerName: "Tecido", field: "fabric" },
-      { headerName: "Cor", field: "color" },
-      { headerName: "Modelo", field: "model" },
-      { headerName: "Código", field: "label_code" },
-      {
-        headerName: "Estoque",
-        field: "on_stock",
-        cellRenderer: (params) => params.value ? "✔️ Sim" : "❌ Não"
-      }
+      { headerName:'Ações', field:'id', width:80, cellRenderer:p=>`<input type="checkbox" class="toggle-stock" data-id="${p.data.id}">`, sortable:false, filter:false },
+      { headerName:'Tipo', field:'product_type' },
+      { headerName:'Marca', field:'brand' },
+      { headerName:'Tecido', field:'fabric' },
+      { headerName:'Cor', field:'color' },
+      { headerName:'Modelo', field:'model' },
+      { headerName:'Código', field:'label_code' },
+      { headerName:'Estoque', field:'on_stock', cellRenderer:p=>p.value?'✔️':'❌' }
     ],
-    rowData: rowData,
-    theme: "quartz",
-    pagination: true,
-    paginationPageSize: 10,
-    paginationPageSizeSelector: [10, 20, 50, 100],
-    defaultColDef: {
-      sortable: true,
-      filter: true,
-      resizable: true,
-    },
-    onGridReady: (params) => {
-      params.api.sizeColumnsToFit();
-    }
+    rowData, pagination:true, paginationPageSize:10,
+    defaultColDef:{ sortable:true, filter:true, resizable:true }
   };
 
-  function getAgGridTheme() {
-    return document.body.classList.contains("dark-mode") ? "ag-theme-quartz-dark" : "ag-theme-quartz";
-  }
-
-  function renderGrid() {
-    const gridDiv = document.getElementById("productGrid");
-    gridDiv.className = getAgGridTheme();
-    gridDiv.style.height = "500px";
-    gridDiv.style.width = "100%";
-    if (grid) grid.destroy();
-    grid = agGrid.createGrid(gridDiv, gridOptions);
-
-    setTimeout(() => {
-      document.querySelectorAll(".toggle-stock").forEach((checkbox) => {
-        checkbox.checked = false; // Garantir que sempre inicie desmarcado
-
-        checkbox.addEventListener("change", function () {
-          const productId = this.dataset.id;
-          previousCheckbox = this;
-
-          const productData = rowData.find(p => p.id == productId);
-          if (!productData) return;
-
-          document.getElementById("modalProductId").value = productId;
-          document.getElementById("confirmToggleStock").checked = productData.on_stock;
-
-          const modal = new bootstrap.Modal(document.getElementById("stockModal"));
-          modal.show();
-        });
+  function renderGrid(){
+    const gridDiv = document.querySelector('#productGrid');
+    gridDiv.className = document.body.classList.contains('dark-mode')
+      ? 'ag-theme-quartz-dark w-100'
+      : 'ag-theme-quartz w-100';
+    agGrid.createGrid(gridDiv, gridOptions);
+    setTimeout(()=>{
+      document.querySelectorAll('.toggle-stock').forEach(chk=>{
+        chk.checked=false;
+        chk.onchange=()=>{
+          document.getElementById('modalProductId').value = chk.dataset.id;
+          new bootstrap.Modal('#stockModal').show();
+        };
       });
-    }, 300);
+    },200);
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    // Restaurar aba ativa do localStorage
-    const savedTab = localStorage.getItem("activeTab");
-    if (savedTab) {
-      const triggerEl = document.querySelector(`[data-coreui-target="${savedTab}"]`);
-      if (triggerEl) new coreui.Tab(triggerEl).show();
-    }
+  document.addEventListener('DOMContentLoaded',()=>{
+    // restaurar aba
+    const tab = localStorage.getItem('activeTab');
+    if(tab) document.querySelector(`[data-coreui-target="${tab}"]`).click();
+    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach(btn=>{
+      btn.onclick=()=>localStorage.setItem('activeTab', btn.getAttribute('data-coreui-target'));
+    });
 
     renderGrid();
 
-    // Salvar aba ao clicar
-    document.querySelectorAll('[data-coreui-toggle="tab"]').forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const target = btn.getAttribute("data-coreui-target");
-        localStorage.setItem("activeTab", target);
-      });
-    });
-
-    document.querySelector('[data-coreui-target="#listagem"]')?.addEventListener("shown.bs.tab", () => {
-      setTimeout(() => gridOptions.api?.sizeColumnsToFit(), 150);
-    });
-
-    document.getElementById("darkModeToggle")?.addEventListener("click", () => {
-      setTimeout(() => renderGrid(), 300);
-    });
-
-    document.getElementById("stockModal").addEventListener("hidden.bs.modal", () => {
-      if (previousCheckbox) {
-        previousCheckbox.checked = false;
-        previousCheckbox = null;
-      }
-    });
-
-    document.getElementById("updateStockForm").addEventListener("submit", function (e) {
+    // submit modal
+    document.getElementById('updateStockForm').onsubmit = e=>{
       e.preventDefault();
-      const productId = document.getElementById("modalProductId").value;
-      const onStock = document.getElementById("confirmToggleStock").checked;
-      const canceled = document.getElementById("confirmToggleCanceled").checked;
-      const generateQR = document.getElementById("generateQRCode").checked;
-
+      const id = modalProductId.value;
+      const payload = {
+        product_id: id,
+        on_stock: confirmToggleStock.checked,
+        canceled: confirmToggleCanceled.checked
+      };
       fetch("{% url 'update_product_stock' %}", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": "{{ csrf_token }}",
-        },
-        body: JSON.stringify({
-          product_id: productId,
-          on_stock: onStock,
-          canceled: canceled
-        }),
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+        body:JSON.stringify(payload)
       })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          bootstrap.Modal.getInstance(document.getElementById("stockModal")).hide();
+      .then(r=>r.json())
+      .then(d=>{
+        if(d.success){
+          bootstrap.Modal.getInstance('#stockModal').hide();
+          if(generateQRCode.checked) window.open(`/products/${id}/generate_qr/`, '_blank');
+          setTimeout(()=>location.reload(),500);
+        } else alert('Erro ao atualizar');
+      }).catch(()=>alert('Erro de servidor'));
+    };
 
-          if (generateQR) {
-            // Força o download do QR code diretamente
-            const qrUrl = `/products/${productId}/generate_qr/`;
-            window.open(qrUrl, '_blank');  // <-- Abra diretamente em nova aba
-            const downloadLink = document.createElement('a');
-            downloadLink.href = qrUrl;
-            downloadLink.download = `qr_produto_${productId}.png`;
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-          }
-
-          // Atualizar a página após 1 segundo para garantir o download
-          setTimeout(() => window.location.reload(), 1000);
-        } else {
-          alert("Erro ao atualizar o produto.");
-        }
-      })
-      .catch((error) => {
-        console.error("Erro na requisição:", error);
-        alert("Erro inesperado ao atualizar o produto.");
-      });
-    });
-
-
-
-
+    // redesenhar no dark toggle
+    document.getElementById('darkModeToggle').onclick = ()=>setTimeout(renderGrid,300);
   });
+})();
 </script>
-
 {% endblock extra_scripts %}
