@@ -32,7 +32,7 @@ from products.views import (
     product_dashboard,
     update_product_stock,
 )
-from service_control.views import service_control_view, service_order_create
+from service_control.views import create_service_order, service_control_view
 
 urlpatterns = [
     path("admin/", admin.site.urls, name="admin"),
@@ -43,7 +43,7 @@ urlpatterns = [
     path("city-search/", city_search, name="city_search"),
     path("list-colors/", list_colors, name="list_colors"),
     path("os/", service_control_view, name="service_control"),
-    path("create-os/", service_order_create, name="service_order_create"),
+    path("create-os/", create_service_order, name="create_service_order"),
     # path("list-os/", service_order_list, name="service_order_list"),
     path("estoque/", product_dashboard, name="product_dashboard"),
     path(

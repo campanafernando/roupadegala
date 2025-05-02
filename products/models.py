@@ -156,30 +156,30 @@ class Product(BaseModel):
         super().save(*args, **kwargs)
 
 
-# class TemporaryProduct(BaseModel):
-#     PRODUCT_TYPE_CHOICES = [
-#         ('Paleto', 'Paletó'),
-#         ('Calca', 'Calça'),
-#         ('Camisa', 'Camisa'),
-#         ('Colete', 'Colete'),
-#         ('Gravata', 'Gravata'),
-#         ('Sapato', 'Sapato'),
-#         ('Suspensorio', 'Suspensório'),
-#         ('Cinto', 'Cinto'),
-#         ('Lenco', 'Lenço'),
-#     ]
+class TemporaryProduct(BaseModel):
+    PRODUCT_TYPE_CHOICES = [
+        ("Paleto", "Paletó"),
+        ("Calca", "Calça"),
+        ("Camisa", "Camisa"),
+        ("Colete", "Colete"),
+        ("Gravata", "Gravata"),
+        ("Sapato", "Sapato"),
+        ("Suspensorio", "Suspensório"),
+        ("Cinto", "Cinto"),
+        ("Lenco", "Lenço"),
+    ]
 
-#     product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
-#     size = models.CharField(max_length=10, null=True, blank=True)
-#     sleeve_length = models.CharField(max_length=10, null=True, blank=True)
-#     leg_length = models.CharField(max_length=10, null=True, blank=True)
-#     waist_size = models.CharField(max_length=10, null=True, blank=True)
-#     collar_size = models.CharField(max_length=10, null=True, blank=True)
-#     color = models.CharField(max_length=50, null=True, blank=True)
-#     description = models.CharField(max_length=255, null=True, blank=True)
+    product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
+    size = models.CharField(max_length=10, null=True, blank=True)
+    sleeve_length = models.CharField(max_length=10, null=True, blank=True)
+    leg_length = models.CharField(max_length=10, null=True, blank=True)
+    waist_size = models.CharField(max_length=10, null=True, blank=True)
+    collar_size = models.CharField(max_length=10, null=True, blank=True)
+    color = models.CharField(max_length=50, null=True, blank=True)
+    description = models.CharField(max_length=255, null=True, blank=True)
 
-#     class Meta:
-#         db_table = "temporary_products"
+    class Meta:
+        db_table = "temporary_products"
 
-#     def __str__(self):
-#         return f"{self.product_type} - {self.size}"
+    def __str__(self):
+        return f"{self.product_type} - {self.size}"
