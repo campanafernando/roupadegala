@@ -83,15 +83,27 @@ WSGI_APPLICATION = "roupadegala.wsgi.application"
 #     }
 # }
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",  # PostgreSQL backend
+#         "NAME": "postgres",  # Database name
+#         "USER": "docker",  # Database user
+#         "PASSWORD": "docker",  # User password
+#         "HOST": "localhost",  # Database host
+#         "PORT": "1714",  # Database port (default: 5432)
+#         "CONN_MAX_AGE": 600,  # Mantém conexões abertas por 10 minutos
+#     }
+# }
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",  # PostgreSQL backend
-        "NAME": "postgres",  # Database name
-        "USER": "docker",  # Database user
-        "PASSWORD": "docker",  # User password
-        "HOST": "localhost",  # Database host
-        "PORT": "1714",  # Database port (default: 5432)
-        "CONN_MAX_AGE": 600,  # Mantém conexões abertas por 10 minutos
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", "postgres"),
+        "USER": os.getenv("DB_USER", "postgres"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
+        "HOST": os.getenv("DB_HOST", "db"),  # container do PostgreSQL
+        "PORT": os.getenv("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 600,
     }
 }
 
