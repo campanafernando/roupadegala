@@ -66,3 +66,4 @@ urllib3==1.26.15
 uv==0.6.6
 whitenoise==6.8.2
 pre-commit==4.2.0
+qrcode==8.0
