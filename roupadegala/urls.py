@@ -21,10 +21,13 @@ from django.urls import path
 from accounts.views import (
     city_search,
     employee_redirect_view,
+    list_employees,
     login_view,
     logout_view,
     register_client,
+    register_employee_view,
     register_view,
+    toggle_employee_status,
 )
 from products.views import (
     generate_product_qr,
@@ -51,6 +54,15 @@ urlpatterns = [
         generate_product_qr,
         name="generate_product_qr",
     ),
-    path("funcionarios/", employee_redirect_view, name="employee_redirect"),
     path("update-stock/", update_product_stock, name="update_product_stock"),
+    path("funcionarios/", employee_redirect_view, name="employee_redirect"),
+    path(
+        "funcionarios/api/registrar/", register_employee_view, name="employees_register"
+    ),
+    path("funcionarios/api/listar/", list_employees, name="list_employees"),
+    path(
+        "funcionarios/api/toggle_status/",
+        toggle_employee_status,
+        name="toggle_employee_status",
+    ),
 ]

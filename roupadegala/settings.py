@@ -95,6 +95,8 @@ WSGI_APPLICATION = "roupadegala.wsgi.application"
 #     }
 # }
 
+print(os.getenv("DB_HOST"))
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",

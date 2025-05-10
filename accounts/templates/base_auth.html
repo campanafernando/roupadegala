@@ -119,10 +119,10 @@
       </div>
       <nav class="sidebar-nav">
         <ul>
-          <li><a href="#"><i class="bi bi-card-checklist"></i><span>Ordens de Serviço</span></a></li>
+          <li><a href="{% url 'service_control'%}"><i class="bi bi-card-checklist"></i><span>Ordens de Serviço</span></a></li>
           <li><a href="#"><i class="bi bi-people"></i><span>Clientes</span></a></li>
           <li><a href="{% url 'employee_redirect' %}"><i class="bi bi-person-badge"></i><span>Funcionários</span></a></li>
-          <li><a href="#"><i class="bi bi-box-seam"></i><span>Estoque</span></a></li>
+          <li><a href="{% url 'product_dashboard'%}"><i class="bi bi-box-seam"></i><span>Estoque</span></a></li>
           <li><a href="#"><i class="bi bi-file-earmark-text"></i><span>Fiscal</span></a></li>
           <li><a href="#"><i class="bi bi-cash-stack"></i><span>Financeiro</span></a></li>
           <li><a href="#"><i class="bi bi-bar-chart"></i><span>Estatísticas</span></a></li>
@@ -144,7 +144,7 @@
             <span class="badge">{{ notifications_not_read.qtd }}</span>
           </button>
         {% endif %}
-        <button id="darkModeToggle"><i class="bx bx-moon"></i></button>
+        {% comment %} <button id="darkModeToggle"><i class="bx bx-moon"></i></button> {% endcomment %}
       </div>
     </header>
 
@@ -203,7 +203,7 @@
     if (localStorage.getItem('sidebarCollapsed') === 'true') {
       sidebar.classList.add('collapsed');
     }
-
+{% comment %}
     // Dark mode toggle
     const bodyEl = document.body;
     const dmToggle = document.getElementById('darkModeToggle');
@@ -216,7 +216,7 @@
     if (localStorage.getItem('darkMode') === 'enabled') {
       bodyEl.classList.add('dark-mode');
       dmToggle.innerHTML = '<i class="bx bx-sun"></i>';
-    }
+    } {% endcomment %}
   </script>
 </body>
 </html>

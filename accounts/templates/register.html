@@ -1,40 +1,38 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro - PGA</title>
+    <title>Registro de Funcionário</title>
     <link rel="icon" href="{% static 'roupadegalalogo.png' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
     <style>
         body {
+            background-color: #f7f7f7;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #f7f7f7;
+            font-family: 'Segoe UI', sans-serif;
         }
         .register-container {
             background: #f4efef94;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 2.5rem;
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
             width: 100%;
-            max-width: 400px;
-            text-align: center;
+            max-width: 420px;
         }
         .static-img {
-            width: 160px;
-            height: 160px;
-            margin-bottom: 1rem;
+            width: 100px;
+            margin: 0 auto 1rem;
+            display: block;
         }
         .form-control {
             margin-bottom: 1rem;
+            border-radius: 6px;
         }
         .register-button {
             width: 100%;
@@ -42,7 +40,7 @@
             border: none;
             padding: 0.8rem;
             border-radius: 5px;
-            color: #ffffff;
+            color: #fff;
             font-weight: bold;
         }
         .register-button:hover {
@@ -59,9 +57,9 @@
             position: relative;
         }
         .login-link {
-            text-align: center;
             display: block;
             margin-top: 1rem;
+            text-align: center;
             color: black;
             font-weight: bold;
             text-decoration: none;
@@ -69,29 +67,34 @@
         .login-link:hover {
             text-decoration: underline;
         }
+        .error {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
 <div class="register-container">
     <img src="{% static 'roupadegalalogo.png' %}" alt="Logo" class="static-img">
-    <h3 class="mb-4">Registro de Usuário</h3>
+    <h4 class="text-center mb-4">Registro de Funcionário</h4>
 
-    {% if messages %}
-        <div class="alert alert-danger" role="alert">
-            {% for message in messages %}
-                {{ message }}
+    {% if errors %}
+        <div class="alert alert-danger">
+            {% for error in errors.values %}
+                <div>{{ error }}</div>
             {% endfor %}
         </div>
     {% endif %}
 
     <form method="POST">
         {% csrf_token %}
-        <div class="input-container">
-            <input type="text" class="form-control" name="username" placeholder="Usuário" required>
-        </div>
-        <!-- <div class="input-container">
-            <input type="email" class="form-control" name="email" placeholder="Email" required>
-        </div> -->
+        <input type="text" class="form-control" name="name" placeholder="Nome completo" required>
+        <input type="text" class="form-control" name="cpf" placeholder="CPF" required>
+        <input type="text" class="form-control" name="username" placeholder="Usuário (login)" required>
+        <input type="email" class="form-control" name="email" placeholder="Email" required>
+        <input type="text" class="form-control" name="phone" placeholder="Telefone" required>
+
         <div class="input-container">
             <input type="password" class="form-control" id="password" name="password" placeholder="Senha" required>
             <i class="eye-icon fas fa-eye" onclick="togglePassword('password', this)"></i>
@@ -100,6 +103,7 @@
             <input type="password" class="form-control" id="password_confirm" name="password_confirm" placeholder="Confirme a Senha" required>
             <i class="eye-icon fas fa-eye" onclick="togglePassword('password_confirm', this)"></i>
         </div>
+
         <button type="submit" class="register-button">Registrar</button>
     </form>
     <a href="{% url 'login' %}" class="login-link">Já tem uma conta? Faça login</a>
@@ -107,15 +111,15 @@
 
 <script>
     function togglePassword(fieldId, icon) {
-        const passwordField = document.getElementById(fieldId);
-        if (passwordField.type === 'password') {
-            passwordField.type = 'text';
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
+        const field = document.getElementById(fieldId);
+        if (field.type === "password") {
+            field.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
         } else {
-            passwordField.type = 'password';
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
+            field.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
         }
     }
 </script>
