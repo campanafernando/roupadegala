@@ -1,4 +1,4 @@
-import base64
+# import base64
 import io
 import json
 
@@ -172,4 +172,4 @@ def list_colors(request):
                 }
             )
 
-    return JsonResponse(combinations, safe=False)
+    return JsonResponse({"colors": combinations})

@@ -3,6 +3,8 @@
 
 {% block extra_head %}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+
 <style>
   :root {
     --primary: #0069d9;
@@ -17,6 +19,16 @@
     color: var(--text);
   }
   .d-flex.main { gap: 1rem; }
+
+  .main.summary-collapsed .summary-sidebar {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .main.summary-collapsed .form-container {
+    max-width: 100% !important;
+  }
+
 
   /* 1) Formulário maior: subtraímos agora 600px (tamanho da sidebar) */
   .form-container {
@@ -64,7 +76,7 @@
     margin: 2rem 0;
     position: relative;
   }
-  .stepper::before {
+  {% comment %} .stepper::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -73,7 +85,7 @@
     height: 2px;
     background: var(--border);
     z-index: 0;
-  }
+  } {% endcomment %}
   .step {
     position: relative;
     z-index: 1;
@@ -158,6 +170,10 @@
 
 {% block content %}
 <div class="container my-4">
+  <button id="toggleSummary" class="btn btn-outline-secondary mb-3">
+    <i class="bi bi-list"></i> Mostrar/ocultar Resumo
+  </button>
+
   <div class="d-flex main">
 
     <!-- Form -->
@@ -183,22 +199,24 @@
               <!-- Stepper -->
               <div class="stepper">
                 <div class="step active" data-step="1">
-                  <span class="step-circle">🤍</span><span class="step-label">Cliente</span>
+                  <span class="step-circle"><i class="bi bi-person"></i></span>
+                  <span class="step-label">Cliente</span>
                 </div>
                 <div class="step" data-step="2">
-                  <span class="step-circle">🧥</span><span class="step-label">Paletó</span>
+                  <span class="step-circle"><i class="bi bi-suit-club-fill"></i></span>
+                  <span class="step-label">Terno</span>
                 </div>
                 <div class="step" data-step="3">
-                  <span class="step-circle">👕</span><span class="step-label">Camisa</span>
+                  <span class="step-circle">🥼</i></span>
+                  <span class="step-label">Camisa</span>
                 </div>
                 <div class="step" data-step="4">
-                  <span class="step-circle">👖</span><span class="step-label">Calça</span>
+                  <span class="step-circle"><i class="bi bi-gem"></i></span>
+                  <span class="step-label">Acessórios</span>
                 </div>
                 <div class="step" data-step="5">
-                  <span class="step-circle">💎</span><span class="step-label">Acessórios</span>
-                </div>
-                <div class="step" data-step="6">
-                  <span class="step-circle">💰</span><span class="step-label">Pagamento</span>
+                  <span class="step-circle"><i class="bi bi-cash-coin"></i></span>
+                  <span class="step-label">Pagamento</span>
                 </div>
               </div>
 
@@ -246,38 +264,72 @@
                   </div>
                 </div>
 
-                <!-- STEP 2: Paletó -->
+                <!-- STEP 2: Terno -->
                 <div class="form-step" data-step="2">
                   <div class="row g-3">
+                    <!-- Marca e Tecido -->
+                    <div class="col-md-3">
+                      <label class="form-label">Marca do Terno *</label>
+                      <input name="terno_marca" type="text" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Tecido do Terno *</label>
+                      <input name="terno_tecido" type="text" class="form-control" required>
+                    </div>
+
+                    <!-- Paletó -->
                     <div class="col-md-2">
-                      <label class="form-label">Nº *</label>
+                      <label class="form-label">Nº Paletó *</label>
                       <input name="paleto" type="number" class="form-control" min="0" max="200" required>
                     </div>
                     <div class="col-md-2">
-                      <label class="form-label">Cor *</label>
+                      <label class="form-label">Cor Paletó *</label>
                       <select name="cor_paleto" class="form-select color-select" required></select>
                     </div>
                     <div class="col-md-2">
-                      <label class="form-label">Manga *</label>
+                      <label class="form-label">Manga Paletó *</label>
                       <input name="paleto_mg" type="number" class="form-control" required>
                     </div>
+
+                    <!-- Calça -->
                     <div class="col-md-2">
-                      <label class="form-label">Ajuste?</label>
-                      <select name="paleto_ajuste" class="form-select toggle-dependent" data-target=".paleto-ajuste">
+                      <label class="form-label">Nº Calça *</label>
+                      <input name="calca" type="number" class="form-control" min="0" max="200" required>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Cor Calça *</label>
+                      <select name="cor_calca" class="form-select color-select" required></select>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Cintura Calça *</label>
+                      <input name="calca_cp" type="number" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Perna Calça *</label>
+                      <input name="calca_perna" type="number" class="form-control" required>
+                    </div>
+
+                    <!-- Colete -->
+                    <div class="col-md-2">
+                      <label class="form-label">Colete?</label>
+                      <select name="colete_presente" class="form-select toggle-dependent" data-target=".colete-cor">
                         <option value="">--</option>
                         <option value="yes">Sim</option>
                         <option value="no">Não</option>
                       </select>
                     </div>
-                    <div class="col-md-2 paleto-ajuste dependent-field" style="display:none">
-                      <label class="form-label">Ajuste (cm)</label>
-                      <input name="paleto_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
+                    <div class="col-md-2 colete-cor dependent-field" style="display:none">
+                      <label class="form-label">Cor do Colete</label>
+                      <select name="cor_colete" class="form-select color-select" disabled></select>
                     </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Extras</label>
-                      <input name="paleto_ajustes_adicionais" type="text" class="form-control">
+
+                    <!-- Ajustes adicionais -->
+                    <div class="col-md-4">
+                      <label class="form-label">Ajustes / Observações</label>
+                      <input name="terno_ajustes_adicionais" type="text" class="form-control">
                     </div>
                   </div>
+
                   <div class="d-flex justify-content-between mt-3">
                     <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
                     <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
@@ -300,6 +352,10 @@
                       <input name="camisa_mg" type="number" class="form-control" required>
                     </div>
                     <div class="col-md-2">
+                      <label class="form-label">Marca *</label>
+                      <input name="camisa_marca" type="text" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
                       <label class="form-label">Ajuste?</label>
                       <select name="camisa_ajuste" class="form-select toggle-dependent" data-target=".camisa-ajuste">
                         <option value="">--</option>
@@ -311,53 +367,12 @@
                       <label class="form-label">Ajuste (cm)</label>
                       <input name="camisa_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-4">
                       <label class="form-label">Extras</label>
                       <input name="camisa_ajustes_adicionais" type="text" class="form-control">
                     </div>
                   </div>
-                  <div class="d-flex justify-content-between mt-3">
-                    <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
-                    <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
-                  </div>
-                </div>
 
-                <!-- STEP 4: Calça -->
-                <div class="form-step" data-step="4">
-                  <div class="row g-3">
-                    <div class="col-md-2">
-                      <label class="form-label">Nº *</label>
-                      <input name="calca" type="number" class="form-control" min="0" max="200" required>
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Cor *</label>
-                      <select name="cor_calca" class="form-select color-select" required></select>
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Cintura *</label>
-                      <input name="calca_cp" type="number" class="form-control" required>
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Perna *</label>
-                      <input name="calca_perna" type="number" class="form-control" required>
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Ajuste?</label>
-                      <select name="calca_ajuste" class="form-select toggle-dependent" data-target=".calca-ajuste">
-                        <option value="">--</option>
-                        <option value="yes">Sim</option>
-                        <option value="no">Não</option>
-                      </select>
-                    </div>
-                    <div class="col-md-2 calca-ajuste dependent-field" style="display:none">
-                      <label class="form-label">Ajuste (cm)</label>
-                      <input name="calca_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label">Extras</label>
-                      <input name="calca_ajustes_adicionais" type="text" class="form-control">
-                    </div>
-                  </div>
                   <div class="d-flex justify-content-between mt-3">
                     <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
                     <button type="button" class="btn btn-primary" data-action="next">Próximo</button>
@@ -365,7 +380,7 @@
                 </div>
 
                 <!-- STEP 5: Acessórios -->
-                <div class="form-step" data-step="5">
+                <div class="form-step" data-step="4">
                   <div class="row g-3">
                     <div class="col-md-2">
                       <label class="form-label">Suspensório?</label>
@@ -430,7 +445,7 @@
                 </div>
 
                 <!-- STEP 6: Pagamento -->
-                <div class="form-step" data-step="6">
+                <div class="form-step" data-step="5">
                   <div class="row g-3">
                     <div class="col-md-3">
                       <label class="form-label">Data do Pedido *</label>
@@ -544,6 +559,13 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  const mainEl       = document.querySelector('.d-flex.main');
+  const toggleBtn    = document.getElementById('toggleSummary');
+
+  // === (3) Toggle de colapsar/expandir ===
+  toggleBtn.addEventListener('click', () => {
+    mainEl.classList.toggle('summary-collapsed');
+  });
   // CSRF helper
   function getCookie(name) {
     let cookieValue = null;
@@ -743,29 +765,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const adjEl    = form.querySelector(`[name="${adj}"]`);
     const baseEl   = form.querySelector(`[name="${base}"]`);
     const toggleEl = form.querySelector(`[name="${toggle}"]`);
-    const wrapper  = adjEl.closest('.dependent-field');
-    function updateAdjust() {
-      const bv = parseFloat(baseEl.value);
-      if (toggleEl.value === 'yes' && !isNaN(bv)) {
-        wrapper.style.display = 'block';
-        adjEl.disabled = false;
-        adjEl.max = bv;
-      } else {
-        wrapper.style.display = 'none';
-        adjEl.value = '';
-        adjEl.disabled = true;
+    if (adjEl && baseEl && toggleEl) {
+      const wrapper = adjEl.closest('.dependent-field');
+      function updateAdjust() {
+        const bv = parseFloat(baseEl.value);
+        if (toggleEl.value === 'yes' && !isNaN(bv)) {
+          wrapper.style.display = 'block';
+          adjEl.disabled = false;
+          adjEl.max = bv;
+        } else {
+          wrapper.style.display = 'none';
+          adjEl.value = '';
+          adjEl.disabled = true;
+        }
       }
+      toggleEl.addEventListener('change', updateAdjust);
+      baseEl.addEventListener('input', updateAdjust);
+      adjEl.addEventListener('input', () => {
+        const av = parseFloat(adjEl.value), mv = parseFloat(adjEl.max);
+        if (!isNaN(av) && !isNaN(mv) && av > mv) {
+          adjEl.value = mv;
+        }
+      });
+      updateAdjust();
     }
-    toggleEl.addEventListener('change', updateAdjust);
-    baseEl.addEventListener('input', updateAdjust);
-    adjEl.addEventListener('input', () => {
-      const av = parseFloat(adjEl.value), mv = parseFloat(adjEl.max);
-      if (!isNaN(av) && !isNaN(mv) && av > mv) {
-        adjEl.value = mv;
-      }
-    });
-    updateAdjust();
-  });
+  }); // ✅ fecha o forEach corretamente aqui
+
 
   // Payment logic
   const totalEl = form.querySelector('input[name="valor_total"]');
@@ -802,23 +827,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load colors
   fetch("{% url 'list_colors' %}")
-    .then(r => r.json())
-    .then(colors => {
-      document.querySelectorAll('.color-select').forEach(sel => {
-        sel.innerHTML = '<option value="">--</option>' +
-          colors.map(c => `<option value="${c.id}">${c.description}</option>`).join('');
-      });
-    });
-
-  // Toggle dependent
-  document.querySelectorAll('.toggle-dependent').forEach(sel =>
-    sel.addEventListener('change', () => {
-      document.querySelectorAll(sel.dataset.target).forEach(el => {
-        el.style.display = sel.value === 'yes' ? 'block' : 'none';
-      });
-      updateSummary();
+    .then(r => {
+      if (!r.ok) throw new Error('Erro ao buscar lista de cores');
+      return r.json();
     })
-  );
+    .then(data => {
+      // data pode ser um array ou um objeto com lista dentro
+      const cores = Array.isArray(data) ? data : (data.colors || data.results || []);
+      const options = cores.map(c => {
+        const id   = c.id ?? c.pk;
+        const desc = c.description ?? c.descricao;
+        return `<option value="${id}">${desc}</option>`;
+      }).join('');
+      document.querySelectorAll('.color-select').forEach(sel => {
+        sel.innerHTML = '<option value="">--</option>' + options;
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      // opcional: exibir toast de erro para o usuário
+  });
 
   // Submit as JSON
   form.addEventListener('submit', async e => {
