@@ -41,7 +41,7 @@ def insert_person_types(apps, schema_editor):
         pt.type for pt in PersonType.objects.all()
     }  # Obtém os tipos já existentes
 
-    types_to_insert = ["ADMIN", "COLLABORATOR", "CUSTOMER"]
+    types_to_insert = ["ADMINISTRADOR", "ATENDENTE", "CLIENTE"]
 
     for person_type in types_to_insert:
         if person_type not in existing_types:

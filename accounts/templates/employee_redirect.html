@@ -127,6 +127,15 @@
                 <label class="form-label">Telefone</label>
                 <input type="text" name="phone" class="form-control" required>
               </div>
+              <div class="col-md-6">
+                <label class="form-label">Cargo</label>
+                <select name="role" class="form-select" required>
+                  <option value="">Selecione um cargo</option>
+                  <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                  <option value="RECEPÇÃO">RECEPÇÃO</option>
+                  <option value="ATENDENTE">ATENDENTE</option>
+                </select>
+              </div>
               <div class="col-12">
                 <button type="submit" class="register-button">Registrar Funcionário</button>
               </div>
@@ -165,6 +174,7 @@
       { headerName: "CPF", field: "cpf" },
       { headerName: "Email", field: "email" },
       { headerName: "Telefone", field: "phone" },
+      { headerName: "Cargo", field: "role" },
       {
         headerName: "Ativo", field: "active", maxWidth: 110,
         cellRenderer: params => {

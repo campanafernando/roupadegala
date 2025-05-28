@@ -4,19 +4,47 @@ from accounts.models import BaseModel, Person
 from products.models import ColorCatalogue, Product, TemporaryProduct
 
 
+class ServiceOrderPhase(BaseModel):
+    name = models.CharField(max_length=20)
+
+
 class ServiceOrder(BaseModel):
     renter = models.ForeignKey(
         Person, on_delete=models.CASCADE, related_name="service_orders"
     )
+    employee = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="employee_service_orders",
+        null=True,
+    )
+    attendant = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="attendant_service_orders",
+        null=True,
+    )
     order_date = models.DateField()
     event_date = models.DateField()
     occasion = models.CharField(max_length=255)
-    total_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    advance_payment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    remaining_payment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    adjustment_needed = models.BooleanField(default=False)
+    renter_role = models.CharField(max_length=255, null=True)
+    total_value = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, null=True
+    )
+    advance_payment = (
+        models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True),
+    )
+    remaining_payment = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, null=True
+    )
+    payment_method = models.CharField(max_length=255, null=True)
+    adjustment_needed = models.BooleanField(default=None, null=True)
+    came_from = models.CharField(max_length=255, default=None, null=True)
     purchase = models.BooleanField(default=False)
     observations = models.TextField(null=True, blank=True)
+    service_order_phase = models.ForeignKey(
+        ServiceOrderPhase, on_delete=models.SET_NULL, null=True
+    )
 
     class Meta:
         db_table = "service_orders"

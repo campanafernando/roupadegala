@@ -1,0 +1,274 @@
+{% extends "base_auth.html" %}
+{% load static %}
+
+{% block title %}Ordens de Serviço{% endblock %}
+
+{% block extra_head %}
+  <!-- Meta viewport para responsividade -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap & FontAwesome & AG-Grid CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css" />
+
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --bg: #f5f6f7;
+      --card-bg: #ffffff;
+      --text-color: #212529;
+      --border-color: #dcdcdc;
+    }
+    html, body {
+      height: 100%;
+      margin: 0; padding: 0;
+      background-color: var(--bg);
+      color: var(--text-color);
+      font-family: "Segoe UI", Roboto, sans-serif;
+    }
+    .main-wrapper {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.375rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      border-bottom: 1px solid var(--border-color);
+      font-size: 1.25rem;
+      font-weight: 500;
+      padding: 1rem;
+      background-color: transparent;
+    }
+    .nav-tabs {
+      border-bottom: 1px solid var(--border-color);
+      margin: 0 1rem;
+    }
+    .nav-tabs .nav-link {
+      color: var(--text-color);
+      border: none;
+      padding: 0.5rem 1rem;
+      background-color: transparent;
+    }
+    .nav-tabs .nav-link.active {
+      border-bottom: 2px solid var(--primary);
+      color: var(--primary);
+      font-weight: 500;
+    }
+    .tab-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      margin: 0 1rem 1rem 1rem;
+    }
+    .ag-theme-quartz {
+      flex: 1;
+      width: 100%;
+      border-radius: 0.25rem;
+      border: 1px solid var(--border-color);
+      overflow-x: auto;
+    }
+    .alert {
+      margin-top: 1rem;
+    }
+
+    /* Botão de toggle */
+    .view-toggle .btn {
+      min-width: 100px;
+    }
+
+    /* ---- Ajustes responsivos ---- */
+    @media (max-width: 992px) {
+      .nav-tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      .nav-tabs .nav-item {
+        display: inline-block;
+      }
+      .nav-tabs .nav-link {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+      }
+    }
+    @media (max-width: 768px) {
+      .card-header {
+        font-size: 1rem;
+        padding: 0.75rem;
+      }
+      .ag-theme-quartz {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid main-wrapper py-3">
+  <div class="card">
+    <div class="card-header">
+      <i class="fas fa-clipboard-list me-2"></i>Ordens de Serviço
+    </div>
+
+    <ul class="nav nav-tabs">
+      <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pendentes">⏳ Pendentes</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#finalizadas">✅ Finalizadas</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#atrasadas">⌛ Atrasadas</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#concluidas">🏁 Concluídas</button>
+      </li>
+    </ul>
+
+    <div class="tab-content flex-grow-1">
+      <!-- Pendentes -->
+      <div class="tab-pane fade show active h-100 d-flex flex-column" id="pendentes">
+        <div class="d-flex justify-content-end align-items-center p-3 view-toggle">
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary active" id="view-grid-btn">
+              <i class="fas fa-th-large me-1"></i> Grid
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="view-cards-btn">
+              <i class="fas fa-th-list me-1"></i> Cards
+            </button>
+          </div>
+        </div>
+        <!-- Containers de visão -->
+        <div id="pendingGrid" class="ag-theme-quartz flex-grow-1"></div>
+        <div id="pendingCards" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 p-3 d-none overflow-auto" style="flex:1"></div>
+      </div>
+
+      <!-- Finalizadas -->
+      <div class="tab-pane fade" id="finalizadas">
+        <div class="alert alert-secondary mt-3">Em desenvolvimento - Listagem de ordens finalizadas</div>
+      </div>
+
+      <!-- Atrasadas -->
+      <div class="tab-pane fade" id="atrasadas">
+        <div class="alert alert-secondary mt-3">Em desenvolvimento - Listagem de ordens atrasadas</div>
+      </div>
+
+      <!-- Concluídas -->
+      <div class="tab-pane fade" id="concluidas">
+        <div class="alert alert-secondary mt-3">Em desenvolvimento - Listagem de ordens concluídas</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@29.3.3/dist/ag-grid-community.min.noStyle.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const gridBtn      = document.getElementById('view-grid-btn');
+      const cardsBtn     = document.getElementById('view-cards-btn');
+      const gridDiv      = document.getElementById('pendingGrid');
+      const cardsDiv     = document.getElementById('pendingCards');
+
+      // Configuração AG-Grid
+      const gridOptions = {
+        columnDefs: [
+          { headerName: "ID",           field: "id",           maxWidth: 90, sort: 'desc',    cellRenderer: params => {
+    // link direto para /os/<id>/
+    return `<a href="/os/${params.value}/">${params.value}</a>`;
+  }},
+          { headerName: "Cliente",      field: "cliente",      flex: 1,      minWidth: 120 },
+          { headerName: "CPF",          field: "cpf",          width: 150 },
+          { headerName: "Telefone",     field: "telefone",     width: 150 },
+          { headerName: "Atendente",    field: "atendente",    flex: 1,      minWidth: 120 },
+          { headerName: "Data OS",      field: "data_ordem",   width: 120 },
+          { headerName: "Data Evento",  field: "data_evento",  width: 120 },
+          { headerName: "Ocasião",      field: "ocasiao",      width: 150 },
+          { headerName: "Origem",       field: "origem",       width: 120 },
+          { headerName: "Tipo",         field: "tipo_servico", width: 120 }
+        ],
+        defaultColDef: {
+          sortable: true,
+          filter: true,
+          resizable: true
+        },
+        pagination: true,
+        paginationPageSize: 20,
+        onFirstDataRendered: params => params.api.sizeColumnsToFit(),
+        onGridReady: () => loadPendingOrders()
+      };
+      new agGrid.Grid(gridDiv, gridOptions);
+
+      // Carrega dados e popula grid + cards
+      async function loadPendingOrders() {
+        try {
+          const res  = await fetch("{% url 'list_pending_service_orders' %}");
+          const json = await res.json();
+          if (res.ok) {
+            gridOptions.api.setRowData(json.data);
+            gridOptions.api.sizeColumnsToFit();
+            buildCards(json.data);
+          } else {
+            console.error('Erro ao carregar OS pendentes:', json.error);
+          }
+        } catch (err) {
+          console.error('Erro de conexão:', err);
+        }
+      }
+
+      // Cria cards dinamicamente
+      function buildCards(data) {
+        cardsDiv.innerHTML = '';
+        data.forEach(os => {
+          const col = document.createElement('div');
+          col.className = 'col';
+          col.innerHTML = `
+            <div class="card h-100 shadow-sm">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title mb-2">OS #${os.id} – ${os.cliente}</h5>
+                <p class="mb-1"><strong>Atendente:</strong> ${os.atendente}</p>
+                <p class="mb-1"><strong>Evento:</strong> <span class="badge bg-primary">${os.data_evento}</span></p>
+                <p class="mb-1"><strong>Ocasião:</strong> ${os.ocasiao}</p>
+                <p class="mb-1"><strong>Origem:</strong> ${os.origem}</p>
+                <div class="mt-auto text-muted"><small>CPF: ${os.cpf} | Tel: ${os.telefone}</small></div>
+              </div>
+            </div>`;
+          cardsDiv.appendChild(col);
+        });
+      }
+
+      // Toggle entre Grid e Cards
+      gridBtn.addEventListener('click', () => {
+        gridBtn.classList.add('active');
+        cardsBtn.classList.remove('active');
+        gridDiv.classList.remove('d-none');
+        cardsDiv.classList.add('d-none');
+      });
+      cardsBtn.addEventListener('click', () => {
+        cardsBtn.classList.add('active');
+        gridBtn.classList.remove('active');
+        cardsDiv.classList.remove('d-none');
+        gridDiv.classList.add('d-none');
+      });
+
+      // Ajusta colunas ao redimensionar janela
+      window.addEventListener('resize', () => {
+        if (gridOptions.api) gridOptions.api.sizeColumnsToFit();
+      });
+
+      // Recarrega ao reabrir aba
+      document.querySelector('button[data-bs-target="#pendentes"]')
+        .addEventListener('shown.bs.tab', loadPendingOrders);
+    });
+  </script>
+{% endblock %}

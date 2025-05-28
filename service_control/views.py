@@ -1,64 +1,122 @@
 import json
-
-from django.contrib.auth.models import User
-from django.shortcuts import redirect, render
-
-from accounts.models import Person
-
-# from products.models import TemporaryProduct
-# from service_control.models import ServiceOrder
-
-
-def service_control_view(request):
-    return render(request, "service_control.html", context={"user": request.user})
-
-
-import json
-from datetime import datetime
+from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.shortcuts import get_object_or_404, render
+from django.utils.timezone import now
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 from products.models import TemporaryProduct
 
-from .models import ServiceOrder, ServiceOrderItem
+from .models import ServiceOrder, ServiceOrderItem, ServiceOrderPhase
+
+# def service_control_view(request, id):
+#     return render(request, "service_control.html", context={"user": request.user})
+
+
+def service_control_view(request, id):
+    return render(
+        request,
+        "service_control.html",
+        {
+            "user": request.user,
+            "order_id": id,  # <— adiciona o ID da OS
+        },
+    )
+
+
+@require_POST
+@login_required
+def create_pre_service_order(request):
+    payload = json.loads(request.body)
+
+    order_data = {
+        "cliente": payload.get("cliente_nome"),
+        "telefone": payload.get("telefone"),
+        "cpf": payload.get("cpf").replace(".", "").replace("-", ""),
+        "atendente": payload.get("atendente"),
+        "origem": payload.get("origem"),
+        "data_evento": payload.get("data_evento"),
+        "tipo_servico": payload.get("tipo_servico"),
+        "evento": payload.get("evento"),
+        "papel_evento": payload.get("papel_evento"),
+        "endereco": {
+            "cep": payload.get("endereco", {}).get("cep"),
+            "rua": payload.get("endereco", {}).get("rua"),
+            "numero": payload.get("endereco", {}).get("numero"),
+            "bairro": payload.get("endereco", {}).get("bairro"),
+            "cidade": payload.get("endereco", {}).get("cidade"),
+        },
+    }
+
+    if len(order_data["cpf"]) != 11:
+        return JsonResponse({"error": "CPF Inválido"}, status=400)
+
+    if not all([order_data["cpf"], order_data["telefone"], order_data["cliente"]]):
+        return JsonResponse({"error": "Dados do cliente incompletos"}, status=400)
+
+    try:
+        city_obj = City.objects.get(
+            name__iexact=order_data["endereco"]["cidade"].upper()
+        )
+    except City.DoesNotExist:
+        return JsonResponse({"error": "Cidade não encontrada"}, status=400)
+
+    pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
+
+    person, _ = Person.objects.get_or_create(
+        cpf=order_data["cpf"],
+        defaults={
+            "name": order_data["cliente"].upper(),
+            "person_type": pt,
+            "created_by": request.user,
+        },
+    )
+
+    PersonsContacts.objects.get_or_create(
+        phone=order_data["telefone"],
+        person=person,
+        defaults={"created_by": request.user},
+    )
+
+    PersonsAdresses.objects.get_or_create(
+        person=person,
+        street=order_data["endereco"]["rua"],
+        number=order_data["endereco"]["numero"],
+        cep=order_data["endereco"]["cep"],
+        neighborhood=order_data["endereco"]["bairro"],
+        city=city_obj,
+        defaults={"created_by": request.user},
+    )
+
+    employee = Person.objects.filter(name=order_data["atendente"]).first()
+
+    if not employee:
+        return JsonResponse({"error": "Funcionário não encontrado."}, status=400)
+
+    service_order_phase = ServiceOrderPhase.objects.filter(name="PENDENTE").first()
+
+    ServiceOrder.objects.create(
+        renter=person,
+        employee=employee,
+        attendant=request.user.person,
+        order_date=now().date(),
+        event_date=order_data["data_evento"],
+        occasion=order_data["evento"].upper(),
+        renter_role=order_data["papel_evento"].upper(),
+        purchase=True if order_data["tipo_servico"] == "Compra" else False,
+        came_from=order_data["origem"].upper(),
+        service_order_phase=service_order_phase,
+    )
+
+    return JsonResponse({"message": "OS criada com sucesso"})
 
 
 @require_POST
 @login_required
 def create_service_order(request):
-    """
-    Cria em uma única requisição:
-      1. Pessoa (único por CPF)
-      2. Contato (único por telefone/pessoa)
-      3. Endereço (único por todos os campos/pessoa)
-      4. ServiceOrder (sem dados de endereço — agora exclusivos de Person)
-      5. ServiceOrderItem + TemporaryProduct (evita duplicados na mesma payload)
-    Espera JSON com:
-      - cliente: {
-          nome, cpf, telefone,
-          cep, rua, numero, bairro, cidade
-        }
-      - order_date (YYYY-MM-DD)
-      - event_date (YYYY-MM-DD)
-      - occasion (string)
-      - purchase (boolean)        ← novo campo no modelo ServiceOrder
-      - total_value (decimal)
-      - advance_payment (decimal)
-      - remaining_payment (decimal)
-      - observations (string, opcional)
-      - items: [
-          {
-            product_type, size, sleeve_length, leg_length,
-            waist_size, collar_size, color, description,
-            adjustment_needed (bool),
-            adjustment_value (int),
-            adjustment_notes (str)
-          }, …
-        ]
-    """
     try:
         payload = json.loads(request.body)
 
@@ -83,7 +141,7 @@ def create_service_order(request):
             return JsonResponse({"error": "Cidade não encontrada"}, status=400)
 
         # tipo CUSTOMER
-        pt, _ = PersonType.objects.get_or_create(type="CUSTOMER")
+        pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
 
         # Pessoa (por CPF)
         person, _ = Person.objects.get_or_create(
@@ -157,6 +215,8 @@ def create_service_order(request):
                 it.get("waist_size"),
                 it.get("collar_size"),
                 it.get("color"),
+                it.get("brand"),  # novo
+                it.get("fabric"),  # novo
                 it.get("description"),
                 bool(it.get("adjustment_needed")),
                 it.get("adjustment_value"),
@@ -174,6 +234,8 @@ def create_service_order(request):
                 waist_size=it.get("waist_size"),
                 collar_size=it.get("collar_size"),
                 color=it.get("color"),
+                brand=it.get("brand"),  # novo
+                fabric=it.get("fabric"),  # novo
                 description=it.get("description"),
                 defaults={"created_by": request.user},
             )
@@ -195,3 +257,155 @@ def create_service_order(request):
         return JsonResponse({"error": "JSON inválido"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def list_service_orders(request):
+    """
+    Lista as Ordens de Serviço no formato esperado pelo AgGrid.
+    """
+    orders = ServiceOrder.objects.select_related("renter", "created_by").all()
+
+    data = []
+    for os in orders:
+        cliente = os.renter.name
+        responsavel = os.created_by.get_full_name() or os.created_by.username
+
+        data.append(
+            {
+                "id": os.id,
+                "cliente": cliente,
+                "responsavel": responsavel,
+                "order_date": os.order_date.strftime("%Y-%m-%d"),
+                "event_date": os.event_date.strftime("%Y-%m-%d"),
+                "valor_total": float(os.total_value),
+                "valor_sinal": float(os.advance_payment),
+                "valor_restante": float(os.remaining_payment),
+                "atrasada": os.event_date < date.today(),
+            }
+        )
+
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+def pre_register_view(request):
+    """
+    Exibe o formulário de triagem de cliente.
+    """
+    return render(
+        request,
+        "pre_register.html",
+        {
+            "user": request.user,
+        },
+    )
+
+
+@require_GET
+@login_required
+def list_pending_service_orders(request):
+    try:
+        # Busca a fase "PENDENTE" ou retorna 404 se não existir
+        pending_phase = ServiceOrderPhase.objects.get(name="PENDENTE")
+
+        # Query para buscar as OS pendentes com informações relacionadas
+        orders = (
+            ServiceOrder.objects.filter(service_order_phase=pending_phase)
+            .select_related("renter", "employee", "attendant", "service_order_phase")
+            .order_by("-order_date")
+        )
+
+        # Serializa os dados para o frontend
+        orders_data = []
+        for order in orders:
+            orders_data.append(
+                {
+                    "id": order.id,
+                    "cliente": order.renter.name if order.renter else "",
+                    "cpf": order.renter.cpf if order.renter else "",
+                    "telefone": (
+                        order.renter.phone if hasattr(order.renter, "phone") else ""
+                    ),
+                    "atendente": order.employee.name if order.employee else "",
+                    "data_ordem": order.order_date.strftime("%d/%m/%Y"),
+                    "data_evento": (
+                        order.event_date.strftime("%d/%m/%Y")
+                        if order.event_date
+                        else ""
+                    ),
+                    "ocasiao": order.occasion,
+                    "origem": order.came_from,
+                    "tipo_servico": "Compra" if order.purchase else "Aluguel",
+                    "fase": order.service_order_phase.name,
+                }
+            )
+
+        return JsonResponse({"data": orders_data}, safe=False)
+
+    except ServiceOrderPhase.DoesNotExist:
+        return JsonResponse({"error": "Fase PENDENTE não encontrada"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def os_view(request):
+    """
+    Exibe o formulário de triagem de cliente.
+    """
+    return render(
+        request,
+        "os_list.html",
+        {
+            "user": request.user,
+        },
+    )
+
+
+# from django.shortcuts import get_object_or_404
+# from django.http import JsonResponse
+# from django.contrib.auth.decorators import login_required
+# from django.views.decorators.http import require_GET
+
+# from .models import ServiceOrder
+# from accounts.models import PersonsContacts, PersonsAdresses
+
+
+@require_GET
+@login_required
+def get_service_order_client(request, id):
+    # Busca a OS ou retorna 404
+    order = get_object_or_404(ServiceOrder, id=id)
+
+    # Cliente (renter) da OS
+    person = order.renter
+
+    # Telefones cadastrados
+    phones = list(
+        PersonsContacts.objects.filter(person=person).values_list("phone", flat=True)
+    )
+
+    # Endereços cadastrados
+    addresses = []
+    for addr in PersonsAdresses.objects.filter(person=person):
+        addresses.append(
+            {
+                "cep": addr.cep,
+                "rua": addr.street,
+                "numero": addr.number,
+                "bairro": addr.neighborhood,
+                "cidade": addr.city.name,
+            }
+        )
+
+    # Monta payload
+    payload = {
+        "id": person.id,
+        "nome": person.name,
+        "cpf": person.cpf,
+        "telefones": phones,
+        "enderecos": addresses,
+    }
+
+    return JsonResponse({"data": payload})

@@ -21,6 +21,7 @@ from django.urls import path
 from accounts.views import (
     city_search,
     employee_redirect_view,
+    get_client_by_cpf,
     list_employees,
     login_view,
     logout_view,
@@ -35,7 +36,16 @@ from products.views import (
     product_dashboard,
     update_product_stock,
 )
-from service_control.views import create_service_order, service_control_view
+from service_control.views import (
+    create_pre_service_order,
+    create_service_order,
+    get_service_order_client,
+    list_pending_service_orders,
+    list_service_orders,
+    os_view,
+    pre_register_view,
+    service_control_view,
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls, name="admin"),
@@ -45,7 +55,7 @@ urlpatterns = [
     path("logout/", logout_view, name="logout"),
     path("city-search/", city_search, name="city_search"),
     path("list-colors/", list_colors, name="list_colors"),
-    path("os/", service_control_view, name="service_control"),
+    path("os/<int:id>/", service_control_view, name="service_control"),
     path("create-os/", create_service_order, name="create_service_order"),
     # path("list-os/", service_order_list, name="service_order_list"),
     path("estoque/", product_dashboard, name="product_dashboard"),
@@ -65,4 +75,21 @@ urlpatterns = [
         toggle_employee_status,
         name="toggle_employee_status",
     ),
+    path("service-orders/list/", list_service_orders, name="list_service_orders"),
+    path("triagem/", pre_register_view, name="pre_register"),
+    path("clientes/buscar/", get_client_by_cpf, name="get_client_by_cpf"),
+    path(
+        "ordem-de-servico/api/criar-pre/",
+        create_pre_service_order,
+        name="create_pre_service_order",
+    ),
+    path(
+        "ordem-de-servico/api/listar-pendentes/",
+        list_pending_service_orders,
+        name="list_pending_service_orders",
+    ),
+    path("os/", os_view, name="os_view"),
+    path(
+        "os/<int:id>/cliente/", get_service_order_client, name="get_os_cliente"
+    ),  # <-- nova rota
 ]

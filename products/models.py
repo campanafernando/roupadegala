@@ -176,6 +176,8 @@ class TemporaryProduct(BaseModel):
     waist_size = models.CharField(max_length=10, null=True, blank=True)
     collar_size = models.CharField(max_length=10, null=True, blank=True)
     color = models.CharField(max_length=50, null=True, blank=True)
+    brand = models.CharField(max_length=100, null=True, blank=True)  # ✅ novo
+    fabric = models.CharField(max_length=100, null=True, blank=True)  # ✅ novo
     description = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:

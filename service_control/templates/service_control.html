@@ -181,7 +181,7 @@
       <div class="card shadow-sm">
         <div class="card-body">
 
-          <!-- Tabs -->
+          {% comment %} <!-- Tabs -->
           <ul class="nav nav-tabs mb-3">
             <li class="nav-item">
               <button class="nav-link active" data-coreui-toggle="tab" data-coreui-target="#cadastro">📝 Cadastrar OS</button>
@@ -189,7 +189,7 @@
             <li class="nav-item">
               <button class="nav-link" data-coreui-toggle="tab" data-coreui-target="#listagem">📋 Listar OS</button>
             </li>
-          </ul>
+          </ul> {% endcomment %}
 
           <div class="tab-content">
 
@@ -207,7 +207,7 @@
                   <span class="step-label">Terno</span>
                 </div>
                 <div class="step" data-step="3">
-                  <span class="step-circle">🥼</i></span>
+                  <span class="step-circle"><i class="bi bi-person-hearts"></i></span>
                   <span class="step-label">Camisa</span>
                 </div>
                 <div class="step" data-step="4">
@@ -228,19 +228,19 @@
                   <div class="row g-3">
                     <div class="col-md-6">
                       <label class="form-label">Nome *</label>
-                      <input name="cliente_nome" type="text" class="form-control" placeholder="Digite o nome" required>
+                      <input id="cliente_nome" name="cliente_nome" type="text" class="form-control" readonly>
                     </div>
                     <div class="col-md-6">
                       <label class="form-label">Telefone *</label>
-                      <input name="telefone" type="text" class="form-control" placeholder="(__) _____-____" required>
+                      <input id="telefone"   name="telefone" type="text" class="form-control" readonly>
                     </div>
                     <div class="col-md-6">
                       <label class="form-label">CPF *</label>
-                      <input name="cpf" type="text" class="form-control" placeholder="___.___.___-__" required>
+                      <input id="cpf" name="cpf" type="text" class="form-control" readonly>
                     </div>
                     <div class="col-md-6">
                       <label class="form-label">CEP</label>
-                      <input id="cep" name="cep" type="text" class="form-control" placeholder="_____-___">
+                      <input id="cep" name="cep" type="text" class="form-control" readonly>
                     </div>
                     <div class="col-md-6">
                       <label class="form-label">Rua</label>
@@ -248,7 +248,7 @@
                     </div>
                     <div class="col-md-3">
                       <label class="form-label">Número</label>
-                      <input id="numero" name="numero" type="number" class="form-control" min="0" max="200">
+                      <input id="numero" name="numero" type="number" class="form-control" readonly>
                     </div>
                     <div class="col-md-3">
                       <label class="form-label">Bairro</label>
@@ -267,17 +267,17 @@
                 <!-- STEP 2: Terno -->
                 <div class="form-step" data-step="2">
                   <div class="row g-3">
-                    <!-- Marca e Tecido -->
-                    <div class="col-md-3">
+                    <!-- Linha 1: Marca e Tecido -->
+                    <div class="col-md-6">
                       <label class="form-label">Marca do Terno *</label>
                       <input name="terno_marca" type="text" class="form-control" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                       <label class="form-label">Tecido do Terno *</label>
                       <input name="terno_tecido" type="text" class="form-control" required>
                     </div>
 
-                    <!-- Paletó -->
+                    <!-- Linha 2: Paletó -->
                     <div class="col-md-2">
                       <label class="form-label">Nº Paletó *</label>
                       <input name="paleto" type="number" class="form-control" min="0" max="200" required>
@@ -290,8 +290,34 @@
                       <label class="form-label">Manga Paletó *</label>
                       <input name="paleto_mg" type="number" class="form-control" required>
                     </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Ajuste Paletó?</label>
+                      <select name="paleto_ajuste" class="form-select toggle-dependent" data-target=".paleto-ajuste">
+                        <option value="">--</option>
+                        <option value="yes">Sim</option>
+                        <option value="no">Não</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2 paleto-ajuste dependent-field" style="display:none">
+                      <label class="form-label">Ajuste Paletó (cm)</label>
+                      <input name="paleto_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
+                    </div>
 
-                    <!-- Calça -->
+                    <!-- Linha 3: Colete -->
+                    <div class="col-md-2">
+                      <label class="form-label">Colete?</label>
+                      <select name="colete_presente" class="form-select toggle-dependent" data-target=".colete-cor">
+                        <option value="">--</option>
+                        <option value="yes">Sim</option>
+                        <option value="no">Não</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2 colete-cor dependent-field" style="display:none">
+                      <label class="form-label">Cor do Colete</label>
+                      <select name="cor_colete" class="form-select color-select" disabled></select>
+                    </div>
+
+                    <!-- Linha 4: Calça -->
                     <div class="col-md-2">
                       <label class="form-label">Nº Calça *</label>
                       <input name="calca" type="number" class="form-control" min="0" max="200" required>
@@ -308,25 +334,17 @@
                       <label class="form-label">Perna Calça *</label>
                       <input name="calca_perna" type="number" class="form-control" required>
                     </div>
-
-                    <!-- Colete -->
                     <div class="col-md-2">
-                      <label class="form-label">Colete?</label>
-                      <select name="colete_presente" class="form-select toggle-dependent" data-target=".colete-cor">
+                      <label class="form-label">Ajuste Calça?</label>
+                      <select name="calca_ajuste" class="form-select toggle-dependent" data-target=".calca-ajuste">
                         <option value="">--</option>
                         <option value="yes">Sim</option>
                         <option value="no">Não</option>
                       </select>
                     </div>
-                    <div class="col-md-2 colete-cor dependent-field" style="display:none">
-                      <label class="form-label">Cor do Colete</label>
-                      <select name="cor_colete" class="form-select color-select" disabled></select>
-                    </div>
-
-                    <!-- Ajustes adicionais -->
-                    <div class="col-md-4">
-                      <label class="form-label">Ajustes / Observações</label>
-                      <input name="terno_ajustes_adicionais" type="text" class="form-control">
+                    <div class="col-md-2 calca-ajuste dependent-field" style="display:none">
+                      <label class="form-label">Ajuste Calça (cm)</label>
+                      <input name="calca_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
                     </div>
                   </div>
 
@@ -367,10 +385,10 @@
                       <label class="form-label">Ajuste (cm)</label>
                       <input name="camisa_ajuste_cm" type="number" step="0.5" class="form-control" disabled>
                     </div>
-                    <div class="col-md-4">
+                    {% comment %} <div class="col-md-4">
                       <label class="form-label">Extras</label>
                       <input name="camisa_ajustes_adicionais" type="text" class="form-control">
-                    </div>
+                    </div> {% endcomment %}
                   </div>
 
                   <div class="d-flex justify-content-between mt-3">
@@ -447,25 +465,32 @@
                 <!-- STEP 6: Pagamento -->
                 <div class="form-step" data-step="5">
                   <div class="row g-3">
-                    <div class="col-md-3">
+                    {% comment %} <div class="col-md-4">
                       <label class="form-label">Data do Pedido *</label>
                       <input name="order_date" type="date" class="form-control" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                       <label class="form-label">Data do Evento *</label>
                       <input name="event_date" type="date" class="form-control" required>
+                    </div> {% endcomment %}
+                    <div class="col-md-4">
+                      <label class="form-label">Forma de Pagamento *</label>
+                      <select name="forma_pagamento" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        <option value="CREDITO">CRÉDITO</option>
+                        <option value="DEBITO">DÉBITO</option>
+                        <option value="PIX">PIX</option>
+                        <option value="DINHEIRO">DINHEIRO</option>
+                        <option value="CHEQUE">CHEQUE</option>
+                      </select>
                     </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Ocasião *</label>
-                      <input name="occasion" type="text" class="form-control" placeholder="Descrição do evento" required>
-                    </div>
-                    <div class="col-md-3">
+                    {% comment %} <div class="col-md-3">
                       <label class="form-label">Tipo *</label>
                       <select name="purchase" class="form-select" required>
                         <option value="false" selected>Locação</option>
                         <option value="true">Compra</option>
                       </select>
-                    </div>
+                    </div> {% endcomment %}
                   </div>
                   <div class="row g-3 mt-3">
                     <div class="col-md-4">
@@ -491,8 +516,12 @@
 
             </div>
 
-            <!-- Listagem -->
+            {% comment %} <!-- Listagem -->
             <div class="tab-pane fade" id="listagem">
+              <div id="osGrid" class="ag-theme-quartz"></div>
+            </div> {% endcomment %}
+
+            {% comment %} <div class="tab-pane fade" id="listagem">
               <div class="row g-4">
                 {% for os in ordens %}
                   <div class="col-md-4">
@@ -512,7 +541,7 @@
                   <div class="col-12 text-center text-muted">Nenhuma ordem cadastrada.</div>
                 {% endfor %}
               </div>
-            </div>
+            </div> {% endcomment %}
 
           </div>
         </div>
@@ -521,26 +550,31 @@
 
     <!-- Summary Sidebar -->
     <div class="summary-sidebar">
-      <h5>📋 Resumo</h5>
+      <h5><i class="bi bi-clipboard-check me-1"></i>Resumo</h5>
       <div id="liveSummary">
         <div class="summary-section" data-section="Cliente">
-          <h6>👤 Cliente</h6>
+          <h6><i class="bi bi-person-fill me-1"></i>Cliente</h6>
           <div class="summary-grid"></div>
         </div>
-        <div class="summary-section" data-section="Itens">
-          <h6>👔 Itens</h6>
+        <div class="summary-section" data-section="Terno">
+          <h6><i class="bi bi-suit-club-fill me-1"></i>Terno</h6>
+          <div class="summary-grid"></div>
+        </div>
+        <div class="summary-section" data-section="Camisa">
+          <h6><i class="bi bi-person-hearts"></i>Camisa</h6>
           <div class="summary-grid"></div>
         </div>
         <div class="summary-section" data-section="Acessórios">
-          <h6>💎 Acessórios</h6>
+          <h6><i class="bi bi-gem me-1"></i>Acessórios</h6>
           <div class="summary-grid"></div>
         </div>
         <div class="summary-section" data-section="Pagamento">
-          <h6>💰 Pagamento</h6>
+          <h6><i class="bi bi-cash-coin me-1"></i>Pagamento</h6>
           <div class="summary-grid"></div>
         </div>
       </div>
     </div>
+
 
   </div>
 </div>
@@ -558,6 +592,38 @@
 
 {% block extra_scripts %}
 <script>
+document.addEventListener('DOMContentLoaded', () => {
+  // ID da OS vindo do contexto Django
+  const osId = {{ order_id }};
+  fetch(`/os/${osId}/cliente/`, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Não foi possível carregar dados do cliente');
+    return res.json();
+  })
+  .then(({ data }) => {
+    // preenche campos
+    document.getElementById('cliente_nome').value = data.nome || '';
+    document.getElementById('cpf').value          = data.cpf  || '';
+    document.getElementById('telefone').value     = data.telefones[0] || '';
+    // se houver endereços, preenche o primeiro
+    if (data.enderecos && data.enderecos.length) {
+      const addr = data.enderecos[0];
+      document.getElementById('cep').value    = addr.cep      || '';
+      document.getElementById('rua').value    = addr.rua      || '';
+      document.getElementById('numero').value = addr.numero   || '';
+      document.getElementById('bairro').value = addr.bairro   || '';
+      document.getElementById('cidade').value = addr.cidade   || '';
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    // opcional: exibir mensagem de erro na UI
+  });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   const mainEl       = document.querySelector('.d-flex.main');
   const toggleBtn    = document.getElementById('toggleSummary');
@@ -615,32 +681,38 @@ document.addEventListener('DOMContentLoaded', () => {
   // Summary builder
   const itemGroups = [
     ['Paletó', [
-      ['paleto','Nº'],['cor_paleto','Cor'],['paleto_mg','Manga'],
-      ['paleto_ajuste_cm','Ajuste', f=>f.get('paleto_ajuste')==='yes'],
+      ['paleto','Nº'],['cor_paleto','Cor Paletó'],['paleto_mg','Manga'],
+      ['paleto_ajuste_cm','Ajuste', f => f.get('paleto_ajuste') === 'yes'],
       ['paleto_ajustes_adicionais','Extras']
     ]],
     ['Camisa', [
-      ['camisa','Nº'],['cor_camisa','Cor'],['camisa_mg','Manga'],
-      ['camisa_ajuste_cm','Ajuste', f=>f.get('camisa_ajuste')==='yes'],
+      ['camisa','Nº'],['cor_camisa','Cor Camisa'],['camisa_mg','Manga'],
+      ['camisa_ajuste_cm','Ajuste', f => f.get('camisa_ajuste') === 'yes'],
       ['camisa_ajustes_adicionais','Extras']
     ]],
     ['Calça', [
-      ['calca','Nº'],['cor_calca','Cor'],['calca_cp','Cintura'],
-      ['calca_perna','Perna'],['calca_ajuste_cm','Ajuste', f=>f.get('calca_ajuste')==='yes'],
+      ['calca','Nº'],['cor_calca','Cor Calça'],['calca_cp','Cintura'],
+      ['calca_perna','Perna'],['calca_ajuste_cm','Ajuste', f => f.get('calca_ajuste') === 'yes'],
       ['calca_ajustes_adicionais','Extras']
     ]]
   ];
+
   const schema = {
     'Cliente': [
       ['cliente_nome','Nome'],['telefone','Telefone'],['cpf','CPF'],
       ['rua','Rua'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade']
     ],
     'Acessórios': [
-      ['suspensorio_sim','Suspensório'],['suspensorio_cor','Cor', f=>f.get('suspensorio_sim')==='yes'],
-      ['lenco_sim','Lenço'],['lenco_cor','Cor', f=>f.get('lenco_sim')==='yes'],
-      ['passante_sim','Passante'],['passante_cor','Cor', f=>f.get('passante_sim')==='yes'],
-      ['sapato_sim','Sapato'],['sapato_tipo','Tipo', f=>f.get('sapato_sim')==='yes'],
-      ['sapato_numero','Nº', f=>f.get('sapato_sim')==='yes']
+      ['suspensorio_sim','Suspensório'],['suspensorio_cor','Cor Suspensório', f => f.get('suspensorio_sim') === 'yes'],
+      ['lenco_sim','Lenço'],['lenco_cor','Cor Lenço', f => f.get('lenco_sim') === 'yes'],
+      ['passante_sim','Passante'],['passante_cor','Cor Passante', f => f.get('passante_sim') === 'yes'],
+      ['sapato_sim','Sapato'],['sapato_tipo','Tipo', f => f.get('sapato_sim') === 'yes'],
+      ['sapato_numero','Nº', f => f.get('sapato_sim') === 'yes']
+    ],
+    'Camisa': [
+      ['camisa','Nº'],['cor_camisa','Cor'],['camisa_mg','Manga'],
+      ['camisa_ajuste_cm','Ajuste', f => f.get('camisa_ajuste') === 'yes'],
+      ['camisa_ajustes_adicionais','Extras']
     ],
     'Pagamento': [
       ['order_date','Data Pedido'],['event_date','Data Evento'],
@@ -648,47 +720,62 @@ document.addEventListener('DOMContentLoaded', () => {
       ['valor_total','Total'],['valor_sinal','Sinal'],['valor_restante','Restante']
     ]
   };
+
   function updateSummary() {
     const fd = new FormData(form);
-    ['Cliente','Itens','Acessórios','Pagamento'].forEach(section => {
+
+    ['Cliente', 'Terno', 'Camisa', 'Acessórios', 'Pagamento'].forEach(section => {
       const secEl = document.querySelector(`.summary-section[data-section="${section}"]`);
-      const grid  = secEl.querySelector('.summary-grid');
+      const grid = secEl.querySelector('.summary-grid');
       grid.innerHTML = '';
-      if (section === 'Itens') {
-        itemGroups.forEach(([title, fields]) => {
-          const parts = [];
-          fields.forEach(([k,label,cond]) => {
-            if ((!cond || cond(fd)) && fd.get(k)) {
-              let v = fd.get(k);
-              const el = form.querySelector(`[name="${k}"]`);
-              if (el.tagName === 'SELECT') v = el.options[el.selectedIndex].text;
-              parts.push(`<span class="label">${label}:</span>${v}`);
-            }
-          });
-          if (parts.length) {
-            const div = document.createElement('div');
-            div.className = 'summary-item';
-            div.innerHTML = `<strong>${title}:</strong> ` + parts.join(' | ');
-            grid.appendChild(div);
-          }
-        });
-      } else {
-        schema[section].forEach(([k,label,cond]) => {
-          if ((!cond || cond(fd)) && fd.get(k)) {
-            let v = fd.get(k);
-            const el = form.querySelector(`[name="${k}"]`);
-            if (el.tagName === 'SELECT') v = el.options[el.selectedIndex].text;
-            const div = document.createElement('div');
-            div.className = 'summary-item';
-            div.innerHTML = `<span class="label">${label}:</span>${v}`;
-            grid.appendChild(div);
-          }
-        });
+
+      if (section === 'Terno') {
+        updateTernoSummary(fd);
+        return;
       }
+
+      const fields = schema[section];
+      if (!fields) return;
+
+      fields.forEach(([k, label, cond]) => {
+        if ((!cond || cond(fd)) && fd.get(k)) {
+          let v = fd.get(k);
+          const el = form.querySelector(`[name="${k}"]`);
+          if (el && el.tagName === 'SELECT') {
+            v = el.options[el.selectedIndex]?.text || v;
+          }
+          const div = document.createElement('div');
+          div.className = 'summary-item';
+          div.innerHTML = `<span class="label">${label}:</span>${v}`;
+          grid.appendChild(div);
+        }
+      });
+
       secEl.style.display = grid.children.length ? 'block' : 'none';
     });
   }
-  ['input','change'].forEach(evt => form.addEventListener(evt, updateSummary));
+  ['input', 'change'].forEach(evt => form.addEventListener(evt, updateSummary));
+
+
+  // Acessórios: mostrar campos de cor ao selecionar "Sim"
+document.querySelectorAll('.toggle-dependent').forEach(sel => {
+  const targetCls = sel.dataset.target;
+  const dependents = document.querySelectorAll(targetCls);
+  function toggleVisibility() {
+    const isYes = sel.value === 'yes';
+    dependents.forEach(el => {
+      el.style.display = isYes ? 'block' : 'none';
+      el.querySelectorAll('select,input').forEach(child => {
+        child.disabled = !isYes;
+        if (!isYes) child.value = ''; // limpa valor se marcado como "Não"
+      });
+    });
+    updateSummary(); // atualiza resumo imediatamente
+  }
+  sel.addEventListener('change', toggleVisibility);
+  toggleVisibility(); // inicializa visibilidade correta ao carregar
+});
+
 
   // --- Masks & Validations ---
 
@@ -857,7 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     ['paleto','cor_paleto','paleto_mg','camisa','cor_camisa','camisa_mg','calca','cor_calca','calca_cp','calca_perna']
       .forEach(n => !form.querySelector(`[name="${n}"]`).value && missing.push(n));
-    ['order_date','event_date','occasion','purchase','valor_total','valor_sinal']
+    ['forma_pagamento','valor_total','valor_sinal']
       .forEach(n => !form.querySelector(`[name="${n}"]`).value && missing.push(n));
 
     if (missing.length) {
@@ -879,10 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bairro: fd.get('bairro'),
         cidade: fd.get('cidade'),
       },
-      order_date: fd.get('order_date'),
-      event_date: fd.get('event_date'),
-      occasion: fd.get('occasion'),
-      purchase: fd.get('purchase') === 'true',
+      forma_pagamento: fd.get('forma_pagamento'),
       total_value: parseFloat(fd.get('valor_total')),
       advance_payment: parseFloat(fd.get('valor_sinal')),
       remaining_payment: parseFloat(fd.get('valor_restante')),
@@ -920,6 +1004,8 @@ document.addEventListener('DOMContentLoaded', () => {
       size: 'paleto',
       sleeve_length: 'paleto_mg',
       color: 'cor_paleto',
+      brand: 'terno_marca',
+      fabric: 'terno_tecido',              // 👈 novo
       description: 'paleto_ajustes_adicionais',
       ajuste_flag: 'paleto_ajuste',
       adjustment_value: 'paleto_ajuste_cm'
@@ -928,6 +1014,8 @@ document.addEventListener('DOMContentLoaded', () => {
       size: 'camisa',
       sleeve_length: 'camisa_mg',
       color: 'cor_camisa',
+      brand: 'camisa_marca',
+      fabric: null,  // se não existir tecido para camisa, deixe null
       description: 'camisa_ajustes_adicionais',
       ajuste_flag: 'camisa_ajuste',
       adjustment_value: 'camisa_ajuste_cm'
@@ -1007,6 +1095,182 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize
   showStep(1);
   updateSummary();
+
+  function updateTernoSummary(fd) {
+    const section = document.querySelector('.summary-section[data-section="Terno"]');
+    const grid = section.querySelector('.summary-grid');
+    grid.innerHTML = '';
+
+    const fields = [
+      ['terno_marca', 'Marca'],
+      ['terno_tecido', 'Tecido'],
+
+      ['paleto', 'Paletó Nº'],
+      ['cor_paleto', 'Paletó Cor'],
+      ['paleto_mg', 'Paletó Manga'],
+      ['paleto_ajuste_cm', 'Ajuste Paletó', fd => fd.get('paleto_ajuste') === 'yes'],
+
+      ['calca', 'Calça Nº'],
+      ['cor_calca', 'Calça Cor'],
+      ['calca_cp', 'Calça Cintura'],
+      ['calca_perna', 'Calça Perna'],
+      ['calca_ajuste_cm', 'Ajuste Calça', fd => fd.get('calca_ajuste') === 'yes'],
+
+      ['colete_presente', 'Colete'],
+      ['cor_colete', 'Cor do Colete', fd => fd.get('colete_presente') === 'yes'],
+
+      ['terno_ajustes_adicionais', 'Ajustes/Obs.']
+    ];
+
+    fields.forEach(([key, label, condition]) => {
+      if ((!condition || condition(fd)) && fd.get(key)) {
+        let val = fd.get(key);
+        const el = form.querySelector(`[name="${key}"]`);
+        if (el && el.tagName === 'SELECT') {
+          val = el.options[el.selectedIndex]?.text || val;
+        }
+        const div = document.createElement('div');
+        div.className = 'summary-item';
+        div.innerHTML = `<span class="label">${label}:</span>${val}`;
+        grid.appendChild(div);
+      }
+    });
+
+    section.style.display = grid.children.length ? 'block' : 'none';
+  }
+
+// Corrige exibição do campo "camisa_ajuste_cm" e impede valores acima de 200
+function fixCamisaAjusteToggle() {
+  const toggleEl = form.querySelector('[name="camisa_ajuste"]');
+  const ajusteEl = form.querySelector('[name="camisa_ajuste_cm"]');
+  const wrapperEl = ajusteEl.closest('.dependent-field');
+
+  function updateField() {
+    if (toggleEl.value === 'yes') {
+      wrapperEl.style.display = 'block';
+      ajusteEl.disabled = false;
+      ajusteEl.max = 200;
+    } else {
+      wrapperEl.style.display = 'none';
+      ajusteEl.value = '';
+      ajusteEl.disabled = true;
+    }
+  }
+
+  ajusteEl.addEventListener('input', () => {
+    let val = parseFloat(ajusteEl.value);
+    if (!isNaN(val) && val > 200) {
+      ajusteEl.value = 200;
+    }
+  });
+
+  toggleEl.addEventListener('change', updateField);
+  form.querySelector('[name="camisa"]').addEventListener('input', updateField);
+
+  // inicializa corretamente ao carregar
+  updateField();
+}
+
+fixCamisaAjusteToggle();
+
+
+function fixPaletoCalcaAjusteToggle() {
+  const ajustes = [
+    { ajuste: 'paleto_ajuste', campo: 'paleto_ajuste_cm' },
+    { ajuste: 'calca_ajuste', campo: 'calca_ajuste_cm' }
+  ];
+
+  ajustes.forEach(({ ajuste, campo }) => {
+    const toggleEl = form.querySelector(`[name="${ajuste}"]`);
+    const ajusteEl = form.querySelector(`[name="${campo}"]`);
+    const wrapperEl = ajusteEl.closest('.dependent-field');
+
+    function updateField() {
+      if (toggleEl.value === 'yes') {
+        wrapperEl.style.display = 'block';
+        ajusteEl.disabled = false;
+        ajusteEl.max = 200;
+      } else {
+        wrapperEl.style.display = 'none';
+        ajusteEl.value = '';
+        ajusteEl.disabled = true;
+      }
+    }
+
+    ajusteEl.addEventListener('input', () => {
+      let val = parseFloat(ajusteEl.value);
+      if (!isNaN(val) && val > 200) {
+        ajusteEl.value = 200;
+      }
+    });
+
+    toggleEl.addEventListener('change', updateField);
+    updateField(); // inicializa corretamente
+  });
+}
+
+// ✅ Chamada da função no final do script
+fixPaletoCalcaAjusteToggle();
+
+// === AG-GRID MOCK ===
+const gridDiv = document.getElementById('osGrid');
+if (gridDiv) {
+  gridDiv.style.height = '500px';
+  const columnDefs = [
+    { headerName: 'ID', field: 'id', width: 80 },
+    { headerName: 'Cliente', field: 'cliente', flex: 1 },
+    { headerName: 'Telefone', field: 'telefone', width: 150 },
+    { headerName: 'CPF', field: 'cpf', width: 150 },
+    { headerName: 'Evento', field: 'evento', flex: 1 },
+    { headerName: 'Data Evento', field: 'data_evento', width: 130 },
+    { headerName: 'Valor Total', field: 'valor_total', width: 120 },
+    { headerName: 'Sinal', field: 'sinal', width: 100 },
+    { headerName: 'Restante', field: 'restante', width: 100 },
+    { headerName: 'Tipo', field: 'tipo', width: 100 }
+  ];
+
+  const rowData = [
+    {
+      id: 1,
+      cliente: 'João da Silva',
+      telefone: '(11) 91234-5678',
+      cpf: '123.456.789-00',
+      evento: 'Casamento',
+      data_evento: '2025-06-10',
+      valor_total: '500.00',
+      sinal: '100.00',
+      restante: '400.00',
+      tipo: 'Locação'
+    },
+    {
+      id: 2,
+      cliente: 'Maria Oliveira',
+      telefone: '(21) 99888-7777',
+      cpf: '987.654.321-00',
+      evento: 'Formatura',
+      data_evento: '2025-07-15',
+      valor_total: '650.00',
+      sinal: '200.00',
+      restante: '450.00',
+      tipo: 'Compra'
+    }
+  ];
+
+  new agGrid.Grid(gridDiv, {
+    columnDefs,
+    rowData,
+    defaultColDef: {
+      resizable: true,
+      sortable: true,
+      filter: true
+    },
+    pagination: true,
+    paginationPageSize: 10
+  });
+}
+
+
+
 });
 </script>
 {% endblock %}

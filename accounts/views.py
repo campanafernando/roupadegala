@@ -64,7 +64,7 @@ def register_view(request):
             return render(request, "register.html", {"errors": errors})
 
         user = User.objects.create_user(username=username, password=password)
-        employee_type, _ = PersonType.objects.get_or_create(type="EMPLOYEE")
+        employee_type, _ = PersonType.objects.get_or_create(type="ATENDENTE")
         person = Person.objects.create(
             user=user, name=name, cpf=cpf, person_type=employee_type
         )
@@ -108,6 +108,7 @@ def register_employee_view(request):
     cpf = request.POST.get("cpf")
     email = request.POST.get("email")
     phone = request.POST.get("phone")
+    role = request.POST.get("role")
 
     errors = {}
     if not cpf or not name or not email or not phone:
@@ -132,7 +133,7 @@ def register_employee_view(request):
 
     password = "".join(random.choices(string.ascii_uppercase + string.digits, k=7))
     user = User.objects.create_user(username=cpf, password=password, is_active=True)
-    employee_type, _ = PersonType.objects.get_or_create(type="EMPLOYEE")
+    employee_type, _ = PersonType.objects.get_or_create(type=role)
     person = Person.objects.create(
         user=user, name=name.upper(), cpf=cpf, person_type=employee_type
     )
@@ -145,9 +146,9 @@ def register_employee_view(request):
 @require_GET
 @login_required
 def list_employees(request):
-    employees = Person.objects.filter(person_type__type="EMPLOYEE").select_related(
-        "user"
-    )
+    employees = Person.objects.filter(
+        person_type__type__in=["ATENDENTE", "RECEPÇÃO"]
+    ).select_related("user")
     data = []
 
     for emp in employees:
@@ -163,6 +164,7 @@ def list_employees(request):
                 "cpf": emp.cpf,
                 "email": contact.email if contact else "",
                 "phone": contact.phone if contact else "",
+                "role": emp.person_type.type,
                 "active": emp.user.is_active if emp.user else False,
                 "password": password,
             }
@@ -214,7 +216,7 @@ def register_client(request):
         except City.DoesNotExist:
             return JsonResponse({"error": "Cidade não encontrada"}, status=400)
 
-        pt, _ = PersonType.objects.get_or_create(type="CUSTOMER")
+        pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
 
         person = Person.objects.create(
             name=nome, cpf=cpf, person_type=pt, created_by=request.user
@@ -242,3 +244,44 @@ def register_client(request):
         return JsonResponse({"error": "JSON inválido"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@require_GET
+@login_required
+def get_client_by_cpf(request):
+    cpf = request.GET.get("cpf", "").strip().replace(".", "").replace("-", "")
+    if not cpf or len(cpf) != 11:
+        return JsonResponse({"error": "CPF inválido"}, status=400)
+
+    try:
+        person = Person.objects.get(cpf=cpf, person_type__type="CLIENTE")
+        contact = person.personscontacts_set.order_by("-date_created").first()
+        address = (
+            person.personsadresses_set.select_related("city")
+            .order_by("-date_created")
+            .first()
+        )
+
+        response = {
+            "id": person.id,
+            "nome": person.name,
+            "cpf": person.cpf,
+            "telefone": contact.phone if contact else "",
+            "email": contact.email if contact else "",
+            "endereco": (
+                {
+                    "rua": address.street if address else "",
+                    "numero": address.number if address else "",
+                    "bairro": address.neighborhood if address else "",
+                    "cep": address.cep if address else "",
+                    "cidade": address.city.name if address and address.city else "",
+                }
+                if address
+                else None
+            ),
+        }
+
+        return JsonResponse(response)
+
+    except Person.DoesNotExist:
+        return JsonResponse({"error": "Cliente não encontrado"}, status=404)

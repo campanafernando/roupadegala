@@ -78,7 +78,7 @@ class Person(BaseModel):
         db_table = "person"
 
     def __str__(self):
-        return f"{self.nome} ({self.person_type.nome})"
+        return f"{self.name})"
 
 
 class PersonsContacts(BaseModel):
