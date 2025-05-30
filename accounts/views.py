@@ -17,7 +17,7 @@ from .models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect("service_control")
+        return redirect("os_view")
 
     login_form = AuthenticationForm()
 
@@ -29,7 +29,7 @@ def login_view(request):
 
         if user:
             login(request, user)
-            return redirect("service_control")
+            return redirect("os_view")
 
     return render(request, "login.html", {"login_form": login_form})
 

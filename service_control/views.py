@@ -1,5 +1,4 @@
 import json
-from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -116,176 +115,92 @@ def create_pre_service_order(request):
 
 @require_POST
 @login_required
-def create_service_order(request):
+def update_service_order(request):
+    # 1. Decodifica JSON
     try:
         payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        # --- 1. Dados do cliente ---
-        cli = payload.get("cliente", {})
-        nome = cli.get("nome")
-        cpf = cli.get("cpf")
-        telefone = cli.get("telefone")
-        cep = cli.get("cep")
-        rua = cli.get("rua")
-        numero = cli.get("numero")
-        bairro = cli.get("bairro")
-        cidade_nome = cli.get("cidade")
+    # 2. Valida order_id
+    order_id = payload.get("order_id")
+    if not order_id:
+        return JsonResponse({"error": "ID da OS não informado"}, status=400)
 
-        if not all([nome, cpf, cidade_nome]):
-            return JsonResponse({"error": "Dados do cliente incompletos"}, status=400)
+    # 3. Busca a OS ou 404
+    service_order = get_object_or_404(ServiceOrder, id=order_id)
 
-        # valida cidade
-        try:
-            city_obj = City.objects.get(name__iexact=cidade_nome)
-        except City.DoesNotExist:
-            return JsonResponse({"error": "Cidade não encontrada"}, status=400)
+    # 4. Atualiza dados de pagamento e fase
+    service_order.total_value = payload.get("total_value", 0)
+    service_order.advance_payment = payload.get("advance_payment", 0)
+    service_order.remaining_payment = payload.get("remaining_payment", 0)
+    service_order.payment_method = payload.get("payment_method")
+    service_order.observations = payload.get("observations", "")
 
-        # tipo CUSTOMER
-        pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
+    try:
+        phase = ServiceOrderPhase.objects.get(name__iexact="AGUARDANDO PGTO")
+        service_order.service_order_phase = phase
+    except ServiceOrderPhase.DoesNotExist:
+        pass
 
-        # Pessoa (por CPF)
-        person, _ = Person.objects.get_or_create(
-            cpf=cpf,
-            defaults={
-                "name": nome,
-                "person_type": pt,
-                "created_by": request.user,
-            },
+    # 5. Ajuste_needed se qualquer item requerer
+    items_data = payload.get("items", [])
+    service_order.adjustment_needed = any(
+        item.get("adjustment_needed") for item in items_data
+    )
+
+    service_order.save()
+
+    # 6. Limpamos itens antigos e recriamos
+    service_order.items.all().delete()
+    seen = set()
+
+    for it in items_data:
+        key = (
+            it.get("product_type"),
+            it.get("size"),
+            it.get("sleeve_length"),
+            it.get("leg_length"),
+            it.get("waist_size"),
+            it.get("collar_size"),
+            it.get("color"),  # AGORA é a string do nome da cor
+            it.get("brand"),
+            it.get("fabric"),
+            it.get("description"),
+            bool(it.get("adjustment_needed")),
+            it.get("adjustment_value"),
+            it.get("adjustment_notes"),
         )
+        if key in seen:
+            continue
+        seen.add(key)
 
-        # Contato (por telefone + pessoa)
-        PersonsContacts.objects.get_or_create(
-            phone=telefone, person=person, defaults={"created_by": request.user}
-        )
-
-        # Endereço (único por todos os campos + pessoa)
-        PersonsAdresses.objects.get_or_create(
-            person=person,
-            street=rua,
-            number=numero,
-            cep=cep,
-            neighborhood=bairro,
-            city=city_obj,
+        temp, _ = TemporaryProduct.objects.get_or_create(
+            product_type=it.get("product_type"),
+            size=it.get("size"),
+            sleeve_length=it.get("sleeve_length"),
+            leg_length=it.get("leg_length"),
+            waist_size=it.get("waist_size"),
+            collar_size=it.get("collar_size"),
+            color=it.get("color") or "",  # salva exatamente a string
+            brand=it.get("brand"),
+            fabric=it.get("fabric"),
+            description=it.get("description"),
             defaults={"created_by": request.user},
         )
 
-        # --- 2. Dados da OS ---
-        od_str = payload.get("order_date")
-        ev_str = payload.get("event_date")
-        occasion = payload.get("occasion")
-        purchase = payload.get("purchase", False)
-        if not all([od_str, ev_str, occasion]):
-            return JsonResponse({"error": "Dados da OS incompletos"}, status=400)
-
-        order_date = datetime.strptime(od_str, "%Y-%m-%d").date()
-        event_date = datetime.strptime(ev_str, "%Y-%m-%d").date()
-
-        total_value = payload.get("total_value", 0)
-        advance_payment = payload.get("advance_payment", 0)
-        remaining_payment = payload.get("remaining_payment", 0)
-        observations = payload.get("observations", "")
-
-        items = payload.get("items", [])
-
-        # se qualquer item requer ajuste, marcamos a OS como adjustment_needed
-        has_adjustments = any(item.get("adjustment_needed", False) for item in items)
-
-        service_order = ServiceOrder.objects.create(
-            renter=person,
-            order_date=order_date,
-            event_date=event_date,
-            occasion=occasion,
-            total_value=total_value,
-            advance_payment=advance_payment,
-            remaining_payment=remaining_payment,
-            purchase=purchase,
-            adjustment_needed=has_adjustments,
-            observations=observations,
+        ServiceOrderItem.objects.create(
+            service_order=service_order,
+            temporary_product=temp,
+            adjustment_needed=it.get("adjustment_needed", False),
+            adjustment_value=it.get("adjustment_value"),
+            adjustment_notes=it.get("adjustment_notes"),
             created_by=request.user,
         )
 
-        # --- 3. Itens da OS ---
-        seen = set()
-        for it in items:
-            key = (
-                it.get("product_type"),
-                it.get("size"),
-                it.get("sleeve_length"),
-                it.get("leg_length"),
-                it.get("waist_size"),
-                it.get("collar_size"),
-                it.get("color"),
-                it.get("brand"),  # novo
-                it.get("fabric"),  # novo
-                it.get("description"),
-                bool(it.get("adjustment_needed")),
-                it.get("adjustment_value"),
-                it.get("adjustment_notes"),
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-
-            temp, _ = TemporaryProduct.objects.get_or_create(
-                product_type=it.get("product_type"),
-                size=it.get("size"),
-                sleeve_length=it.get("sleeve_length"),
-                leg_length=it.get("leg_length"),
-                waist_size=it.get("waist_size"),
-                collar_size=it.get("collar_size"),
-                color=it.get("color"),
-                brand=it.get("brand"),  # novo
-                fabric=it.get("fabric"),  # novo
-                description=it.get("description"),
-                defaults={"created_by": request.user},
-            )
-
-            ServiceOrderItem.objects.create(
-                service_order=service_order,
-                temporary_product=temp,
-                adjustment_needed=it.get("adjustment_needed", False),
-                adjustment_value=it.get("adjustment_value"),
-                adjustment_notes=it.get("adjustment_notes"),
-                created_by=request.user,
-            )
-
-        return JsonResponse(
-            {"order_id": service_order.id, "message": "OS criada com sucesso"}
-        )
-
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "JSON inválido"}, status=400)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-
-
-@login_required
-def list_service_orders(request):
-    """
-    Lista as Ordens de Serviço no formato esperado pelo AgGrid.
-    """
-    orders = ServiceOrder.objects.select_related("renter", "created_by").all()
-
-    data = []
-    for os in orders:
-        cliente = os.renter.name
-        responsavel = os.created_by.get_full_name() or os.created_by.username
-
-        data.append(
-            {
-                "id": os.id,
-                "cliente": cliente,
-                "responsavel": responsavel,
-                "order_date": os.order_date.strftime("%Y-%m-%d"),
-                "event_date": os.event_date.strftime("%Y-%m-%d"),
-                "valor_total": float(os.total_value),
-                "valor_sinal": float(os.advance_payment),
-                "valor_restante": float(os.remaining_payment),
-                "atrasada": os.event_date < date.today(),
-            }
-        )
-
-    return JsonResponse(data, safe=False)
+    return JsonResponse(
+        {"message": "OS atualizada com sucesso", "order_id": service_order.id}
+    )
 
 
 @login_required
@@ -349,6 +264,92 @@ def list_pending_service_orders(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# views.py
+
+
+@require_GET
+@login_required
+def list_awaiting_payment_service_orders(request):
+    """
+    Retorna JSON com as OS na fase "AGUARDANDO PGTO", tratando possíveis tuplas
+    em campos numéricos e usando __str__() para TemporaryProduct.
+    """
+    try:
+        phase = ServiceOrderPhase.objects.get(name__iexact="AGUARDANDO PGTO")
+    except ServiceOrderPhase.DoesNotExist:
+        return JsonResponse(
+            {"error": "Fase AGUARDANDO PGTO não encontrada"}, status=404
+        )
+
+    orders = (
+        ServiceOrder.objects.filter(service_order_phase=phase)
+        .select_related("renter", "employee", "attendant", "service_order_phase")
+        .prefetch_related(
+            "items__product", "items__temporary_product", "items__color_catalogue"
+        )
+        .order_by("-order_date")
+    )
+
+    print(orders)
+
+    def safe_float(val):
+        # Se vier como tupla/lista, pega o primeiro elemento
+        if isinstance(val, (tuple, list)):
+            val = val[0] if val else 0
+        try:
+            return float(val or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    data = []
+    for order in orders:
+        itens = []
+        for item in order.items.all():
+            if item.product:
+                nome = item.product.name
+            elif item.temporary_product:
+                nome = str(item.temporary_product)
+            else:
+                nome = "Produto não definido"
+
+            itens.append(
+                {
+                    "produto": nome,
+                    "cor": item.temporary_product.color,
+                    "ajuste": bool(item.adjustment_needed),
+                    "valor_ajuste": safe_float(item.adjustment_value),
+                    "obs_ajuste": item.adjustment_notes or "",
+                }
+            )
+
+        data.append(
+            {
+                "id": order.id,
+                "cliente": order.renter.name if order.renter else "",
+                "cpf": order.renter.cpf if order.renter else "",
+                "telefone": getattr(order.renter, "phone", ""),
+                "atendente": order.employee.name if order.employee else "",
+                "data_ordem": order.order_date.strftime("%d/%m/%Y"),
+                "data_evento": (
+                    order.event_date.strftime("%d/%m/%Y") if order.event_date else ""
+                ),
+                "ocasiao": order.occasion,
+                "origem": order.came_from,
+                "tipo_servico": "Compra" if order.purchase else "Aluguel",
+                "fase": order.service_order_phase.name,
+                "valor_total": safe_float(order.total_value),
+                "valor_pago": safe_float(order.advance_payment),
+                "valor_faltando": safe_float(order.remaining_payment),
+                "metodo_pagamento": order.payment_method or "",
+                "itens": itens,
+            }
+        )
+
+        print(data)
+
+    return JsonResponse({"data": data}, safe=False)
+
+
 @login_required
 def os_view(request):
     """
@@ -363,21 +364,11 @@ def os_view(request):
     )
 
 
-# from django.shortcuts import get_object_or_404
-# from django.http import JsonResponse
-# from django.contrib.auth.decorators import login_required
-# from django.views.decorators.http import require_GET
-
-# from .models import ServiceOrder
-# from accounts.models import PersonsContacts, PersonsAdresses
-
-
 @require_GET
 @login_required
 def get_service_order_client(request, id):
     # Busca a OS ou retorna 404
     order = get_object_or_404(ServiceOrder, id=id)
-
     # Cliente (renter) da OS
     person = order.renter
 
@@ -401,6 +392,7 @@ def get_service_order_client(request, id):
 
     # Monta payload
     payload = {
+        "order_id": order.id,
         "id": person.id,
         "nome": person.name,
         "cpf": person.cpf,
@@ -409,3 +401,18 @@ def get_service_order_client(request, id):
     }
 
     return JsonResponse({"data": payload})
+
+
+@require_POST
+@login_required
+def mark_service_order_paid(request, id):
+    try:
+        so = get_object_or_404(ServiceOrder, id=id)
+        phase = ServiceOrderPhase.objects.get(name__iexact="CONCLUÍDO")
+        so.service_order_phase = phase
+        so.save()
+        return JsonResponse({"message": "OS marcada como paga"})
+    except ServiceOrderPhase.DoesNotExist:
+        return JsonResponse({"error": "Fase CONCLUÍDA não encontrada"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

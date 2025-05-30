@@ -593,8 +593,16 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // ID da OS vindo do contexto Django
-  const osId = {{ order_id }};
+  // --- Variáveis iniciais ---
+  const osId     = {{ order_id|default:"null" }};
+  let orderId    = null;
+  const form     = document.getElementById('osForm');
+  const toastEl  = document.getElementById('errorToast');
+  const toast    = new bootstrap.Toast(toastEl);
+  const mainEl   = document.querySelector('.d-flex.main');
+  const toggleBtn= document.getElementById('toggleSummary');
+
+  // --- Busca dados do cliente e preenche o form ---
   fetch(`/os/${osId}/cliente/`, {
     credentials: 'same-origin',
     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -604,58 +612,37 @@ document.addEventListener('DOMContentLoaded', () => {
     return res.json();
   })
   .then(({ data }) => {
-    // preenche campos
+    orderId = data.order_id;
     document.getElementById('cliente_nome').value = data.nome || '';
     document.getElementById('cpf').value          = data.cpf  || '';
-    document.getElementById('telefone').value     = data.telefones[0] || '';
-    // se houver endereços, preenche o primeiro
-    if (data.enderecos && data.enderecos.length) {
+    document.getElementById('telefone').value     = data.telefones?.[0] || '';
+    if (data.enderecos?.length) {
       const addr = data.enderecos[0];
-      document.getElementById('cep').value    = addr.cep      || '';
-      document.getElementById('rua').value    = addr.rua      || '';
-      document.getElementById('numero').value = addr.numero   || '';
-      document.getElementById('bairro').value = addr.bairro   || '';
-      document.getElementById('cidade').value = addr.cidade   || '';
+      ['cep','rua','numero','bairro','cidade'].forEach((id,i) =>
+        document.getElementById(id).value = addr[['cep','logradouro','numero','bairro','localidade'][i]] || ''
+      );
     }
   })
-  .catch(err => {
-    console.error(err);
-    // opcional: exibir mensagem de erro na UI
-  });
-});
+  .catch(console.error);
 
-document.addEventListener('DOMContentLoaded', () => {
-  const mainEl       = document.querySelector('.d-flex.main');
-  const toggleBtn    = document.getElementById('toggleSummary');
-
-  // === (3) Toggle de colapsar/expandir ===
+  // --- Toggle de resumo ---
   toggleBtn.addEventListener('click', () => {
     mainEl.classList.toggle('summary-collapsed');
   });
-  // CSRF helper
+
+  // --- Helper CSRF ---
   function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      document.cookie.split(';').forEach(c => {
-        c = c.trim();
-        if (c.startsWith(name + '=')) {
-          cookieValue = decodeURIComponent(c.slice(name.length + 1));
-        }
-      });
-    }
-    return cookieValue;
+    let v = document.cookie.split(';').find(c=>c.trim().startsWith(name+'='));
+    return v ? decodeURIComponent(v.split('=')[1]) : null;
   }
   const csrftoken = getCookie('csrftoken');
 
-  // Stepper navigation
-  const steps = document.querySelectorAll('.step');
-  const forms = document.querySelectorAll('.form-step');
-  const form  = document.getElementById('osForm');
-  const toastEl = document.getElementById('errorToast');
-  const toast = new bootstrap.Toast(toastEl);
+  // --- Stepper & navegação ---
+  const steps = [...document.querySelectorAll('.step')];
+  const panes = [...document.querySelectorAll('.form-step')];
   let current = 1;
   function showStep(n) {
-    forms.forEach(f => f.classList.toggle('active', +f.dataset.step === n));
+    panes.forEach(p => p.classList.toggle('active', +p.dataset.step === n));
     steps.forEach(s => {
       const idx = +s.dataset.step;
       s.classList.toggle('active', idx === n);
@@ -664,416 +651,262 @@ document.addEventListener('DOMContentLoaded', () => {
     current = n;
   }
   document.querySelectorAll('[data-action=next]').forEach(btn =>
-    btn.addEventListener('click', () => current < forms.length && showStep(current + 1))
+    btn.addEventListener('click', ()=> current < panes.length && showStep(current+1))
   );
   document.querySelectorAll('[data-action=prev]').forEach(btn =>
-    btn.addEventListener('click', () => current > 1 && showStep(current - 1))
+    btn.addEventListener('click', ()=> current > 1 && showStep(current-1))
   );
   form.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
+    if (e.key==='Enter' && e.target.tagName!=='TEXTAREA') e.preventDefault();
   });
-  document.querySelectorAll('[data-coreui-toggle="tab"]').forEach(link =>
-    link.addEventListener('click', () => {
-      document.body.classList.toggle('list-mode', link.getAttribute('data-coreui-target') === '#listagem');
-    })
-  );
 
-  // Summary builder
-  const itemGroups = [
-    ['Paletó', [
-      ['paleto','Nº'],['cor_paleto','Cor Paletó'],['paleto_mg','Manga'],
-      ['paleto_ajuste_cm','Ajuste', f => f.get('paleto_ajuste') === 'yes'],
-      ['paleto_ajustes_adicionais','Extras']
-    ]],
-    ['Camisa', [
-      ['camisa','Nº'],['cor_camisa','Cor Camisa'],['camisa_mg','Manga'],
-      ['camisa_ajuste_cm','Ajuste', f => f.get('camisa_ajuste') === 'yes'],
-      ['camisa_ajustes_adicionais','Extras']
-    ]],
-    ['Calça', [
-      ['calca','Nº'],['cor_calca','Cor Calça'],['calca_cp','Cintura'],
-      ['calca_perna','Perna'],['calca_ajuste_cm','Ajuste', f => f.get('calca_ajuste') === 'yes'],
-      ['calca_ajustes_adicionais','Extras']
-    ]]
-  ];
-
-  const schema = {
-    'Cliente': [
-      ['cliente_nome','Nome'],['telefone','Telefone'],['cpf','CPF'],
-      ['rua','Rua'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade']
-    ],
-    'Acessórios': [
-      ['suspensorio_sim','Suspensório'],['suspensorio_cor','Cor Suspensório', f => f.get('suspensorio_sim') === 'yes'],
-      ['lenco_sim','Lenço'],['lenco_cor','Cor Lenço', f => f.get('lenco_sim') === 'yes'],
-      ['passante_sim','Passante'],['passante_cor','Cor Passante', f => f.get('passante_sim') === 'yes'],
-      ['sapato_sim','Sapato'],['sapato_tipo','Tipo', f => f.get('sapato_sim') === 'yes'],
-      ['sapato_numero','Nº', f => f.get('sapato_sim') === 'yes']
-    ],
-    'Camisa': [
-      ['camisa','Nº'],['cor_camisa','Cor'],['camisa_mg','Manga'],
-      ['camisa_ajuste_cm','Ajuste', f => f.get('camisa_ajuste') === 'yes'],
-      ['camisa_ajustes_adicionais','Extras']
-    ],
-    'Pagamento': [
-      ['order_date','Data Pedido'],['event_date','Data Evento'],
-      ['occasion','Ocasião'],['purchase','Tipo'],
-      ['valor_total','Total'],['valor_sinal','Sinal'],['valor_restante','Restante']
-    ]
-  };
-
+  // --- Summary builder ---
   function updateSummary() {
     const fd = new FormData(form);
-
-    ['Cliente', 'Terno', 'Camisa', 'Acessórios', 'Pagamento'].forEach(section => {
+    ['Cliente','Terno','Camisa','Acessórios','Pagamento'].forEach(section => {
       const secEl = document.querySelector(`.summary-section[data-section="${section}"]`);
-      const grid = secEl.querySelector('.summary-grid');
+      const grid  = secEl.querySelector('.summary-grid');
       grid.innerHTML = '';
-
-      if (section === 'Terno') {
-        updateTernoSummary(fd);
-        return;
-      }
-
-      const fields = schema[section];
-      if (!fields) return;
-
-      fields.forEach(([k, label, cond]) => {
-        if ((!cond || cond(fd)) && fd.get(k)) {
+      if (section==='Terno') return updateTernoSummary(fd);
+      const map = {
+        'Cliente': [['cliente_nome','Nome'],['telefone','Telefone'],['cpf','CPF'],['rua','Rua'],['numero','Número'],['bairro','Bairro'],['cidade','Cidade']],
+        'Camisa':  [['camisa','Nº'],['cor_camisa','Cor'],['camisa_mg','Manga']],
+        'Acessórios': [['suspensorio_sim','Suspensório'],['suspensorio_cor','Cor Suspensório',f=>f.get('suspensorio_sim')==='yes'],['lenco_sim','Lenço'],['lenco_cor','Cor Lenço',f=>f.get('lenco_sim')==='yes'],['passante_sim','Passante'],['passante_cor','Cor Passante',f=>f.get('passante_sim')==='yes'],['sapato_sim','Sapato'],['sapato_tipo','Tipo',f=>f.get('sapato_sim')==='yes'],['sapato_numero','Nº',f=>f.get('sapato_sim')==='yes']],
+        'Pagamento': [['forma_pagamento','Método'],['valor_total','Total'],['valor_sinal','Sinal'],['valor_restante','Restante']]
+      }[section]||[];
+      map.forEach(([k,label,cond])=>{
+        if((!cond||cond(fd)) && fd.get(k)){
           let v = fd.get(k);
           const el = form.querySelector(`[name="${k}"]`);
-          if (el && el.tagName === 'SELECT') {
-            v = el.options[el.selectedIndex]?.text || v;
-          }
-          const div = document.createElement('div');
-          div.className = 'summary-item';
-          div.innerHTML = `<span class="label">${label}:</span>${v}`;
-          grid.appendChild(div);
+          if(el?.tagName==='SELECT') v=el.options[el.selectedIndex].text;
+          const d = document.createElement('div');
+          d.className='summary-item';
+          d.innerHTML=`<span class="label">${label}:</span>${v}`;
+          grid.appendChild(d);
         }
       });
-
-      secEl.style.display = grid.children.length ? 'block' : 'none';
+      secEl.style.display = grid.children.length?'block':'none';
     });
   }
-  ['input', 'change'].forEach(evt => form.addEventListener(evt, updateSummary));
+  function updateTernoSummary(fd){
+    const secEl = document.querySelector('.summary-section[data-section="Terno"]');
+    const grid  = secEl.querySelector('.summary-grid');
+    grid.innerHTML='';
+    [['terno_marca','Marca'],['terno_tecido','Tecido'],['paleto','Paletó Nº'],['cor_paleto','Cor Paletó'],['paleto_mg','Paletó Manga'],['paleto_ajuste_cm','Ajuste Paletó',f=>f.get('paleto_ajuste')==='yes'],['calca','Calça Nº'],['cor_calca','Cor Calça'],['calca_cp','Cintura'],['calca_perna','Perna'],['calca_ajuste_cm','Ajuste Calça',f=>f.get('calca_ajuste')==='yes']].forEach(([k,label,cond])=>{
+      if((!cond||cond(fd))&&fd.get(k)){
+        let v=fd.get(k);
+        const el=form.querySelector(`[name="${k}"]`);
+        if(el?.tagName==='SELECT') v=el.options[el.selectedIndex].text;
+        const d=document.createElement('div');
+        d.className='summary-item';
+        d.innerHTML=`<span class="label">${label}:</span>${v}`;
+        grid.appendChild(d);
+      }
+    });
+    secEl.style.display=grid.children.length?'block':'none';
+  }
+  ['input','change'].forEach(evt=>form.addEventListener(evt,updateSummary));
 
-
-  // Acessórios: mostrar campos de cor ao selecionar "Sim"
-document.querySelectorAll('.toggle-dependent').forEach(sel => {
-  const targetCls = sel.dataset.target;
-  const dependents = document.querySelectorAll(targetCls);
-  function toggleVisibility() {
-    const isYes = sel.value === 'yes';
-    dependents.forEach(el => {
-      el.style.display = isYes ? 'block' : 'none';
-      el.querySelectorAll('select,input').forEach(child => {
-        child.disabled = !isYes;
-        if (!isYes) child.value = ''; // limpa valor se marcado como "Não"
+  // --- Toggle campos dependentes ---
+  document.querySelectorAll('.toggle-dependent').forEach(sel=>{
+    const dependents = document.querySelectorAll(sel.dataset.target);
+    function toggle(){
+      const ok = sel.value==='yes';
+      dependents.forEach(el=>{
+        el.style.display = ok?'block':'none';
+        el.querySelectorAll('input,select').forEach(child=>{
+          child.disabled = !ok;
+          if(!ok) child.value='';
+        });
       });
-    });
-    updateSummary(); // atualiza resumo imediatamente
-  }
-  sel.addEventListener('change', toggleVisibility);
-  toggleVisibility(); // inicializa visibilidade correta ao carregar
-});
-
-
-  // --- Masks & Validations ---
-
-  // Telefone mask
-  const telEl = form.querySelector('input[name="telefone"]');
-  telEl.addEventListener('input', () => {
-    let v = telEl.value.replace(/\D/g, '').slice(0,11);
-    if (v.length > 2) {
-      const d = v.slice(0,2), n = v.slice(2);
-      if (n.length > 8) v = `(${d}) ${n.slice(0,5)}-${n.slice(5)}`;
-      else if (n.length > 4) v = `(${d}) ${n.slice(0,4)}-${n.slice(4)}`;
-      else v = `(${d}) ${n}`;
+      updateSummary();
     }
-    telEl.value = v;
+    sel.addEventListener('change',toggle);
+    toggle();
   });
 
-  // CPF mask
-  const cpfEl = form.querySelector('input[name="cpf"]');
-  cpfEl.addEventListener('input', () => {
-    let v = cpfEl.value.replace(/\D/g, '').slice(0,11);
-    if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
-    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
-    else if (v.length > 3) v = v.replace(/(\d{3})(\d{0,3})/, '$1.$2');
-    cpfEl.value = v;
-  });
-
-  // CEP + ViaCEP
-  const cepEl = document.getElementById('cep');
-  cepEl.addEventListener('input', () => {
-    let v = cepEl.value.replace(/\D/g, '').slice(0,8);
-    if (v.length > 5) v = v.replace(/(\d{5})(\d{0,3})/, '$1-$2');
-    cepEl.value = v;
-  });
-  ['blur','input'].forEach(evt => cepEl.addEventListener(evt, async () => {
-    const v = cepEl.value.replace(/\D/g,'');
-    if (v.length === 8) {
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${v}/json/`);
-        const data = await res.json();
-        if (!data.erro) {
-          ['logradouro','bairro','localidade'].forEach((f,i) => {
-            const id = ['rua','bairro','cidade'][i];
-            document.getElementById(id).value = data[f];
-          });
-        }
-      } catch {}
-    } else if (!v) {
-      ['rua','bairro','cidade'].forEach(id => document.getElementById(id).value = '');
+  // --- Masks: telefone, CPF, CEP+ViaCEP ---
+  const maskMap = [
+    { name:'telefone', fn: v=>{v=v.replace(/\D/g,'').slice(0,11); if(v.length>2){const d=v.slice(0,2),n=v.slice(2); if(n.length>8) v=`(${d}) ${n.slice(0,5)}-${n.slice(5)}`; else if(n.length>4) v=`(${d}) ${n.slice(0,4)}-${n.slice(4)}`; else v=`(${d}) ${n}`;} return v; } },
+    { name:'cpf', fn: v=>{v=v.replace(/\D/g,'').slice(0,11); if(v.length>9) v=v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/,'$1.$2.$3-$4'); else if(v.length>6) v=v.replace(/(\d{3})(\d{3})(\d{0,3})/,'$1.$2.$3'); else if(v.length>3) v=v.replace(/(\d{3})(\d{0,3})/,'$1.$2'); return v;} },
+    { name:'cep', fn: async v=>{v=v.replace(/\D/g,'').slice(0,8); if(v.length>5) v=v.replace(/(\d{5})(\d{0,3})/,'$1-$2'); document.getElementById('cep').value=v; if(v.replace('-','').length===8){ try{const r=await fetch(`https://viacep.com.br/ws/${v.replace('-','')}/json/`); const d=await r.json(); if(!d.erro){document.getElementById('rua').value=d.logradouro||''; document.getElementById('bairro').value=d.bairro||''; document.getElementById('cidade').value=d.localidade||'';} }catch{} } updateSummary(); return null;} }
+  ];
+  maskMap.forEach(({name,fn})=>{
+    const el = form.querySelector(`input[name="${name}"]`);
+    if(!el) return;
+    if(name!=='cep'){
+      el.addEventListener('input', ()=> el.value = fn(el.value));
+    } else {
+      el.addEventListener('input', ()=> el.value = fn(el.value));
+      el.addEventListener('blur', ()=> fn(el.value));
     }
-    updateSummary();
-  }));
+  });
 
-  // Numeric clamp ≤200
+  // --- Clamp numérico & ajustes ---
   ['paleto','camisa','calca','numero','sapato_numero','paleto_mg','camisa_mg','calca_cp','calca_perna']
-    .forEach(name => {
-      const el = form.querySelector(`[name="${name}"]`);
-      if (!el) return;
-      el.addEventListener('input', () => {
-        let n = parseFloat(el.value);
-        if (!isNaN(n)) {
-          if (n > 200) n = 200;
-          else if (n < 0) n = 0;
-          el.value = n;
-        }
+    .forEach(n=>{
+      const el = form.querySelector(`[name="${n}"]`);
+      if(!el) return;
+      el.addEventListener('input', ()=>{
+        let x=parseFloat(el.value);
+        if(!isNaN(x)){ if(x>200)x=200; if(x<0)x=0; el.value=x; }
       });
     });
-
-  // Ajuste logic
-  [
-    { adj: 'paleto_ajuste_cm', base: 'paleto', toggle: 'paleto_ajuste' },
-    { adj: 'camisa_ajuste_cm', base: 'camisa', toggle: 'camisa_ajuste' },
-    { adj: 'calca_ajuste_cm',  base: 'calca',  toggle: 'calca_ajuste'  },
-  ].forEach(({adj, base, toggle}) => {
-    const adjEl    = form.querySelector(`[name="${adj}"]`);
-    const baseEl   = form.querySelector(`[name="${base}"]`);
-    const toggleEl = form.querySelector(`[name="${toggle}"]`);
-    if (adjEl && baseEl && toggleEl) {
-      const wrapper = adjEl.closest('.dependent-field');
-      function updateAdjust() {
-        const bv = parseFloat(baseEl.value);
-        if (toggleEl.value === 'yes' && !isNaN(bv)) {
-          wrapper.style.display = 'block';
-          adjEl.disabled = false;
-          adjEl.max = bv;
+  [['paleto_ajuste_cm','paleto','paleto_ajuste'], ['camisa_ajuste_cm','camisa','camisa_ajuste'], ['calca_ajuste_cm','calca','calca_ajuste']]
+    .forEach(([adj,base,tgl])=>{
+      const adjEl = form.querySelector(`[name="${adj}"]`);
+      const baseEl= form.querySelector(`[name="${base}"]`);
+      const tglEl = form.querySelector(`[name="${tgl}"]`);
+      if(!adjEl||!baseEl||!tglEl) return;
+      const wrap = adjEl.closest('.dependent-field');
+      function upd(){
+        const bv=parseFloat(baseEl.value);
+        if(tglEl.value==='yes'&& !isNaN(bv)){
+          wrap.style.display='block'; adjEl.disabled=false; adjEl.max=bv;
         } else {
-          wrapper.style.display = 'none';
-          adjEl.value = '';
-          adjEl.disabled = true;
+          wrap.style.display='none'; adjEl.disabled=true; adjEl.value='';
         }
       }
-      toggleEl.addEventListener('change', updateAdjust);
-      baseEl.addEventListener('input', updateAdjust);
-      adjEl.addEventListener('input', () => {
-        const av = parseFloat(adjEl.value), mv = parseFloat(adjEl.max);
-        if (!isNaN(av) && !isNaN(mv) && av > mv) {
-          adjEl.value = mv;
-        }
-      });
-      updateAdjust();
-    }
-  }); // ✅ fecha o forEach corretamente aqui
+      tglEl.addEventListener('change',upd);
+      baseEl.addEventListener('input',upd);
+      adjEl.addEventListener('input',()=>{ if(parseFloat(adjEl.value)>parseFloat(adjEl.max)) adjEl.value=adjEl.max; });
+      upd();
+    });
 
-
-  // Payment logic
+  // --- Lógica de pagamento ---
   const totalEl = form.querySelector('input[name="valor_total"]');
   const sinalEl = form.querySelector('input[name="valor_sinal"]');
   const restEl  = form.querySelector('input[name="valor_restante"]');
+  [totalEl,sinalEl].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      el.value = el.value.replace(/[^0-9.]/g,'').replace(/^(\d+)\.(\d{0,2}).*$/,'$1.$2');
+      const t=parseFloat(totalEl.value), s=parseFloat(sinalEl.value);
+      restEl.value = !isNaN(t)? (isNaN(s)? t.toFixed(2): (t-s).toFixed(2)) : '';
+    });
+    el.addEventListener('blur', ()=>{
+      const t=parseFloat(totalEl.value)||0, s=Math.min(Math.max(parseFloat(sinalEl.value)||0,0),t);
+      sinalEl.value = s.toFixed(2);
+      restEl.value  = (t-s).toFixed(2);
+    });
+  });
   restEl.readOnly = true;
-  function fmtDec(el) {
-    let parts = el.value.replace(/[^0-9\.]/g, '').split('.');
-    if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
-    el.value = parts[0] + (parts[1] ? '.' + parts[1].slice(0,2) : '');
-  }
-  totalEl.addEventListener('input', () => {
-    fmtDec(totalEl);
-    const t = parseFloat(totalEl.value), s = parseFloat(sinalEl.value);
-    restEl.value = !isNaN(t) ? (isNaN(s) ? t.toFixed(2) : (t-s).toFixed(2)) : '';
-  });
-  sinalEl.addEventListener('input', () => {
-    fmtDec(sinalEl);
-    const t = parseFloat(totalEl.value), s = parseFloat(sinalEl.value);
-    restEl.value = !isNaN(t) ? (isNaN(s) ? t.toFixed(2) : (t-s).toFixed(2)) : '';
-  });
-  [totalEl, sinalEl].forEach(el =>
-    el.addEventListener('blur', () => {
-      const t = parseFloat(totalEl.value);
-      let s = parseFloat(sinalEl.value);
-      if (!isNaN(t)) {
-        if (isNaN(s) || s < 0) s = 0;
-        if (s > t) s = t;
-        sinalEl.value = s.toFixed(2);
-        restEl.value  = (t - s).toFixed(2);
-      }
-    })
-  );
 
-  // Load colors
+  // --- Carrega cores ---
   fetch("{% url 'list_colors' %}")
-    .then(r => {
-      if (!r.ok) throw new Error('Erro ao buscar lista de cores');
-      return r.json();
-    })
-    .then(data => {
-      // data pode ser um array ou um objeto com lista dentro
-      const cores = Array.isArray(data) ? data : (data.colors || data.results || []);
-      const options = cores.map(c => {
-        const id   = c.id ?? c.pk;
-        const desc = c.description ?? c.descricao;
-        return `<option value="${id}">${desc}</option>`;
+    .then(r=> r.ok? r.json(): Promise.reject())
+    .then(data=>{
+      const cores = Array.isArray(data)? data : (data.colors||data.results||[]);
+      const opts = `<option value="">--</option>` + cores.map(c=>{
+        const desc = c.description||c.descricao||c.name||c.pk;
+        return `<option value="${desc}">${desc}</option>`;
       }).join('');
-      document.querySelectorAll('.color-select').forEach(sel => {
-        sel.innerHTML = '<option value="">--</option>' + options;
-      });
+      document.querySelectorAll('.color-select').forEach(s=> s.innerHTML=opts);
     })
-    .catch(err => {
-      console.error(err);
-      // opcional: exibir toast de erro para o usuário
-  });
+    .catch(console.error);
 
-  // Submit as JSON
+  // --- Submit como JSON ---
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const missing = [];
-    ['cliente_nome','telefone','cpf','rua','bairro','cidade'].forEach(n => {
-      if (!form.querySelector(`[name="${n}"]`).value) missing.push(n);
-    });
-    ['paleto','cor_paleto','paleto_mg','camisa','cor_camisa','camisa_mg','calca','cor_calca','calca_cp','calca_perna']
-      .forEach(n => !form.querySelector(`[name="${n}"]`).value && missing.push(n));
-    ['forma_pagamento','valor_total','valor_sinal']
-      .forEach(n => !form.querySelector(`[name="${n}"]`).value && missing.push(n));
-
-    if (missing.length) {
-      toastEl.querySelector('.toast-body').innerHTML =
-        `<strong>Campos faltando:</strong><ul>${[...new Set(missing)].map(x=>`<li>${x}</li>`).join('')}</ul>`;
+    // validações mínimas
+    const required = ['cliente_nome','telefone','cpf','paleto','cor_paleto','paleto_mg','camisa','cor_camisa','camisa_mg','calca','cor_calca','calca_cp','calca_perna','forma_pagamento','valor_total','valor_sinal'];
+    const missing = required.filter(n=> !form.querySelector(`[name="${n}"]`).value);
+    if(missing.length){
+      toastEl.querySelector('.toast-body').innerHTML = `<strong>Campos faltando:</strong><ul>${[...new Set(missing)].map(x=>`<li>${x}</li>`).join('')}</ul>`;
       toast.show();
       return;
     }
 
     const fd = new FormData(form);
     const payload = {
+      order_id:           orderId,
       cliente: {
-        nome: fd.get('cliente_nome'),
-        cpf: fd.get('cpf'),
-        telefone: fd.get('telefone'),
-        cep: fd.get('cep'),
-        rua: fd.get('rua'),
-        numero: fd.get('numero'),
-        bairro: fd.get('bairro'),
-        cidade: fd.get('cidade'),
+        nome:      fd.get('cliente_nome'),
+        cpf:       fd.get('cpf'),
+        telefone:  fd.get('telefone'),
+        cep:       fd.get('cep'),
+        rua:       fd.get('rua'),
+        numero:    fd.get('numero'),
+        bairro:    fd.get('bairro'),
+        cidade:    fd.get('cidade'),
       },
-      forma_pagamento: fd.get('forma_pagamento'),
-      total_value: parseFloat(fd.get('valor_total')),
-      advance_payment: parseFloat(fd.get('valor_sinal')),
-      remaining_payment: parseFloat(fd.get('valor_restante')),
-      observations: '',
-      items: []
+      payment_method:     fd.get('forma_pagamento'),
+      total_value:        parseFloat(fd.get('valor_total')),
+      advance_payment:    parseFloat(fd.get('valor_sinal')),
+      remaining_payment:  parseFloat(fd.get('valor_restante')),
+      observations:       '',
+      items:              []
     };
 
-    function addItem(type, map) {
+    // Função genérica adiciona todos os campos, incluindo brand/fabric
+    function addItem(type, map){
       const obj = { product_type: type };
-      let has = false;
-      Object.entries(map).forEach(([k, fld]) => {
-        const v = fd.get(fld);
-        if (v) {
-          obj[k] = (k === 'adjustment_value' ? parseFloat(v) : v);
-          has = true;
+      let has=false;
+      Object.entries(map).forEach(([k,fld])=>{
+        let v = fld? fd.get(fld): null;
+        if(k==='color'&&fld){
+          const sel = form.querySelector(`[name="${fld}"]`);
+          v = sel?.options[sel.selectedIndex]?.text||'';
         }
+        if(v){ obj[k] = (k==='adjustment_value'? parseFloat(v): v); has=true; }
       });
-      if (has) {
-        payload.items.push({
-          ...obj,
-          sleeve_length: obj.sleeve_length || null,
-          leg_length:    obj.leg_length    || null,
-          waist_size:    obj.waist_size    || null,
-          collar_size:   obj.collar_size   || null,
-          color:         obj.color         || null,
-          description:   obj.description   || '',
-          adjustment_needed: fd.get(map.ajuste_flag) === 'yes',
-          adjustment_value:   obj.adjustment_value || null,
-          adjustment_notes:   obj.description   || ''
-        });
-      }
+      if(!has) return;
+      payload.items.push({
+        ...obj,
+        sleeve_length:    obj.sleeve_length   || null,
+        leg_length:       obj.leg_length      || null,
+        waist_size:       obj.waist_size      || null,
+        collar_size:      obj.collar_size     || null,
+        color:            obj.color           || null,
+        brand:            obj.brand           || null,
+        fabric:           obj.fabric          || null,
+        description:      obj.description     || '',
+        adjustment_needed: fd.get(map.ajuste_flag)==='yes',
+        adjustment_value:  obj.adjustment_value|| null,
+        adjustment_notes:  obj.description     || ''
+      });
     }
 
+    // mapeamento com marca e tecido do terno
     addItem('Paleto', {
-      size: 'paleto',
-      sleeve_length: 'paleto_mg',
-      color: 'cor_paleto',
-      brand: 'terno_marca',
-      fabric: 'terno_tecido',              // 👈 novo
-      description: 'paleto_ajustes_adicionais',
-      ajuste_flag: 'paleto_ajuste',
+      size:             'paleto',
+      sleeve_length:    'paleto_mg',
+      color:            'cor_paleto',
+      brand:            'terno_marca',
+      fabric:           'terno_tecido',
+      description:      'paleto_ajustes_adicionais',
+      ajuste_flag:      'paleto_ajuste',
       adjustment_value: 'paleto_ajuste_cm'
     });
     addItem('Camisa', {
-      size: 'camisa',
-      sleeve_length: 'camisa_mg',
-      color: 'cor_camisa',
-      brand: 'camisa_marca',
-      fabric: null,  // se não existir tecido para camisa, deixe null
-      description: 'camisa_ajustes_adicionais',
-      ajuste_flag: 'camisa_ajuste',
+      size:             'camisa',
+      sleeve_length:    'camisa_mg',
+      color:            'cor_camisa',
+      brand:            'camisa_marca',
+      fabric:           null,
+      description:      'camisa_ajustes_adicionais',
+      ajuste_flag:      'camisa_ajuste',
       adjustment_value: 'camisa_ajuste_cm'
     });
     addItem('Calca', {
-      size: 'calca',
-      leg_length: 'calca_perna',
-      waist_size: 'calca_cp',
-      color: 'cor_calca',
-      description: 'calca_ajustes_adicionais',
-      ajuste_flag: 'calca_ajuste',
+      size:             'calca',
+      leg_length:       'calca_perna',
+      waist_size:       'calca_cp',
+      color:            'cor_calca',
+      brand:            null,
+      fabric:           null,
+      description:      'calca_ajustes_adicionais',
+      ajuste_flag:      'calca_ajuste',
       adjustment_value: 'calca_ajuste_cm'
     });
+    // acessórios extra…
+    if(fd.get('suspensorio_sim')==='yes') payload.items.push({ product_type:'Suspensorio', color:fd.get('suspensorio_cor'), adjustment_needed:false });
+    if(fd.get('lenco_sim')==='yes')       payload.items.push({ product_type:'Lenco',       color:fd.get('lenco_cor'),       adjustment_needed:false });
+    if(fd.get('passante_sim')==='yes')    payload.items.push({ product_type:'Cinto',       color:fd.get('passante_cor'),    adjustment_needed:false });
+    if(fd.get('sapato_sim')==='yes')      payload.items.push({ product_type:'Sapato',      size:fd.get('sapato_numero'), description:fd.get('sapato_tipo'), adjustment_needed:false });
 
-    if (fd.get('suspensorio_sim') === 'yes') payload.items.push({
-      product_type: 'Suspensorio',
-      color: fd.get('suspensorio_cor'),
-      description: '',
-      sleeve_length: null, leg_length: null,
-      waist_size: null, collar_size: null,
-      adjustment_needed: false,
-      adjustment_value: null,
-      adjustment_notes: ''
-    });
-    if (fd.get('lenco_sim') === 'yes') payload.items.push({
-      product_type: 'Lenco',
-      color: fd.get('lenco_cor'),
-      description: '',
-      sleeve_length: null, leg_length: null,
-      waist_size: null, collar_size: null,
-      adjustment_needed: false,
-      adjustment_value: null,
-      adjustment_notes: ''
-    });
-    if (fd.get('passante_sim') === 'yes') payload.items.push({
-      product_type: 'Cinto',
-      color: fd.get('passante_cor'),
-      description: '',
-      sleeve_length: null, leg_length: null,
-      waist_size: null, collar_size: null,
-      adjustment_needed: false,
-      adjustment_value: null,
-      adjustment_notes: ''
-    });
-    if (fd.get('sapato_sim') === 'yes') payload.items.push({
-      product_type: 'Sapato',
-      size: fd.get('sapato_numero'),
-      description: fd.get('sapato_tipo'),
-      color: null,
-      sleeve_length: null, leg_length: null,
-      waist_size: null, collar_size: null,
-      adjustment_needed: false,
-      adjustment_value: null,
-      adjustment_notes: ''
-    });
-
+    // envia para o backend
     try {
-      const res = await fetch("{% url 'create_service_order' %}", {
+      const res = await fetch("{% url 'update_service_order' %}", {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -1083,8 +916,8 @@ document.querySelectorAll('.toggle-dependent').forEach(sel => {
         body: JSON.stringify(payload)
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Erro ao criar OS');
-      alert(`✅ OS criada com sucesso! ID: ${json.order_id}`);
+      if (!res.ok) throw new Error(json.error || 'Erro ao salvar OS');
+      alert(`✅ OS atualizada com sucesso! ID: ${json.order_id}`);
       location.reload();
     } catch (err) {
       toastEl.querySelector('.toast-body').textContent = err.message;
@@ -1092,185 +925,22 @@ document.querySelectorAll('.toggle-dependent').forEach(sel => {
     }
   });
 
-  // Initialize
+  // inicializa
   showStep(1);
   updateSummary();
 
-  function updateTernoSummary(fd) {
-    const section = document.querySelector('.summary-section[data-section="Terno"]');
-    const grid = section.querySelector('.summary-grid');
-    grid.innerHTML = '';
-
-    const fields = [
-      ['terno_marca', 'Marca'],
-      ['terno_tecido', 'Tecido'],
-
-      ['paleto', 'Paletó Nº'],
-      ['cor_paleto', 'Paletó Cor'],
-      ['paleto_mg', 'Paletó Manga'],
-      ['paleto_ajuste_cm', 'Ajuste Paletó', fd => fd.get('paleto_ajuste') === 'yes'],
-
-      ['calca', 'Calça Nº'],
-      ['cor_calca', 'Calça Cor'],
-      ['calca_cp', 'Calça Cintura'],
-      ['calca_perna', 'Calça Perna'],
-      ['calca_ajuste_cm', 'Ajuste Calça', fd => fd.get('calca_ajuste') === 'yes'],
-
-      ['colete_presente', 'Colete'],
-      ['cor_colete', 'Cor do Colete', fd => fd.get('colete_presente') === 'yes'],
-
-      ['terno_ajustes_adicionais', 'Ajustes/Obs.']
-    ];
-
-    fields.forEach(([key, label, condition]) => {
-      if ((!condition || condition(fd)) && fd.get(key)) {
-        let val = fd.get(key);
-        const el = form.querySelector(`[name="${key}"]`);
-        if (el && el.tagName === 'SELECT') {
-          val = el.options[el.selectedIndex]?.text || val;
-        }
-        const div = document.createElement('div');
-        div.className = 'summary-item';
-        div.innerHTML = `<span class="label">${label}:</span>${val}`;
-        grid.appendChild(div);
-      }
+  // --- AG-Grid de demonstração (opcional) ---
+  const gridDiv = document.getElementById('osGrid');
+  if(gridDiv){
+    gridDiv.style.height='400px';
+    new agGrid.Grid(gridDiv, {
+      columnDefs:[ /* ... */ ],
+      rowData:  [ /* ... */ ],
+      defaultColDef:{ sortable:true, filter:true, resizable:true },
+      pagination:true, paginationPageSize:10
     });
-
-    section.style.display = grid.children.length ? 'block' : 'none';
   }
-
-// Corrige exibição do campo "camisa_ajuste_cm" e impede valores acima de 200
-function fixCamisaAjusteToggle() {
-  const toggleEl = form.querySelector('[name="camisa_ajuste"]');
-  const ajusteEl = form.querySelector('[name="camisa_ajuste_cm"]');
-  const wrapperEl = ajusteEl.closest('.dependent-field');
-
-  function updateField() {
-    if (toggleEl.value === 'yes') {
-      wrapperEl.style.display = 'block';
-      ajusteEl.disabled = false;
-      ajusteEl.max = 200;
-    } else {
-      wrapperEl.style.display = 'none';
-      ajusteEl.value = '';
-      ajusteEl.disabled = true;
-    }
-  }
-
-  ajusteEl.addEventListener('input', () => {
-    let val = parseFloat(ajusteEl.value);
-    if (!isNaN(val) && val > 200) {
-      ajusteEl.value = 200;
-    }
-  });
-
-  toggleEl.addEventListener('change', updateField);
-  form.querySelector('[name="camisa"]').addEventListener('input', updateField);
-
-  // inicializa corretamente ao carregar
-  updateField();
-}
-
-fixCamisaAjusteToggle();
-
-
-function fixPaletoCalcaAjusteToggle() {
-  const ajustes = [
-    { ajuste: 'paleto_ajuste', campo: 'paleto_ajuste_cm' },
-    { ajuste: 'calca_ajuste', campo: 'calca_ajuste_cm' }
-  ];
-
-  ajustes.forEach(({ ajuste, campo }) => {
-    const toggleEl = form.querySelector(`[name="${ajuste}"]`);
-    const ajusteEl = form.querySelector(`[name="${campo}"]`);
-    const wrapperEl = ajusteEl.closest('.dependent-field');
-
-    function updateField() {
-      if (toggleEl.value === 'yes') {
-        wrapperEl.style.display = 'block';
-        ajusteEl.disabled = false;
-        ajusteEl.max = 200;
-      } else {
-        wrapperEl.style.display = 'none';
-        ajusteEl.value = '';
-        ajusteEl.disabled = true;
-      }
-    }
-
-    ajusteEl.addEventListener('input', () => {
-      let val = parseFloat(ajusteEl.value);
-      if (!isNaN(val) && val > 200) {
-        ajusteEl.value = 200;
-      }
-    });
-
-    toggleEl.addEventListener('change', updateField);
-    updateField(); // inicializa corretamente
-  });
-}
-
-// ✅ Chamada da função no final do script
-fixPaletoCalcaAjusteToggle();
-
-// === AG-GRID MOCK ===
-const gridDiv = document.getElementById('osGrid');
-if (gridDiv) {
-  gridDiv.style.height = '500px';
-  const columnDefs = [
-    { headerName: 'ID', field: 'id', width: 80 },
-    { headerName: 'Cliente', field: 'cliente', flex: 1 },
-    { headerName: 'Telefone', field: 'telefone', width: 150 },
-    { headerName: 'CPF', field: 'cpf', width: 150 },
-    { headerName: 'Evento', field: 'evento', flex: 1 },
-    { headerName: 'Data Evento', field: 'data_evento', width: 130 },
-    { headerName: 'Valor Total', field: 'valor_total', width: 120 },
-    { headerName: 'Sinal', field: 'sinal', width: 100 },
-    { headerName: 'Restante', field: 'restante', width: 100 },
-    { headerName: 'Tipo', field: 'tipo', width: 100 }
-  ];
-
-  const rowData = [
-    {
-      id: 1,
-      cliente: 'João da Silva',
-      telefone: '(11) 91234-5678',
-      cpf: '123.456.789-00',
-      evento: 'Casamento',
-      data_evento: '2025-06-10',
-      valor_total: '500.00',
-      sinal: '100.00',
-      restante: '400.00',
-      tipo: 'Locação'
-    },
-    {
-      id: 2,
-      cliente: 'Maria Oliveira',
-      telefone: '(21) 99888-7777',
-      cpf: '987.654.321-00',
-      evento: 'Formatura',
-      data_evento: '2025-07-15',
-      valor_total: '650.00',
-      sinal: '200.00',
-      restante: '450.00',
-      tipo: 'Compra'
-    }
-  ];
-
-  new agGrid.Grid(gridDiv, {
-    columnDefs,
-    rowData,
-    defaultColDef: {
-      resizable: true,
-      sortable: true,
-      filter: true
-    },
-    pagination: true,
-    paginationPageSize: 10
-  });
-}
-
-
-
 });
 </script>
+
 {% endblock %}

@@ -38,13 +38,14 @@ from products.views import (
 )
 from service_control.views import (
     create_pre_service_order,
-    create_service_order,
     get_service_order_client,
+    list_awaiting_payment_service_orders,
     list_pending_service_orders,
-    list_service_orders,
+    mark_service_order_paid,
     os_view,
     pre_register_view,
     service_control_view,
+    update_service_order,
 )
 
 urlpatterns = [
@@ -56,7 +57,7 @@ urlpatterns = [
     path("city-search/", city_search, name="city_search"),
     path("list-colors/", list_colors, name="list_colors"),
     path("os/<int:id>/", service_control_view, name="service_control"),
-    path("create-os/", create_service_order, name="create_service_order"),
+    path("update-os/", update_service_order, name="update_service_order"),
     # path("list-os/", service_order_list, name="service_order_list"),
     path("estoque/", product_dashboard, name="product_dashboard"),
     path(
@@ -75,7 +76,6 @@ urlpatterns = [
         toggle_employee_status,
         name="toggle_employee_status",
     ),
-    path("service-orders/list/", list_service_orders, name="list_service_orders"),
     path("triagem/", pre_register_view, name="pre_register"),
     path("clientes/buscar/", get_client_by_cpf, name="get_client_by_cpf"),
     path(
@@ -88,8 +88,16 @@ urlpatterns = [
         list_pending_service_orders,
         name="list_pending_service_orders",
     ),
-    path("os/", os_view, name="os_view"),
     path(
-        "os/<int:id>/cliente/", get_service_order_client, name="get_os_cliente"
-    ),  # <-- nova rota
+        "ordem-de-servico/api/listar-aguardando-pagamento/",
+        list_awaiting_payment_service_orders,
+        name="list_awaiting_payment_service_orders",
+    ),
+    path("os/", os_view, name="os_view"),
+    path("os/<int:id>/cliente/", get_service_order_client, name="get_os_cliente"),
+    path(
+        "os/<int:id>/mark_paid/",
+        mark_service_order_paid,
+        name="mark_service_order_paid",
+    ),
 ]
