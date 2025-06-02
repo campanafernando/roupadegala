@@ -84,7 +84,9 @@ class Person(BaseModel):
 class PersonsContacts(BaseModel):
     phone = models.CharField(max_length=255)
     email = models.EmailField(unique=True, null=True, blank=True)
-    person = models.ForeignKey(Person, on_delete=models.CASCADE)
+    person = models.ForeignKey(
+        Person, on_delete=models.CASCADE, related_name="contacts"
+    )
 
     class Meta:
         db_table = "persons_contacts"

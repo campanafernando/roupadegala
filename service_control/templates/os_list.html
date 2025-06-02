@@ -108,6 +108,11 @@
                   type="button" role="tab">Atrasadas</button>
         </li>
         <li class="nav-item" role="presentation">
+          <button class="nav-link" id="recusadas-tab"
+                  data-bs-toggle="tab" data-bs-target="#recusadas"
+                  type="button" role="tab">Recusadas</button>
+        </li>
+        <li class="nav-item" role="presentation">
           <button class="nav-link" id="concluidas-tab"
                   data-bs-toggle="tab" data-bs-target="#concluidas"
                   type="button" role="tab">Concluídas</button>
@@ -145,13 +150,51 @@
 
         <!-- Atrasadas -->
         <div class="tab-pane fade" id="atrasadas" role="tabpanel">
-          <div class="alert alert-secondary">Em desenvolvimento</div>
+          <div class="d-flex justify-content-end mb-2">
+            <div class="btn-group">
+              <button class="btn btn-outline-primary active view-grid"><i class="fas fa-th-large"></i></button>
+              <button class="btn btn-outline-primary view-cards"><i class="fas fa-th-list"></i></button>
+            </div>
+          </div>
+          <div id="overdueGrid" class="ag-theme-quartz orders-grid"></div>
+          <div id="overdueCards" class="row row-cols-1 row-cols-md-2 g-3 orders-cards d-none"></div>
+          <nav>
+            <ul id="overduePagination" class="pagination justify-content-center mt-3 d-none"></ul>
+          </nav>
         </div>
+
+        <!-- Recusadas -->
+
+        <div class="tab-pane fade" id="recusadas" role="tabpanel">
+          <div class="d-flex justify-content-end mb-2">
+            <div class="btn-group">
+              <button class="btn btn-outline-primary active view-grid"><i class="fas fa-th-large"></i></button>
+              <button class="btn btn-outline-primary view-cards"><i class="fas fa-th-list"></i></button>
+            </div>
+          </div>
+          <div id="refusedGrid" class="ag-theme-quartz orders-grid"></div>
+          <div id="refusedCards" class="row row-cols-1 row-cols-md-2 g-3 orders-cards d-none"></div>
+          <nav>
+            <ul id="refusedPagination" class="pagination justify-content-center mt-3 d-none"></ul>
+          </nav>
+        </div>
+
 
         <!-- Concluídas -->
         <div class="tab-pane fade" id="concluidas" role="tabpanel">
-          <div class="alert alert-secondary">Em desenvolvimento</div>
+          <div class="d-flex justify-content-end mb-2">
+            <div class="btn-group">
+              <button class="btn btn-outline-primary active view-grid"><i class="fas fa-th-large"></i></button>
+              <button class="btn btn-outline-primary view-cards"><i class="fas fa-th-list"></i></button>
+            </div>
+          </div>
+          <div id="concludedGrid" class="ag-theme-quartz orders-grid"></div>
+          <div id="concludedCards" class="row row-cols-1 row-cols-md-2 g-3 orders-cards d-none"></div>
+          <nav>
+            <ul id="concludedPagination" class="pagination justify-content-center mt-3 d-none"></ul>
+          </nav>
         </div>
+
       </div>
     </div>
   </div>
@@ -329,7 +372,152 @@
               col.append(card); container.append(col);
             });
           }
+        },
+        concluidas: {
+          url: "{% url 'list_finished_service_orders' %}",
+          gridId: 'concludedGrid',
+          cardsId: 'concludedCards',
+          paginationId: 'concludedPagination',
+          tabBtnId: 'concluidas-tab',
+          tabContentId: 'concluidas',
+          paginate: true,
+          perPage: 10,
+          columns: [
+            { headerName:"ID", field:"id", maxWidth:90, sort:'desc',
+              cellRenderer: p=>`<a href="/os/${p.value}/">${p.value}</a>` },
+            { headerName:"Cliente", field:"cliente", flex:1, minWidth:120 },
+            { headerName:"Data OS", field:"data_ordem", width:120 },
+            { headerName:"Data Evento", field:"data_evento", width:120 },
+            { headerName:"Valor Total", field:"valor_total", width:120 },
+            { headerName:"Pago", field:"valor_pago", width:120 },
+            { headerName:"Faltando", field:"valor_faltando", width:140 },
+            { headerName:"Método", field:"metodo_pagamento", width:140 }
+          ],
+          cardBuilder(container, data){
+            container.innerHTML = '';
+            data.forEach(os => {
+              const col = document.createElement('div'); col.className = 'col';
+              const card = document.createElement('div'); card.className = 'card so-card shadow-sm h-100';
+              card.innerHTML = `
+                <div class="card-body">
+                  <h5 class="card-title">OS #${os.id} – ${os.cliente}</h5>
+                  <p><strong>Data Evento:</strong> ${os.data_evento}</p>
+                  <p><strong>Ocasião:</strong> ${os.ocasiao}</p>
+                  <p><strong>Tipo:</strong> ${os.tipo_servico}</p>
+                  <p><strong>Pago:</strong> R$ ${os.valor_pago.toFixed(2)} / <strong>Total:</strong> R$ ${os.valor_total.toFixed(2)}</p>
+                  <table class="table table-sm mt-2">
+                    <thead><tr><th>Produto</th><th>Cor</th><th>Ajuste</th><th>Valor Ajuste</th><th>Obs</th></tr></thead>
+                    <tbody>
+                      ${os.itens.map(item => `
+                        <tr>
+                          <td>${item.produto}</td>
+                          <td>${item.cor}</td>
+                          <td>${item.ajuste ? 'Sim' : 'Não'}</td>
+                          <td>${item.valor_ajuste} cm</td>
+                          <td>${item.obs_ajuste}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                  </table>
+                </div>`;
+              col.append(card); container.append(col);
+            });
+          }
+        },
+        overdue: {
+          url: "{% url 'list_overdue_service_orders' %}",
+          gridId: 'overdueGrid',
+          cardsId: 'overdueCards',
+          paginationId: 'overduePagination',
+          tabBtnId: 'atrasadas-tab',
+          tabContentId: 'atrasadas',
+          paginate: true,
+          perPage: 10,
+          columns: [
+            { headerName:"ID", field:"id", maxWidth:90, sort:'desc',
+              cellRenderer: p=>`<a href="/os/${p.value}/">${p.value}</a>` },
+            { headerName:"Cliente", field:"cliente", flex:1, minWidth:120 },
+            { headerName:"Data OS", field:"data_ordem", width:120 },
+            { headerName:"Data Evento", field:"data_evento", width:120 },
+            { headerName:"Valor Total", field:"valor_total", width:120 },
+            { headerName:"Pago", field:"valor_pago", width:120 },
+            { headerName:"Faltando", field:"valor_faltando", width:140 },
+            { headerName:"Método", field:"metodo_pagamento", width:140 }
+          ],
+          cardBuilder(container, data){
+            container.innerHTML = '';
+            data.forEach(os => {
+              const col = document.createElement('div'); col.className = 'col';
+              const card = document.createElement('div'); card.className = 'card so-card shadow-sm h-100';
+              card.innerHTML = `
+                <div class="card-body">
+                  <h5 class="card-title">OS #${os.id} – ${os.cliente}</h5>
+                  <p><strong>Data Evento:</strong> ${os.data_evento}</p>
+                  <p><strong>Ocasião:</strong> ${os.ocasiao}</p>
+                  <p><strong>Tipo:</strong> ${os.tipo_servico}</p>
+                  <p><strong>Pago:</strong> R$ ${os.valor_pago.toFixed(2)} / <strong>Total:</strong> R$ ${os.valor_total.toFixed(2)}</p>
+                  <table class="table table-sm mt-2">
+                    <thead><tr><th>Produto</th><th>Cor</th><th>Ajuste</th><th>Valor Ajuste</th><th>Obs</th></tr></thead>
+                    <tbody>
+                      ${os.itens.map(item => `
+                        <tr>
+                          <td>${item.produto}</td>
+                          <td>${item.cor}</td>
+                          <td>${item.ajuste ? 'Sim' : 'Não'}</td>
+                          <td>${item.valor_ajuste} cm</td>
+                          <td>${item.obs_ajuste}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                  </table>
+                </div>`;
+              col.append(card); container.append(col);
+            });
+          }
+        },
+        recusadas: {
+          url: "{% url 'list_refused_service_orders' %}",
+          gridId: 'refusedGrid',
+          cardsId: 'refusedCards',
+          paginationId: 'refusedPagination',
+          tabBtnId: 'recusadas-tab',
+          tabContentId: 'recusadas',
+          paginate: true,
+          perPage: 10,
+          columns: [
+            { headerName: "ID", field: "id", maxWidth: 90,
+              cellRenderer: p => `<span class="text-danger">#${p.value}</span>` },
+            { headerName: "Cliente", field: "cliente", flex: 1, minWidth: 120 },
+            { headerName: "CPF", field: "cpf", width: 140 },
+            { headerName: "Telefone", field: "telefone", width: 140 },
+            { headerName: "Data OS", field: "data_ordem", width: 110 },
+            { headerName: "Data Evento", field: "data_evento", width: 110 },
+            { headerName: "Recepcionista", field: "recepcionista", flex: 1 },
+            { headerName: "Atendente", field: "atendente", flex: 1 },
+            { headerName: "Justificativa", field: "justificativa", flex: 2 }
+          ],
+          cardBuilder(container, data){
+            container.innerHTML = '';
+            data.forEach(os => {
+              const col = document.createElement('div');
+              col.className = 'col';
+              const card = document.createElement('div');
+              card.className = 'card so-card shadow-sm h-100 border-danger';
+              card.innerHTML = `
+                <div class="card-body">
+                  <h5 class="card-title text-danger">OS #${os.id} – ${os.cliente}</h5>
+                  <p><strong>CPF:</strong> ${os.cpf} | <strong>Tel:</strong> ${os.telefone}</p>
+                  <p><strong>Recepcionista:</strong> ${os.recepcionista}</p>
+                  <p><strong>Atendente:</strong> ${os.atendente}</p>
+                  <p><strong>Justificativa:</strong><br><em>${os.justificativa}</em></p>
+                  <p><small><strong>Evento:</strong> ${os.data_evento} – <strong>Origem:</strong> ${os.origem}</small></p>
+                </div>`;
+              col.append(card);
+              container.append(col);
+            });
+          }
         }
+
+
+
       };
 
       Object.values(tabsConfig).forEach(cfg => {

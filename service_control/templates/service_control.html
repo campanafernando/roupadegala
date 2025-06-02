@@ -484,6 +484,11 @@
                         <option value="CHEQUE">CHEQUE</option>
                       </select>
                     </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Data Máxima p/ Pagamento *</label>
+                      <input name="event_date" type="date" class="form-control" required>
+                    </div>
                     {% comment %} <div class="col-md-3">
                       <label class="form-label">Tipo *</label>
                       <select name="purchase" class="form-select" required>
@@ -505,9 +510,14 @@
                       <label class="form-label">Restante (R$)</label>
                       <input name="valor_restante" type="text" class="form-control" placeholder="0.00" readonly>
                     </div>
+                    <div class="col-md-12">
+                      <label class="form-label">Justificativa Recusa (opcional)</label>
+                      <textarea name="justification_refusal" class="form-control" rows="2"></textarea>
+                    </div>
                   </div>
                   <div class="d-flex justify-content-between mt-3">
                     <button type="button" class="btn btn-secondary" data-action="prev">Anterior</button>
+                    <button type="button" class="btn btn-outline-danger me-2" id="refuseOrderBtn">Recusa do Cliente</button>
                     <button type="submit" class="btn btn-success">Salvar OS</button>
                   </div>
                 </div>
@@ -616,14 +626,22 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cliente_nome').value = data.nome || '';
     document.getElementById('cpf').value          = data.cpf  || '';
     document.getElementById('telefone').value     = data.telefones?.[0] || '';
-    if (data.enderecos?.length) {
+
+    if (data.enderecos?.length > 0) {
       const addr = data.enderecos[0];
-      ['cep','rua','numero','bairro','cidade'].forEach((id,i) =>
-        document.getElementById(id).value = addr[['cep','logradouro','numero','bairro','localidade'][i]] || ''
-      );
+      document.getElementById('cep').value     = addr.cep     || '';
+      document.getElementById('rua').value     = addr.rua     || '';
+      document.getElementById('numero').value  = addr.numero  || '';
+      document.getElementById('bairro').value  = addr.bairro  || '';
+      document.getElementById('cidade').value  = addr.cidade  || '';
     }
   })
-  .catch(console.error);
+  .catch(err => {
+    console.error(err);
+    toastEl.querySelector('.toast-body').textContent = 'Erro ao carregar dados do cliente.';
+    toast.show();
+  });
+
 
   // --- Toggle de resumo ---
   toggleBtn.addEventListener('click', () => {
@@ -638,10 +656,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const csrftoken = getCookie('csrftoken');
 
   // --- Stepper & navegação ---
+  // --- Stepper & navegação ---
   const steps = [...document.querySelectorAll('.step')];
   const panes = [...document.querySelectorAll('.form-step')];
   let current = 1;
+
   function showStep(n) {
+    if (n < 1 || n > panes.length) return;
     panes.forEach(p => p.classList.toggle('active', +p.dataset.step === n));
     steps.forEach(s => {
       const idx = +s.dataset.step;
@@ -650,15 +671,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     current = n;
   }
+
+  // Botões "Próximo" e "Anterior"
   document.querySelectorAll('[data-action=next]').forEach(btn =>
-    btn.addEventListener('click', ()=> current < panes.length && showStep(current+1))
+    btn.addEventListener('click', () => {
+      if (current < panes.length) showStep(current + 1);
+    })
   );
   document.querySelectorAll('[data-action=prev]').forEach(btn =>
-    btn.addEventListener('click', ()=> current > 1 && showStep(current-1))
+    btn.addEventListener('click', () => {
+      if (current > 1) showStep(current - 1);
+    })
   );
-  form.addEventListener('keydown', e => {
-    if (e.key==='Enter' && e.target.tagName!=='TEXTAREA') e.preventDefault();
+
+  // Clique direto no stepper para navegar
+  steps.forEach(step => {
+    step.addEventListener('click', () => {
+      const targetStep = +step.dataset.step;
+      showStep(targetStep);
+    });
   });
+
+// Teclas de atalho: seta esquerda/direita para navegar
+document.addEventListener('keydown', e => {
+  // Evita interferir com digitação em campos de texto ou textarea
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  if (e.key === 'ArrowRight' && current < panes.length) {
+    showStep(current + 1);
+  } else if (e.key === 'ArrowLeft' && current > 1) {
+    showStep(current - 1);
+  }
+});
+
+// --- Recusa do cliente ---
+document.getElementById('refuseOrderBtn').addEventListener('click', async () => {
+  if (!orderId) {
+    toastEl.querySelector('.toast-body').textContent = 'OS ainda não carregada.';
+    toast.show();
+    return;
+  }
+
+  const justification = form.querySelector('[name="justification_refusal"]').value;
+
+  try {
+    const res = await fetch(`/os/${orderId}/recusar/`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify({ justification_refusal: justification })
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Erro ao recusar OS');
+    alert('❌ OS marcada como recusada.');
+    setTimeout(() => {
+      window.location.href = "{% url 'os_view' %}";
+    }, 1000);
+  } catch (err) {
+    toastEl.querySelector('.toast-body').textContent = err.message;
+    toast.show();
+  }
+});
+
+// Previne Enter de enviar formulário antes da hora
+form.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+  }
+});
+
 
   // --- Summary builder ---
   function updateSummary() {
@@ -833,6 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
       total_value:        parseFloat(fd.get('valor_total')),
       advance_payment:    parseFloat(fd.get('valor_sinal')),
       remaining_payment:  parseFloat(fd.get('valor_restante')),
+      due_date:           fd.get('event_date'),  // <- novo campo
       observations:       '',
       items:              []
     };
@@ -917,8 +1003,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao salvar OS');
+
       alert(`✅ OS atualizada com sucesso! ID: ${json.order_id}`);
-      location.reload();
+        setTimeout(() => {
+          window.location.href = "{% url 'os_view' %}";
+      }, 1000);
     } catch (err) {
       toastEl.querySelector('.toast-body').textContent = err.message;
       toast.show();
@@ -929,17 +1018,6 @@ document.addEventListener('DOMContentLoaded', () => {
   showStep(1);
   updateSummary();
 
-  // --- AG-Grid de demonstração (opcional) ---
-  const gridDiv = document.getElementById('osGrid');
-  if(gridDiv){
-    gridDiv.style.height='400px';
-    new agGrid.Grid(gridDiv, {
-      columnDefs:[ /* ... */ ],
-      rowData:  [ /* ... */ ],
-      defaultColDef:{ sortable:true, filter:true, resizable:true },
-      pagination:true, paginationPageSize:10
-    });
-  }
 });
 </script>
 

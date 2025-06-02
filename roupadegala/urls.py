@@ -40,10 +40,14 @@ from service_control.views import (
     create_pre_service_order,
     get_service_order_client,
     list_awaiting_payment_service_orders,
+    list_finished_service_orders,
+    list_overdue_service_orders,
     list_pending_service_orders,
+    list_refused_service_orders,
     mark_service_order_paid,
     os_view,
     pre_register_view,
+    refuse_service_order,
     service_control_view,
     update_service_order,
 )
@@ -99,5 +103,17 @@ urlpatterns = [
         "os/<int:id>/mark_paid/",
         mark_service_order_paid,
         name="mark_service_order_paid",
+    ),
+    path(
+        "os/concluidas/",
+        list_finished_service_orders,
+        name="list_finished_service_orders",
+    ),
+    path("os/<int:id>/recusar/", refuse_service_order, name="refuse_service_order"),
+    path(
+        "os/atrasadas/", list_overdue_service_orders, name="list_overdue_service_orders"
+    ),
+    path(
+        "os/recusadas/", list_refused_service_orders, name="list_refused_service_orders"
     ),
 ]

@@ -37,6 +37,7 @@ class ServiceOrder(BaseModel):
     remaining_payment = models.DecimalField(
         max_digits=10, decimal_places=2, default=0, null=True
     )
+    max_payment_date = models.DateField(null=True, default=None)
     payment_method = models.CharField(max_length=255, null=True)
     adjustment_needed = models.BooleanField(default=None, null=True)
     came_from = models.CharField(max_length=255, default=None, null=True)
@@ -45,6 +46,7 @@ class ServiceOrder(BaseModel):
     service_order_phase = models.ForeignKey(
         ServiceOrderPhase, on_delete=models.SET_NULL, null=True
     )
+    justification_refusal = models.TextField(null=True, blank=True, default=None)
 
     class Meta:
         db_table = "service_orders"

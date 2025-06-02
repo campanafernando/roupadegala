@@ -3,6 +3,7 @@ import random
 import re
 import string
 
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
@@ -30,6 +31,8 @@ def login_view(request):
         if user:
             login(request, user)
             return redirect("os_view")
+        else:
+            messages.error(request, "Usuário ou senha incorretos.")
 
     return render(request, "login.html", {"login_form": login_form})
 
