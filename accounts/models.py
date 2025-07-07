@@ -43,6 +43,7 @@ class BaseModel(models.Model):
         self.save()
 
 
+# Modelos de pessoas, contatos e endereços
 class City(BaseModel):
     code = models.CharField(max_length=255)
     name = models.CharField(max_length=255, db_index=True)
@@ -78,7 +79,7 @@ class Person(BaseModel):
         db_table = "person"
 
     def __str__(self):
-        return f"{self.name})"
+        return f"{self.name}"
 
 
 class PersonsContacts(BaseModel):
@@ -92,7 +93,7 @@ class PersonsContacts(BaseModel):
         db_table = "persons_contacts"
 
     def __str__(self):
-        return f"({self.person.nome}) - email: {self.email} - phone: {self.phone}"
+        return f"({self.person.name}) - email: {self.email} - phone: {self.phone}"
 
 
 class PersonsAdresses(BaseModel):
@@ -107,4 +108,4 @@ class PersonsAdresses(BaseModel):
         db_table = "persons_adresses"
 
     def __str__(self):
-        return f"({self.person.nome}) - address: {self.address} - neighborhood: {self.neighborhood}"
+        return f"({self.person.name}) - address: {self.street} - neighborhood: {self.neighborhood}"

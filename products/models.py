@@ -3,6 +3,7 @@ from django.db import models
 from accounts.models import BaseModel
 
 
+# Modelos de catálogo de produtos
 class Brand(BaseModel):
     description = models.CharField(max_length=100, unique=True)
 
@@ -34,7 +35,7 @@ class ColorCatalogue(BaseModel):
         db_table = "products_color_catalogue"
 
     def __str__(self):
-        return f"{self.description} - {self.color_intensity.description}"
+        return self.description
 
 
 class Color(BaseModel):
@@ -87,6 +88,7 @@ class ProductType(BaseModel):
         return self.description
 
 
+# Produto real do estoque
 class Product(BaseModel):
     product_type = models.ForeignKey(
         ProductType, on_delete=models.CASCADE, related_name="products"
@@ -138,6 +140,7 @@ class Product(BaseModel):
         return self.product_type.acronym
 
     def save(self, *args, **kwargs):
+        # Geração automática do código de etiqueta
         if not self.label_code:
             count = (
                 Product.objects.filter(
@@ -156,6 +159,7 @@ class Product(BaseModel):
         super().save(*args, **kwargs)
 
 
+# Produto temporário (flexível para OS)
 class TemporaryProduct(BaseModel):
     PRODUCT_TYPE_CHOICES = [
         ("Paleto", "Paletó"),
