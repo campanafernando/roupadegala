@@ -5,13 +5,12 @@ ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Instala dependências do sistema
+# Instala dependências do sistema (removidas dependências desnecessárias para API)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     python3-dev \
     python3-venv \
-    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,5 +30,5 @@ RUN python3 -m venv /opt/venv \
 # Copia o código da aplicação
 COPY . /app
 
-# Comando padrão: collectstatic, migrate e inicia gunicorn
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && python manage.py migrate && gunicorn roupadegala.wsgi:application --bind 0.0.0.0:8000"]
+# Comando padrão: migrate e inicia gunicorn para API REST
+CMD ["sh", "-c", "python manage.py migrate && gunicorn roupadegala.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120"]

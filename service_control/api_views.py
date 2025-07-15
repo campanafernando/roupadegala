@@ -218,6 +218,24 @@ class ServiceOrderCreateAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Atualizar ordem de serviço",
+    description="Atualiza uma ordem de serviço existente",
+    responses={
+        200: {
+            "description": "Ordem de serviço atualizada com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "service_order": {"$ref": "#/components/schemas/ServiceOrder"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
 class ServiceOrderUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderUpdateSerializer
@@ -342,6 +360,15 @@ class ServiceOrderListAPIView(ListAPIView):
         return queryset
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Detalhes da ordem de serviço",
+    description="Retorna os detalhes completos de uma ordem de serviço",
+    responses={
+        200: ServiceOrderSerializer,
+        404: {"description": "Ordem de serviço não encontrada"},
+    },
+)
 class ServiceOrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderDetailSerializer
@@ -366,6 +393,22 @@ class ServiceOrderDetailAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Marcar ordem de serviço como paga",
+    description="Marca uma ordem de serviço como paga, alterando sua fase",
+    responses={
+        200: {
+            "description": "Ordem de serviço marcada como paga",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+    },
+)
 class ServiceOrderMarkPaidAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderMarkPaidSerializer
@@ -392,6 +435,22 @@ class ServiceOrderMarkPaidAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Recusar ordem de serviço",
+    description="Recusa uma ordem de serviço, alterando sua fase para RECUSADA",
+    responses={
+        200: {
+            "description": "Ordem de serviço recusada",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+    },
+)
 class ServiceOrderRefuseAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderRefuseSerializer
@@ -566,6 +625,16 @@ class ServiceOrderDashboardAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Listar ordens de serviço por fase",
+    description="Retorna a lista de ordens de serviço filtradas por fase específica",
+    responses={
+        200: ServiceOrderListByPhaseSerializer(many=True),
+        404: {"description": "Fase não encontrada"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
 class ServiceOrderListByPhaseAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderListByPhaseSerializer
@@ -616,6 +685,15 @@ class ServiceOrderListByPhaseAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["service-orders"],
+    summary="Dados do cliente da ordem de serviço",
+    description="Retorna os dados completos do cliente de uma ordem de serviço",
+    responses={
+        200: ServiceOrderClientSerializer,
+        404: {"description": "Ordem de serviço não encontrada"},
+    },
+)
 class ServiceOrderClientAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderClientSerializer
