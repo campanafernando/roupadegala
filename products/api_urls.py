@@ -4,6 +4,7 @@ URLs da API para o app products
 
 from django.urls import path
 
+from .api_views import ColorWithIntensityListAPIView  # ADICIONADO
 from .api_views import (
     CatalogListAPIView,
     ColorListAPIView,
@@ -43,6 +44,11 @@ urlpatterns = [
     ),
     # Cores
     path("colors/", ColorListAPIView.as_view(), name="api_color_list"),
+    path(
+        "colors-intensities/",
+        ColorWithIntensityListAPIView.as_view(),
+        name="api_color_with_intensity_list",
+    ),
     # Produtos temporários
     path(
         "temporary-products/create/",

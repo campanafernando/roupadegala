@@ -288,20 +288,38 @@ class ServiceOrderUpdateAPIView(APIView):
                         )
                     elif item_data.get("temporary_product"):
                         # Produto temporário
+                        temp_data = item_data["temporary_product"]
                         temp_product = TemporaryProduct.objects.create(
-                            product_type=item_data["temporary_product"]["product_type"],
-                            size=item_data["temporary_product"].get("size"),
-                            color=item_data["temporary_product"].get("color"),
-                            brand=item_data["temporary_product"].get("brand"),
-                            fabric=item_data["temporary_product"].get("fabric"),
-                            description=item_data["temporary_product"].get(
-                                "description"
-                            ),
+                            product_type=temp_data["product_type"],
+                            size=temp_data.get("size"),
+                            color=temp_data.get("color"),
+                            brand=temp_data.get("brand"),
+                            fabric=temp_data.get("fabric"),
+                            description=temp_data.get("description"),
                             created_by=request.user,
                         )
+                        color_catalogue = None
+                        color_instance = None
+                        if temp_data.get("color_catalogue_id") and temp_data.get(
+                            "color_intensity_id"
+                        ):
+                            from products.models import Color
+
+                            color_instance = Color.objects.filter(
+                                color_id=temp_data["color_catalogue_id"],
+                                color_intensity_id=temp_data["color_intensity_id"],
+                            ).first()
+                        elif temp_data.get("color_catalogue_id"):
+                            from products.models import ColorCatalogue
+
+                            color_catalogue = ColorCatalogue.objects.filter(
+                                id=temp_data["color_catalogue_id"]
+                            ).first()
                         ServiceOrderItem.objects.create(
                             service_order=service_order,
                             temporary_product=temp_product,
+                            color_catalogue=color_catalogue,
+                            color=color_instance,
                             adjustment_needed=item_data.get("adjustment_needed", False),
                             adjustment_value=item_data.get("adjustment_value"),
                             adjustment_notes=item_data.get("adjustment_notes"),
@@ -459,14 +477,47 @@ class ServiceOrderRefuseAPIView(APIView):
         """Recusar ordem de serviço"""
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
-            justification = request.data.get("justification", "")
+            justification = request.data.get("justification", "").strip()
+
+            # Justificativa obrigatória
+            if not justification:
+                return Response(
+                    {"error": "Justificativa é obrigatória para recusa."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             # Buscar fase "RECUSADA"
             refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
-            if refused_phase:
-                service_order.service_order_phase = refused_phase
-                service_order.justification_refusal = justification
-                service_order.save()
+            if not refused_phase:
+                return Response(
+                    {"error": "Fase 'RECUSADA' não encontrada."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Permissão: só atendente responsável ou administrador pode recusar OS pendente
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_employee = (
+                user_person
+                and service_order.employee
+                and user_person.id == service_order.employee.id
+            )
+            is_pending = (
+                service_order.service_order_phase
+                and service_order.service_order_phase.name == "PENDENTE"
+            )
+            if is_pending and not (is_admin or is_employee):
+                return Response(
+                    {
+                        "error": "Apenas o atendente responsável ou um administrador pode recusar uma OS pendente."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Recusar OS
+            service_order.service_order_phase = refused_phase
+            service_order.justification_refusal = justification
+            service_order.save()
 
             return Response({"success": True, "message": "OS recusada"})
 
@@ -474,6 +525,11 @@ class ServiceOrderRefuseAPIView(APIView):
             return Response(
                 {"error": "Ordem de serviço não encontrada"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao recusar OS: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
@@ -731,4 +787,172 @@ class ServiceOrderClientAPIView(APIView):
             return Response(
                 {"error": "Ordem de serviço não encontrada"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
+    summary="Triagem/Pré-OS (criação por recepção)",
+    description="Permite que um usuário do tipo RECEPÇÃO crie uma pré-ordem de serviço (OS) pendente, associando um atendente responsável.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "cliente_nome": {"type": "string", "description": "Nome do cliente"},
+                "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "cpf": {"type": "string", "description": "CPF do cliente"},
+                "atendente_id": {
+                    "type": "integer",
+                    "description": "ID do atendente responsável",
+                },
+                "origem": {"type": "string", "description": "Origem do pedido"},
+                "data_evento": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data do evento",
+                },
+                "tipo_servico": {
+                    "type": "string",
+                    "description": "Tipo de serviço (Aluguel/Compra)",
+                },
+                "evento": {"type": "string", "description": "Tipo de evento"},
+                "papel_evento": {"type": "string", "description": "Papel no evento"},
+                "endereco": {
+                    "type": "object",
+                    "properties": {
+                        "cep": {"type": "string"},
+                        "rua": {"type": "string"},
+                        "numero": {"type": "string"},
+                        "bairro": {"type": "string"},
+                        "cidade": {"type": "string"},
+                    },
+                },
+            },
+            "required": [
+                "cliente_nome",
+                "telefone",
+                "cpf",
+                "atendente_id",
+                "origem",
+                "data_evento",
+                "tipo_servico",
+                "evento",
+                "papel_evento",
+            ],
+        }
+    },
+    responses={
+        201: {
+            "description": "Pré-ordem de serviço criada com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "order_id": {"type": "integer"},
+                "service_order": {"$ref": "#/components/schemas/ServiceOrder"},
+            },
+        },
+        400: {"description": "Dados inválidos"},
+        403: {"description": "Permissão negada"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class ServiceOrderPreTriageAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Criação de pré-ordem de serviço pela recepção ou administrador"""
+        try:
+            # Verifica se o usuário é do tipo RECEPÇÃO ou ADMINISTRADOR
+            if not hasattr(
+                request.user, "person"
+            ) or request.user.person.person_type.type not in [
+                "RECEPÇÃO",
+                "ADMINISTRADOR",
+            ]:
+                return Response(
+                    {
+                        "error": "Apenas usuários do tipo RECEPÇÃO ou ADMINISTRADOR podem criar pré-OS."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            data = request.data
+            cpf = data.get("cpf", "").replace(".", "").replace("-", "")
+            if len(cpf) != 11:
+                return Response(
+                    {"error": "CPF inválido."}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Buscar ou criar cliente
+            pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
+            person, _ = Person.objects.get_or_create(
+                cpf=cpf,
+                defaults={
+                    "name": data.get("cliente_nome", "").upper(),
+                    "person_type": pt,
+                    "created_by": request.user,
+                },
+            )
+            # Criar contato se não existir
+            PersonsContacts.objects.get_or_create(
+                phone=data.get("telefone"),
+                person=person,
+                defaults={"created_by": request.user},
+            )
+            # Criar endereço se cidade for informada
+            endereco = data.get("endereco", {})
+            cidade_nome = endereco.get("cidade")
+            if cidade_nome:
+                city_obj = City.objects.filter(name__iexact=cidade_nome.upper()).first()
+                if city_obj:
+                    PersonsAdresses.objects.get_or_create(
+                        person=person,
+                        street=endereco.get("rua"),
+                        number=endereco.get("numero"),
+                        cep=endereco.get("cep"),
+                        neighborhood=endereco.get("bairro"),
+                        city=city_obj,
+                        defaults={"created_by": request.user},
+                    )
+            # Buscar atendente
+            atendente_id = data.get("atendente_id")
+            atendente = Person.objects.filter(
+                id=atendente_id, person_type__type="ATENDENTE"
+            ).first()
+            if not atendente:
+                return Response(
+                    {"error": "Atendente não encontrado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Buscar fase pendente
+            service_order_phase = ServiceOrderPhase.objects.filter(
+                name="PENDENTE"
+            ).first()
+            # Criar pré-ordem de serviço
+            service_order = ServiceOrder.objects.create(
+                renter=person,
+                employee=atendente,
+                attendant=request.user.person,
+                order_date=timezone.now().date(),
+                event_date=data.get("data_evento"),
+                occasion=data.get("evento", "").upper(),
+                renter_role=data.get("papel_evento", "").upper(),
+                purchase=True if data.get("tipo_servico") == "Compra" else False,
+                came_from=data.get("origem", "").upper(),
+                service_order_phase=service_order_phase,
+            )
+            return Response(
+                {
+                    "success": True,
+                    "message": "Pré-OS criada com sucesso",
+                    "order_id": service_order.id,
+                    "service_order": ServiceOrderSerializer(service_order).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao criar pré-OS: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

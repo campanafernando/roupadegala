@@ -3,7 +3,7 @@ from django.db import models
 from django.utils import timezone
 
 from accounts.models import BaseModel, Person
-from products.models import ColorCatalogue, Product, TemporaryProduct
+from products.models import Color, ColorCatalogue, Product, TemporaryProduct
 
 
 class ServiceOrderPhase(BaseModel):
@@ -128,6 +128,13 @@ class ServiceOrderItem(BaseModel):
     color_catalogue = models.ForeignKey(
         ColorCatalogue,
         related_name="order_items",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    color = models.ForeignKey(
+        Color,
+        related_name="order_items_color",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

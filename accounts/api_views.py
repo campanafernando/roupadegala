@@ -285,6 +285,12 @@ class EmployeeRegisterAPIView(APIView):
 
     def post(self, request):
         """Registro de funcionário via API"""
+        user_person = getattr(request.user, "person", None)
+        if not user_person or user_person.person_type.type != "ADMINISTRADOR":
+            return Response(
+                {"error": "Apenas administradores podem registrar novos funcionários."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = EmployeeRegisterSerializer(data=request.data)
 
         if serializer.is_valid():

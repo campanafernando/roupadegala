@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 from .models import (
     Brand,
     Button,
+    Color,
     ColorCatalogue,
     Fabric,
     Lapel,
@@ -344,6 +345,25 @@ class ColorListAPIView(ListAPIView):
         """Lista de cores disponíveis"""
         colors = ColorCatalogue.objects.all()
         return Response(ColorCatalogueSerializer(colors, many=True).data)
+
+
+class ColorWithIntensityListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Lista todas as combinações de cor e intensidade"""
+        combos = Color.objects.select_related("color", "color_intensity").all()
+        data = [
+            {
+                "id": combo.id,
+                "color_id": combo.color.id,
+                "color": combo.color.description,
+                "intensity_id": combo.color_intensity.id,
+                "intensity": combo.color_intensity.description,
+            }
+            for combo in combos
+        ]
+        return Response(data)
 
 
 class TemporaryProductCreateAPIView(APIView):
