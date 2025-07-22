@@ -10,7 +10,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -130,7 +130,7 @@ class ProductDashboardAPIView(APIView):
     responses={200: ProductSerializer(many=True)},
 )
 class ProductListAPIView(ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = ProductSerializer
     queryset = Product.objects.all()
 
@@ -289,43 +289,41 @@ class ProductStockUpdateAPIView(APIView):
     },
 )
 class ProductQRCodeAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    serializer_class = ProductSerializer
 
     def get(self, request, product_id):
-        """Gerar QR Code para produto"""
+        """Gerar QR Code para um produto"""
         try:
             product = Product.objects.get(id=product_id)
 
             # Criar QR Code
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
-            qr.add_data(product.label_code)
+            qr.add_data(f"Produto: {product.label_code}")
             qr.make(fit=True)
 
+            # Converter para imagem
             img = qr.make_image(fill_color="black", back_color="white")
 
             # Converter para base64
             buffer = io.BytesIO()
             img.save(buffer, format="PNG")
-            img_str = base64.b64encode(buffer.getvalue()).decode()
+            qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
 
             return Response(
                 {
                     "success": True,
-                    "qr_code": img_str,
+                    "qr_code": f"data:image/png;base64,{qr_code_base64}",
                     "label_code": product.label_code,
                     "product_info": {
                         "id": product.id,
                         "type": (
                             product.product_type.description
                             if product.product_type
-                            else None
+                            else ""
                         ),
-                        "brand": product.brand.description if product.brand else None,
-                        "color": (
-                            f"{product.color.color.description} - {product.color.color_intensity.description}"
-                            if product.color
-                            else None
-                        ),
+                        "brand": product.brand.description if product.brand else "",
+                        "color": product.color.description if product.color else "",
                     },
                 }
             )
@@ -337,7 +335,7 @@ class ProductQRCodeAPIView(APIView):
 
 
 class ColorListAPIView(ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = ColorCatalogueSerializer
     queryset = ColorCatalogue.objects.all()
 
@@ -348,7 +346,7 @@ class ColorListAPIView(ListAPIView):
 
 
 class ColorWithIntensityListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         """Lista todas as combinações de cor e intensidade"""
@@ -388,7 +386,7 @@ class TemporaryProductCreateAPIView(APIView):
 
 
 class CatalogListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = CatalogListSerializer
 
     def get(self, request):

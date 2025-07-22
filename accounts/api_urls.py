@@ -12,7 +12,9 @@ from .api_views import (
     EmployeeRegisterAPIView,
     EmployeeToggleStatusAPIView,
     LoginAPIView,
+    LogoutAPIView,
     PasswordResetAPIView,
+    RefreshTokenAPIView,
     RegisterAPIView,
 )
 
@@ -20,6 +22,8 @@ urlpatterns = [
     # Autenticação
     path("auth/login/", LoginAPIView.as_view(), name="api_login"),
     path("auth/register/", RegisterAPIView.as_view(), name="api_register"),
+    path("auth/refresh/", RefreshTokenAPIView.as_view(), name="api_refresh"),
+    path("auth/logout/", LogoutAPIView.as_view(), name="api_logout"),
     path(
         "auth/password-reset/",
         PasswordResetAPIView.as_view(),

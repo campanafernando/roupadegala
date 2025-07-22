@@ -6,15 +6,16 @@ import random
 import re
 import string
 
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .models import City, Person, PersonsContacts, PersonType
 from .serializers import (
@@ -30,7 +31,7 @@ from .serializers import (
 @extend_schema(
     tags=["auth"],
     summary="Login de usuário",
-    description="Autentica um usuário e retorna um token de acesso",
+    description="Autentica um usuário e retorna access token e refresh token",
     request={
         "application/json": {
             "type": "object",
@@ -47,13 +48,15 @@ from .serializers import (
             "type": "object",
             "properties": {
                 "success": {"type": "boolean"},
-                "token": {"type": "string"},
+                "access": {"type": "string", "description": "Access token JWT"},
+                "refresh": {"type": "string", "description": "Refresh token JWT"},
                 "user": {
                     "type": "object",
                     "properties": {
                         "id": {"type": "integer"},
                         "username": {"type": "string"},
                         "is_active": {"type": "boolean"},
+                        "person_type": {"type": "string"},
                     },
                 },
             },
@@ -66,8 +69,14 @@ from .serializers import (
             "Login bem-sucedido",
             value={
                 "success": True,
-                "token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b",
-                "user": {"id": 1, "username": "12345678901", "is_active": True},
+                "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                "user": {
+                    "id": 1,
+                    "username": "12345678901",
+                    "is_active": True,
+                    "person_type": "ATENDENTE",
+                },
             },
             response_only=True,
             status_codes=["200"],
@@ -78,7 +87,7 @@ class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """Login de usuário via API"""
+        """Login de usuário via API com JWT"""
         username = request.data.get("username")
         password = request.data.get("password")
 
@@ -94,17 +103,30 @@ class LoginAPIView(APIView):
         user = authenticate(request, username=username, password=password)
 
         if user:
-            login(request, user)
-            token, created = Token.objects.get_or_create(user=user)
+            # Gerar tokens JWT
+            refresh = RefreshToken.for_user(user)
+
+            # Buscar informações da pessoa
+            person_type = "N/A"
+            try:
+                person = user.person
+                person_type = person.person_type.type if person.person_type else "N/A"
+            except Exception as e:
+                return Response(
+                    {"error": f"Erro ao buscar informações da pessoa: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
             return Response(
                 {
                     "success": True,
-                    "token": token.key,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
                     "user": {
                         "id": user.id,
                         "username": user.username,
                         "is_active": user.is_active,
+                        "person_type": person_type,
                     },
                 }
             )
@@ -112,6 +134,93 @@ class LoginAPIView(APIView):
             return Response(
                 {"error": "CPF ou senha incorretos"},
                 status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+@extend_schema(
+    tags=["auth"],
+    summary="Refresh token",
+    description="Renova o access token usando o refresh token",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "refresh": {"type": "string", "description": "Refresh token JWT"},
+            },
+            "required": ["refresh"],
+        }
+    },
+    responses={
+        200: {
+            "description": "Token renovado com sucesso",
+            "type": "object",
+            "properties": {
+                "access": {"type": "string", "description": "Novo access token JWT"},
+            },
+        },
+        401: {"description": "Refresh token inválido ou expirado"},
+    },
+)
+class RefreshTokenAPIView(TokenRefreshView):
+    """Endpoint para renovar access token"""
+
+    pass
+
+
+@extend_schema(
+    tags=["auth"],
+    summary="Logout",
+    description="Invalida o refresh token atual",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "refresh": {
+                    "type": "string",
+                    "description": "Refresh token JWT para invalidar",
+                },
+            },
+            "required": ["refresh"],
+        }
+    },
+    responses={
+        200: {
+            "description": "Logout realizado com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        400: {"description": "Refresh token inválido"},
+    },
+)
+class LogoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Logout de usuário via API"""
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response(
+                    {"error": "Refresh token é obrigatório"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Logout realizado com sucesso",
+                }
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Token inválido - {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -151,7 +260,8 @@ class LoginAPIView(APIView):
             "type": "object",
             "properties": {
                 "success": {"type": "boolean"},
-                "token": {"type": "string"},
+                "access": {"type": "string", "description": "Access token JWT"},
+                "refresh": {"type": "string", "description": "Refresh token JWT"},
                 "user": {
                     "type": "object",
                     "properties": {
@@ -205,13 +315,14 @@ class RegisterAPIView(APIView):
             )
             PersonsContacts.objects.create(email=email, phone=phone, person=person)
 
-            login(request, user)
-            token, created = Token.objects.get_or_create(user=user)
+            # Gerar tokens JWT
+            refresh = RefreshToken.for_user(user)
 
             return Response(
                 {
                     "success": True,
-                    "token": token.key,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
                     "user": {"id": user.id, "username": user.username, "name": name},
                 }
             )
@@ -247,7 +358,7 @@ class RegisterAPIView(APIView):
     },
 )
 class CitySearchAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         """Busca de cidades por nome"""
