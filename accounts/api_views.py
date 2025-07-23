@@ -645,3 +645,229 @@ class PasswordResetAPIView(APIView):
                 {"error": f"Erro ao resetar senha: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+@extend_schema(
+    tags=["auth"],
+    summary="Dados do usuário logado",
+    description="Retorna todos os dados disponíveis do usuário autenticado",
+    responses={
+        200: {
+            "description": "Dados do usuário logado",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "user": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "username": {"type": "string"},
+                        "email": {"type": "string"},
+                        "first_name": {"type": "string"},
+                        "last_name": {"type": "string"},
+                        "is_active": {"type": "boolean"},
+                        "date_joined": {"type": "string", "format": "date-time"},
+                        "last_login": {"type": "string", "format": "date-time"},
+                        "person": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "name": {"type": "string"},
+                                "cpf": {"type": "string"},
+                                "person_type": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {"type": "integer"},
+                                        "type": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                },
+                                "contacts": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {"type": "integer"},
+                                            "email": {"type": "string"},
+                                            "phone": {"type": "string"},
+                                        },
+                                    },
+                                },
+                                "addresses": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {"type": "integer"},
+                                            "cep": {"type": "string"},
+                                            "rua": {"type": "string"},
+                                            "numero": {"type": "string"},
+                                            "bairro": {"type": "string"},
+                                            "cidade": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {"type": "integer"},
+                                                    "name": {"type": "string"},
+                                                    "state": {"type": "string"},
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        401: {"description": "Usuário não autenticado"},
+    },
+    examples=[
+        OpenApiExample(
+            "Dados do usuário",
+            value={
+                "success": True,
+                "user": {
+                    "id": 1,
+                    "username": "12345678901",
+                    "email": "joao@email.com",
+                    "first_name": "João",
+                    "last_name": "Silva",
+                    "is_active": True,
+                    "date_joined": "2024-01-15T10:30:00Z",
+                    "last_login": "2024-01-20T14:45:00Z",
+                    "person": {
+                        "id": 1,
+                        "name": "JOÃO SILVA",
+                        "cpf": "12345678901",
+                        "person_type": {
+                            "id": 1,
+                            "type": "ATENDENTE",
+                            "description": "Atendente",
+                        },
+                        "contacts": [
+                            {
+                                "id": 1,
+                                "email": "joao@email.com",
+                                "phone": "(11) 99999-9999",
+                            }
+                        ],
+                        "addresses": [
+                            {
+                                "id": 1,
+                                "cep": "01234-567",
+                                "rua": "Rua das Flores",
+                                "numero": "123",
+                                "bairro": "Centro",
+                                "cidade": {
+                                    "id": 1,
+                                    "name": "São Paulo",
+                                    "state": "SP",
+                                },
+                            }
+                        ],
+                    },
+                },
+            },
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
+)
+class GetUserMeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Retorna dados completos do usuário logado"""
+        try:
+            user = request.user
+
+            # Dados básicos do usuário
+            user_data = {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_active": user.is_active,
+                "date_joined": (
+                    user.date_joined.isoformat() if user.date_joined else None
+                ),
+                "last_login": user.last_login.isoformat() if user.last_login else None,
+            }
+
+            # Dados da pessoa (se existir)
+            try:
+                person = user.person
+                if person:
+                    # Dados do tipo de pessoa
+                    person_type_data = None
+                    if person.person_type:
+                        person_type_data = {
+                            "id": person.person_type.id,
+                            "type": person.person_type.type,
+                            "description": person.person_type.description,
+                        }
+
+                    # Contatos da pessoa
+                    contacts_data = []
+                    for contact in person.contacts.all():
+                        contacts_data.append(
+                            {
+                                "id": contact.id,
+                                "email": contact.email,
+                                "phone": contact.phone,
+                            }
+                        )
+
+                    # Endereços da pessoa
+                    addresses_data = []
+                    for address in person.addresses.all():
+                        city_data = None
+                        if address.cidade:
+                            city_data = {
+                                "id": address.cidade.id,
+                                "name": address.cidade.name,
+                                "state": address.cidade.state,
+                            }
+
+                        addresses_data.append(
+                            {
+                                "id": address.id,
+                                "cep": address.cep,
+                                "rua": address.rua,
+                                "numero": address.numero,
+                                "bairro": address.bairro,
+                                "cidade": city_data,
+                            }
+                        )
+
+                    user_data["person"] = {
+                        "id": person.id,
+                        "name": person.name,
+                        "cpf": person.cpf,
+                        "person_type": person_type_data,
+                        "contacts": contacts_data,
+                        "addresses": addresses_data,
+                    }
+                else:
+                    user_data["person"] = None
+
+            except Exception as e:
+                return Response(
+                    {"error": f"Erro ao buscar dados da pessoa: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            return Response(
+                {
+                    "success": True,
+                    "user": user_data,
+                }
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao buscar dados do usuário: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -684,7 +684,7 @@ class ServiceOrderDashboardAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Listar ordens de serviço por fase",
-    description="Retorna a lista de ordens de serviço filtradas por fase específica",
+    description="Retorna a lista de ordens de serviço filtradas por fase específica com dados completos do cliente",
     responses={
         200: ServiceOrderListByPhaseSerializer(many=True),
         404: {"description": "Fase não encontrada"},
@@ -696,7 +696,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
     serializer_class = ServiceOrderListByPhaseSerializer
 
     def get(self, request, phase_name):
-        """Listar ordens de serviço por fase"""
+        """Listar ordens de serviço por fase com dados completos do cliente"""
         try:
             phase = ServiceOrderPhase.objects.filter(name__icontains=phase_name).first()
             if not phase:
@@ -706,31 +706,79 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
             orders = ServiceOrder.objects.filter(
                 service_order_phase=phase
-            ).select_related("renter", "employee", "attendant")
+            ).select_related("renter", "employee", "attendant", "renter__person_type")
 
             data = []
             for order in orders:
-                contact = order.renter.contacts.first()
-                data.append(
-                    {
-                        "id": order.id,
-                        "renter_name": order.renter.name,
-                        "renter_phone": contact.phone if contact else "",
-                        "event_date": order.event_date,
-                        "occasion": order.occasion,
-                        "total_value": order.total_value,
-                        "advance_payment": order.advance_payment,
-                        "remaining_payment": order.remaining_payment,
-                        "employee_name": order.employee.name if order.employee else "",
-                        "attendant_name": (
-                            order.attendant.name if order.attendant else ""
-                        ),
-                        "order_date": order.order_date,
-                        "prova_date": order.prova_date,
-                        "retirada_date": order.retirada_date,
-                        "devolucao_date": order.devolucao_date,
-                    }
-                )
+                # Dados do cliente
+                client_data = {
+                    "id": order.renter.id,
+                    "name": order.renter.name,
+                    "cpf": order.renter.cpf,
+                    "person_type": (
+                        {
+                            "id": order.renter.person_type.id,
+                            "type": order.renter.person_type.type,
+                            "description": order.renter.person_type.description,
+                        }
+                        if order.renter.person_type
+                        else None
+                    ),
+                }
+
+                # Contatos do cliente
+                contacts = order.renter.contacts.all()
+                client_data["contacts"] = []
+                for contact in contacts:
+                    client_data["contacts"].append(
+                        {
+                            "id": contact.id,
+                            "email": contact.email,
+                            "phone": contact.phone,
+                        }
+                    )
+
+                # Endereços do cliente
+                addresses = order.renter.personsadresses_set.all()
+                client_data["addresses"] = []
+                for address in addresses:
+                    city_data = None
+                    if address.cidade:
+                        city_data = {
+                            "id": address.cidade.id,
+                            "name": address.cidade.name,
+                            "state": address.cidade.state,
+                        }
+
+                    client_data["addresses"].append(
+                        {
+                            "id": address.id,
+                            "cep": address.cep,
+                            "rua": address.street,
+                            "numero": address.number,
+                            "bairro": address.neighborhood,
+                            "cidade": city_data,
+                        }
+                    )
+
+                # Dados da OS
+                order_data = {
+                    "id": order.id,
+                    "event_date": order.event_date,
+                    "occasion": order.occasion,
+                    "total_value": order.total_value,
+                    "advance_payment": order.advance_payment,
+                    "remaining_payment": order.remaining_payment,
+                    "employee_name": order.employee.name if order.employee else "",
+                    "attendant_name": order.attendant.name if order.attendant else "",
+                    "order_date": order.order_date,
+                    "prova_date": order.prova_date,
+                    "retirada_date": order.retirada_date,
+                    "devolucao_date": order.devolucao_date,
+                    "client": client_data,
+                }
+
+                data.append(order_data)
 
             return Response(data)
 

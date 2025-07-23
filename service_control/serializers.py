@@ -108,6 +108,29 @@ class ServiceOrderUpdateSerializer(serializers.Serializer):
 
 
 class ServiceOrderListByPhaseSerializer(serializers.Serializer):
-    """Serializer para listagem de ordens por fase"""
+    """Serializer para listagem de ordens por fase com dados do cliente"""
 
-    phase_name = serializers.CharField(help_text="Nome da fase para filtrar")
+    # Dados da OS
+    id = serializers.IntegerField(help_text="ID da ordem de serviço")
+    event_date = serializers.DateField(help_text="Data do evento")
+    occasion = serializers.CharField(help_text="Tipo de evento")
+    total_value = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total"
+    )
+    advance_payment = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor pago"
+    )
+    remaining_payment = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor restante"
+    )
+    employee_name = serializers.CharField(help_text="Nome do atendente")
+    attendant_name = serializers.CharField(help_text="Nome do recepcionista")
+    order_date = serializers.DateTimeField(help_text="Data de criação da OS")
+    prova_date = serializers.DateField(help_text="Data da prova", allow_null=True)
+    retirada_date = serializers.DateField(help_text="Data de retirada", allow_null=True)
+    devolucao_date = serializers.DateField(
+        help_text="Data de devolução", allow_null=True
+    )
+
+    # Dados do cliente
+    client = serializers.DictField(help_text="Dados completos do cliente")

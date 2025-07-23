@@ -11,6 +11,7 @@ from .api_views import (
     EmployeeListAPIView,
     EmployeeRegisterAPIView,
     EmployeeToggleStatusAPIView,
+    GetUserMeAPIView,
     LoginAPIView,
     LogoutAPIView,
     PasswordResetAPIView,
@@ -24,6 +25,7 @@ urlpatterns = [
     path("auth/register/", RegisterAPIView.as_view(), name="api_register"),
     path("auth/refresh/", RefreshTokenAPIView.as_view(), name="api_refresh"),
     path("auth/logout/", LogoutAPIView.as_view(), name="api_logout"),
+    path("auth/me/", GetUserMeAPIView.as_view(), name="api_user_me"),
     path(
         "auth/password-reset/",
         PasswordResetAPIView.as_view(),
