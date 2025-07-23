@@ -2,9 +2,7 @@
 Views API para o app accounts
 """
 
-import random
 import re
-import string
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -836,27 +834,25 @@ class PasswordResetAPIView(APIView):
 
     def post(self, request):
         """Reset de senha via API"""
-        cpf = request.data.get("cpf", "").replace(".", "").replace("-", "")
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
 
-        if not cpf:
+        if not old_password or not new_password:
             return Response(
-                {"error": "CPF é obrigatório"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Senha antiga e nova são obrigatórias"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            person = Person.objects.get(cpf=cpf)
-            if not person.user:
+            user = request.user
+            if not user.check_password(old_password):
                 return Response(
-                    {"error": "Usuário não encontrado"},
-                    status=status.HTTP_404_NOT_FOUND,
+                    {"error": "Senha antiga inválida"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Gerar nova senha
-            new_password = "".join(
-                random.choices(string.ascii_uppercase + string.digits, k=7)
-            )
-            person.user.set_password(new_password)
-            person.user.save()
+            user.set_password(new_password)
+            user.save()
 
             return Response(
                 {
@@ -866,10 +862,6 @@ class PasswordResetAPIView(APIView):
                 }
             )
 
-        except Person.DoesNotExist:
-            return Response(
-                {"error": "CPF não encontrado"}, status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             return Response(
                 {"error": f"Erro ao resetar senha: {str(e)}"},

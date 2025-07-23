@@ -114,8 +114,11 @@ class EmployeeRegisterSerializer(serializers.Serializer):
 
 
 class PasswordResetSerializer(serializers.Serializer):
-    cpf = serializers.CharField(
-        max_length=20, help_text="CPF do usuário para reset de senha"
+    old_password = serializers.CharField(
+        max_length=20, help_text="Senha antiga do usuário para reset de senha"
+    )
+    new_password = serializers.CharField(
+        max_length=20, help_text="Nova senha do usuário para reset de senha"
     )
 
 
