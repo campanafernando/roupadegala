@@ -679,7 +679,6 @@ class PasswordResetAPIView(APIView):
                                     "properties": {
                                         "id": {"type": "integer"},
                                         "type": {"type": "string"},
-                                        "description": {"type": "string"},
                                     },
                                 },
                                 "contacts": {
@@ -708,7 +707,7 @@ class PasswordResetAPIView(APIView):
                                                 "properties": {
                                                     "id": {"type": "integer"},
                                                     "name": {"type": "string"},
-                                                    "state": {"type": "string"},
+                                                    "uf": {"type": "string"},
                                                 },
                                             },
                                         },
@@ -743,7 +742,6 @@ class PasswordResetAPIView(APIView):
                         "person_type": {
                             "id": 1,
                             "type": "ATENDENTE",
-                            "description": "Atendente",
                         },
                         "contacts": [
                             {
@@ -762,7 +760,7 @@ class PasswordResetAPIView(APIView):
                                 "cidade": {
                                     "id": 1,
                                     "name": "São Paulo",
-                                    "state": "SP",
+                                    "uf": "SP",
                                 },
                             }
                         ],
@@ -806,7 +804,6 @@ class GetUserMeAPIView(APIView):
                         person_type_data = {
                             "id": person.person_type.id,
                             "type": person.person_type.type,
-                            "description": person.person_type.description,
                         }
 
                     # Contatos da pessoa
@@ -822,22 +819,22 @@ class GetUserMeAPIView(APIView):
 
                     # Endereços da pessoa
                     addresses_data = []
-                    for address in person.addresses.all():
+                    for address in person.personsadresses_set.all():
                         city_data = None
-                        if address.cidade:
+                        if address.city:
                             city_data = {
-                                "id": address.cidade.id,
-                                "name": address.cidade.name,
-                                "state": address.cidade.state,
+                                "id": address.city.id,
+                                "name": address.city.name,
+                                "uf": address.city.uf,
                             }
 
                         addresses_data.append(
                             {
                                 "id": address.id,
                                 "cep": address.cep,
-                                "rua": address.rua,
-                                "numero": address.numero,
-                                "bairro": address.bairro,
+                                "rua": address.street,
+                                "numero": address.number,
+                                "bairro": address.neighborhood,
                                 "cidade": city_data,
                             }
                         )

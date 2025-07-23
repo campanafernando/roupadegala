@@ -125,7 +125,7 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     )
     employee_name = serializers.CharField(help_text="Nome do atendente")
     attendant_name = serializers.CharField(help_text="Nome do recepcionista")
-    order_date = serializers.DateTimeField(help_text="Data de criação da OS")
+    order_date = serializers.DateField(help_text="Data de criação da OS")
     prova_date = serializers.DateField(help_text="Data da prova", allow_null=True)
     retirada_date = serializers.DateField(help_text="Data de retirada", allow_null=True)
     devolucao_date = serializers.DateField(

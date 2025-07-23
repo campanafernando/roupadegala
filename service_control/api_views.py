@@ -719,7 +719,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         {
                             "id": order.renter.person_type.id,
                             "type": order.renter.person_type.type,
-                            "description": order.renter.person_type.description,
                         }
                         if order.renter.person_type
                         else None
@@ -743,11 +742,11 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 client_data["addresses"] = []
                 for address in addresses:
                     city_data = None
-                    if address.cidade:
+                    if address.city:
                         city_data = {
-                            "id": address.cidade.id,
-                            "name": address.cidade.name,
-                            "state": address.cidade.state,
+                            "id": address.city.id,
+                            "name": address.city.name,
+                            "uf": address.city.uf,
                         }
 
                     client_data["addresses"].append(
