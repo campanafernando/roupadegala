@@ -23,6 +23,7 @@ from .serializers import (
     ClientSearchSerializer,
     EmployeeRegisterSerializer,
     EmployeeToggleStatusSerializer,
+    EmployeeUpdateSerializer,
     PasswordResetSerializer,
     PersonSerializer,
 )
@@ -502,6 +503,235 @@ class EmployeeToggleStatusAPIView(APIView):
         except Exception as e:
             return Response(
                 {"error": f"Erro ao alterar status: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Atualizar dados de funcionário",
+    description="Atualiza os dados de um funcionário existente. Administradores podem atualizar qualquer funcionário, incluindo o cargo. Funcionários podem atualizar apenas seus próprios dados (exceto cargo).",
+    request=EmployeeUpdateSerializer,
+    responses={
+        200: {
+            "description": "Dados atualizados com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "employee": {"$ref": "#/components/schemas/Person"},
+            },
+        },
+        400: {"description": "Dados inválidos"},
+        403: {"description": "Permissão negada"},
+        404: {"description": "Funcionário não encontrado"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class EmployeeUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmployeeUpdateSerializer
+
+    def put(self, request, person_id):
+        """Atualizar dados de funcionário"""
+        try:
+            # Verificar se o usuário é ADMINISTRADOR ou está atualizando seus próprios dados
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_self_update = user_person and user_person.id == person_id
+
+            if not (is_admin or is_self_update):
+                return Response(
+                    {
+                        "error": "Apenas administradores podem atualizar outros funcionários ou você pode atualizar seus próprios dados."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Buscar o funcionário
+            try:
+                person = Person.objects.get(id=person_id)
+                if person.person_type.type not in [
+                    "ADMINISTRADOR",
+                    "ATENDENTE",
+                    "RECEPÇÃO",
+                ]:
+                    return Response(
+                        {"error": "Pessoa não é um funcionário."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except Person.DoesNotExist:
+                return Response(
+                    {"error": "Funcionário não encontrado."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Se não for admin, não pode alterar o role
+            if not is_admin and "role" in request.data:
+                return Response(
+                    {
+                        "error": "Você não pode alterar seu próprio cargo. Apenas administradores podem fazer isso."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Validar dados
+            serializer = self.serializer_class(
+                data=request.data, context={"person_id": person_id}
+            )
+            if not serializer.is_valid():
+                return Response(
+                    {"error": "Dados inválidos", "details": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Atualizar dados da pessoa
+            if serializer.validated_data.get("name"):
+                person.name = serializer.validated_data["name"].upper()
+
+            if serializer.validated_data.get("role") and is_admin:
+                new_role = serializer.validated_data["role"]
+                person_type, _ = PersonType.objects.get_or_create(type=new_role)
+                person.person_type = person_type
+
+            person.updated_by = request.user
+            person.save()
+
+            # Atualizar contatos
+            contact = person.contacts.first()
+            if contact:
+                if serializer.validated_data.get("email"):
+                    contact.email = serializer.validated_data["email"]
+                if serializer.validated_data.get("phone"):
+                    contact.phone = serializer.validated_data["phone"]
+                contact.updated_by = request.user
+                contact.save()
+            else:
+                # Criar contato se não existir
+                PersonsContacts.objects.create(
+                    person=person,
+                    email=serializer.validated_data.get("email", ""),
+                    phone=serializer.validated_data.get("phone", ""),
+                    created_by=request.user,
+                )
+
+            message = (
+                "Dados atualizados com sucesso"
+                if is_self_update
+                else "Funcionário atualizado com sucesso"
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "message": message,
+                    "employee": PersonSerializer(person).data,
+                }
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao atualizar dados: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["auth"],
+    summary="Atualizar dados do usuário logado",
+    description="Permite que o usuário atualize seus próprios dados (nome, email, telefone). Não permite alteração de cargo.",
+    request=EmployeeUpdateSerializer,
+    responses={
+        200: {
+            "description": "Dados atualizados com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "user": {"$ref": "#/components/schemas/Person"},
+            },
+        },
+        400: {"description": "Dados inválidos"},
+        401: {"description": "Usuário não autenticado"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class UserSelfUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmployeeUpdateSerializer
+
+    def put(self, request):
+        """Atualizar dados do usuário logado"""
+        try:
+            user_person = getattr(request.user, "person", None)
+            if not user_person:
+                return Response(
+                    {"error": "Usuário não possui dados de pessoa associados."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se é funcionário
+            if user_person.person_type.type not in [
+                "ADMINISTRADOR",
+                "ATENDENTE",
+                "RECEPÇÃO",
+            ]:
+                return Response(
+                    {"error": "Apenas funcionários podem atualizar dados."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Remover role dos dados se presente (usuário não pode alterar seu próprio cargo)
+            data = request.data.copy()
+            if "role" in data:
+                del data["role"]
+
+            # Validar dados
+            serializer = self.serializer_class(
+                data=data, context={"person_id": user_person.id}
+            )
+            if not serializer.is_valid():
+                return Response(
+                    {"error": "Dados inválidos", "details": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Atualizar dados da pessoa
+            if serializer.validated_data.get("name"):
+                user_person.name = serializer.validated_data["name"].upper()
+
+            user_person.updated_by = request.user
+            user_person.save()
+
+            # Atualizar contatos
+            contact = user_person.contacts.first()
+            if contact:
+                if serializer.validated_data.get("email"):
+                    contact.email = serializer.validated_data["email"]
+                if serializer.validated_data.get("phone"):
+                    contact.phone = serializer.validated_data["phone"]
+                contact.updated_by = request.user
+                contact.save()
+            else:
+                # Criar contato se não existir
+                PersonsContacts.objects.create(
+                    person=user_person,
+                    email=serializer.validated_data.get("email", ""),
+                    phone=serializer.validated_data.get("phone", ""),
+                    created_by=request.user,
+                )
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Seus dados foram atualizados com sucesso",
+                    "user": PersonSerializer(user_person).data,
+                }
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao atualizar dados: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

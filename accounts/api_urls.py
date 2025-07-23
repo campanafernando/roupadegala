@@ -11,12 +11,14 @@ from .api_views import (
     EmployeeListAPIView,
     EmployeeRegisterAPIView,
     EmployeeToggleStatusAPIView,
+    EmployeeUpdateAPIView,
     GetUserMeAPIView,
     LoginAPIView,
     LogoutAPIView,
     PasswordResetAPIView,
     RefreshTokenAPIView,
     RegisterAPIView,
+    UserSelfUpdateAPIView,
 )
 
 urlpatterns = [
@@ -26,6 +28,9 @@ urlpatterns = [
     path("auth/refresh/", RefreshTokenAPIView.as_view(), name="api_refresh"),
     path("auth/logout/", LogoutAPIView.as_view(), name="api_logout"),
     path("auth/me/", GetUserMeAPIView.as_view(), name="api_user_me"),
+    path(
+        "auth/me/update/", UserSelfUpdateAPIView.as_view(), name="api_user_self_update"
+    ),
     path(
         "auth/password-reset/",
         PasswordResetAPIView.as_view(),
@@ -44,6 +49,11 @@ urlpatterns = [
         "employees/toggle-status/",
         EmployeeToggleStatusAPIView.as_view(),
         name="api_employee_toggle_status",
+    ),
+    path(
+        "employees/<int:person_id>/update/",
+        EmployeeUpdateAPIView.as_view(),
+        name="api_employee_update",
     ),
     # Clientes
     path(

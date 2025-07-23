@@ -137,3 +137,60 @@ class ClientSearchSerializer(serializers.Serializer):
 class EmployeeToggleStatusSerializer(serializers.Serializer):
     person_id = serializers.IntegerField(help_text="ID da pessoa/funcionário")
     active = serializers.BooleanField(help_text="Status ativo/inativo")
+
+
+@extend_schema_serializer(
+    examples=[
+        OpenApiExample(
+            "Exemplo de atualização de funcionário",
+            value={
+                "name": "João Silva Atualizado",
+                "email": "joao.novo@email.com",
+                "phone": "(11) 88888-8888",
+                "role": "ATENDENTE",
+            },
+            request_only=True,
+        )
+    ]
+)
+class EmployeeUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(
+        max_length=255, help_text="Nome completo do funcionário", required=False
+    )
+    email = serializers.EmailField(help_text="Email do funcionário", required=False)
+    phone = serializers.CharField(
+        max_length=255, help_text="Telefone do funcionário", required=False
+    )
+    role = serializers.ChoiceField(
+        choices=[
+            ("ADMINISTRADOR", "ADMINISTRADOR"),
+            ("ATENDENTE", "ATENDENTE"),
+            ("RECEPÇÃO", "RECEPÇÃO"),
+        ],
+        help_text="Cargo/função do funcionário",
+        required=False,
+    )
+
+    def validate_email(self, value):
+        # Verificar se o email já está em uso por outro funcionário
+        if (
+            PersonsContacts.objects.filter(email=value)
+            .exclude(person_id=self.context.get("person_id"))
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                "Email já está em uso por outro funcionário."
+            )
+        return value
+
+    def validate_phone(self, value):
+        # Verificar se o telefone já está em uso por outro funcionário
+        if (
+            PersonsContacts.objects.filter(phone=value)
+            .exclude(person_id=self.context.get("person_id"))
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                "Telefone já está em uso por outro funcionário."
+            )
+        return value
