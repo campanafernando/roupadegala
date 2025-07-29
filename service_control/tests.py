@@ -158,9 +158,9 @@ class ServiceOrderRESTfulAPITest(TestCase):
         )
         self.client.force_authenticate(user=self.admin_user)
         self.phase, _ = ServiceOrderPhase.objects.get_or_create(name="PENDENTE")
-        self.color = ColorCatalogue.objects.create(name="Azul")
+        self.color = ColorCatalogue.objects.create(description="Azul")
         self.temp_product = TemporaryProduct.objects.create(
-            name="Terno Azul", color="Azul", size="G"
+            product_type="Paleto", color="Azul", size="G"
         )
 
     def test_create_os_restful(self):
@@ -224,4 +224,74 @@ class ServiceOrderRESTfulAPITest(TestCase):
         )
         assert item.temporary_product is not None
         assert item.product is None
-        assert item.temporary_product.name == "Terno Azul"
+        assert item.temporary_product.product_type == "Paleto"
+
+    def test_update_os_with_temporary_product_all_fields(self):
+        """Testa se o endpoint de update funciona com todos os campos do TemporaryProduct"""
+        from datetime import date
+
+        # Criar uma OS para testar
+        os = ServiceOrder.objects.create(
+            renter=self.admin_person,
+            employee=self.admin_person,
+            attendant=self.admin_person,
+            order_date=date.today(),
+            event_date=date.today(),
+            occasion="Teste Update",
+            service_order_phase=self.phase,
+        )
+
+        # Dados de update com todos os campos do TemporaryProduct
+        update_data = {
+            "total_value": "1000.00",
+            "advance_payment": "300.00",
+            "remaining_payment": "700.00",
+            "payment_method": "PIX",
+            "observations": "Teste com todos os campos",
+            "items": [
+                {
+                    "temporary_product": {
+                        "product_type": "Paleto",
+                        "size": "M",
+                        "sleeve_length": "65cm",
+                        "leg_length": "32",
+                        "waist_size": "34",
+                        "collar_size": "40",
+                        "color": "Preto",
+                        "brand": "Armani",
+                        "fabric": "Lã",
+                        "description": "Paletó social completo",
+                    },
+                    "adjustment_needed": True,
+                    "adjustment_value": 5000,
+                    "adjustment_notes": "Ajustar manga direita",
+                }
+            ],
+        }
+
+        response = self.client.put(
+            f"/api/v1/service-orders/{os.id}/update/", update_data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+
+        # Verificar se o TemporaryProduct foi criado com todos os campos
+        os.refresh_from_db()
+        item = os.items.first()
+        self.assertIsNotNone(item.temporary_product)
+        self.assertEqual(item.temporary_product.product_type, "Paleto")
+        self.assertEqual(item.temporary_product.size, "M")
+        self.assertEqual(item.temporary_product.sleeve_length, "65cm")
+        self.assertEqual(item.temporary_product.leg_length, "32")
+        self.assertEqual(item.temporary_product.waist_size, "34")
+        self.assertEqual(item.temporary_product.collar_size, "40")
+        self.assertEqual(item.temporary_product.color, "Preto")
+        self.assertEqual(item.temporary_product.brand, "Armani")
+        self.assertEqual(item.temporary_product.fabric, "Lã")
+        self.assertEqual(item.temporary_product.description, "Paletó social completo")
+
+        # Verificar se os campos de ajuste foram salvos corretamente
+        self.assertTrue(item.adjustment_needed)
+        self.assertEqual(item.adjustment_value, 5000)
+        self.assertEqual(item.adjustment_notes, "Ajustar manga direita")

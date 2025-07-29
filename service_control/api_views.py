@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -39,6 +39,11 @@ from .serializers import (
             "properties": {
                 "cliente_nome": {"type": "string", "description": "Nome do cliente"},
                 "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email do cliente (opcional)",
+                },
                 "cpf": {"type": "string", "description": "CPF do cliente"},
                 "atendente": {"type": "string", "description": "Nome do atendente"},
                 "origem": {"type": "string", "description": "Origem do pedido"},
@@ -102,6 +107,7 @@ class ServiceOrderCreateAPIView(APIView):
             order_data = {
                 "cliente": request.data.get("cliente_nome"),
                 "telefone": request.data.get("telefone"),
+                "email": request.data.get("email", ""),
                 "cpf": request.data.get("cpf", "").replace(".", "").replace("-", ""),
                 "atendente": request.data.get("atendente"),
                 "origem": request.data.get("origem"),
@@ -155,11 +161,43 @@ class ServiceOrderCreateAPIView(APIView):
                 },
             )
 
-            # Criar contato
+            # Criar contato (verificando duplicatas)
+            email = order_data["email"]
+            telefone = order_data["telefone"]
+
+            # Verificar se já existe outro cliente com o mesmo email
+            if email:
+                existing_contact_with_email = (
+                    PersonsContacts.objects.filter(email=email)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_email:
+                    return Response(
+                        {"error": f"Já existe um cliente com o email '{email}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Verificar se já existe outro cliente com o mesmo telefone
+            if telefone:
+                existing_contact_with_phone = (
+                    PersonsContacts.objects.filter(phone=telefone)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_phone:
+                    return Response(
+                        {"error": f"Já existe um cliente com o telefone '{telefone}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Se não existe duplicata, criar contato
             PersonsContacts.objects.get_or_create(
-                phone=order_data["telefone"],
+                phone=telefone,
                 person=person,
-                defaults={"created_by": request.user},
+                defaults={"email": email, "created_by": request.user},
             )
 
             # Criar endereço se cidade for informada
@@ -221,7 +259,166 @@ class ServiceOrderCreateAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Atualizar ordem de serviço",
-    description="Atualiza uma ordem de serviço existente",
+    description="Atualiza uma ordem de serviço existente com valores, pagamentos, observações, datas e itens (produtos do catálogo ou produtos temporários)",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "total_value": {
+                    "type": "string",
+                    "description": "Valor total da ordem de serviço (ex: '1500.00')",
+                },
+                "advance_payment": {
+                    "type": "string",
+                    "description": "Valor já pago (ex: '500.00')",
+                },
+                "remaining_payment": {
+                    "type": "string",
+                    "description": "Valor restante a pagar (ex: '1000.00')",
+                },
+                "payment_method": {
+                    "type": "string",
+                    "description": "Método de pagamento (ex: 'Cartão de Crédito', 'PIX', 'Dinheiro')",
+                    "required": False,
+                },
+                "observations": {
+                    "type": "string",
+                    "description": "Observações sobre a ordem de serviço",
+                    "required": False,
+                },
+                "due_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data de vencimento do pagamento (YYYY-MM-DD)",
+                    "required": False,
+                },
+                "prova_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data da prova (YYYY-MM-DD)",
+                    "required": False,
+                },
+                "retirada_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data de retirada (YYYY-MM-DD)",
+                    "required": False,
+                },
+                "devolucao_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data de devolução (YYYY-MM-DD)",
+                    "required": False,
+                },
+                "items": {
+                    "type": "array",
+                    "description": "Lista de itens da ordem de serviço",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "product_id": {
+                                "type": "integer",
+                                "description": "ID do produto do catálogo (TEMPORARIAMENTE DESABILITADO - use temporary_product)",
+                            },
+                            "temporary_product": {
+                                "type": "object",
+                                "description": "Dados do produto temporário (use este OU product_id, não ambos)",
+                                "properties": {
+                                    "product_type": {
+                                        "type": "string",
+                                        "description": "Tipo do produto",
+                                        "enum": [
+                                            "Paleto",
+                                            "Calca",
+                                            "Camisa",
+                                            "Colete",
+                                            "Gravata",
+                                            "Sapato",
+                                            "Suspensorio",
+                                            "Cinto",
+                                            "Lenco",
+                                        ],
+                                    },
+                                    "size": {
+                                        "type": "string",
+                                        "description": "Tamanho do produto (ex: 'M', '42', 'L')",
+                                        "required": False,
+                                    },
+                                    "sleeve_length": {
+                                        "type": "string",
+                                        "description": "Comprimento da manga (ex: '65cm', '70cm')",
+                                        "required": False,
+                                    },
+                                    "leg_length": {
+                                        "type": "string",
+                                        "description": "Comprimento da perna (ex: '32', '34')",
+                                        "required": False,
+                                    },
+                                    "waist_size": {
+                                        "type": "string",
+                                        "description": "Tamanho da cintura (ex: '32', '34')",
+                                        "required": False,
+                                    },
+                                    "collar_size": {
+                                        "type": "string",
+                                        "description": "Tamanho do colarinho (ex: '40', '42')",
+                                        "required": False,
+                                    },
+                                    "color": {
+                                        "type": "string",
+                                        "description": "Cor do produto (ex: 'Preto', 'Azul')",
+                                        "required": False,
+                                    },
+                                    "brand": {
+                                        "type": "string",
+                                        "description": "Marca do produto (ex: 'Armani', 'Zara')",
+                                        "required": False,
+                                    },
+                                    "fabric": {
+                                        "type": "string",
+                                        "description": "Tecido do produto (ex: 'Algodão', 'Seda')",
+                                        "required": False,
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Descrição adicional do produto",
+                                        "required": False,
+                                    },
+                                    "color_catalogue_id": {
+                                        "type": "integer",
+                                        "description": "ID do catálogo de cores (opcional)",
+                                        "required": False,
+                                    },
+                                    "color_intensity_id": {
+                                        "type": "integer",
+                                        "description": "ID da intensidade da cor (opcional, usado junto com color_catalogue_id)",
+                                        "required": False,
+                                    },
+                                },
+                                "required": ["product_type"],
+                            },
+                            "adjustment_needed": {
+                                "type": "boolean",
+                                "description": "Se o item precisa de ajuste",
+                                "default": False,
+                                "required": False,
+                            },
+                            "adjustment_value": {
+                                "type": "integer",
+                                "description": "Valor do ajuste em centavos (ex: 5000 para R$ 50,00)",
+                                "required": False,
+                            },
+                            "adjustment_notes": {
+                                "type": "string",
+                                "description": "Observações sobre o ajuste",
+                                "required": False,
+                            },
+                        },
+                    },
+                },
+            },
+        }
+    },
     responses={
         200: {
             "description": "Ordem de serviço atualizada com sucesso",
@@ -235,6 +432,58 @@ class ServiceOrderCreateAPIView(APIView):
         404: {"description": "Ordem de serviço não encontrada"},
         500: {"description": "Erro interno do servidor"},
     },
+    examples=[
+        OpenApiExample(
+            "Exemplo com produto do catálogo",
+            value={
+                "total_value": "1500.00",
+                "advance_payment": "500.00",
+                "remaining_payment": "1000.00",
+                "payment_method": "Cartão de Crédito",
+                "observations": "Cliente solicitou ajuste no paletó",
+                "due_date": "2024-12-25",
+                "prova_date": "2024-12-20",
+                "retirada_date": "2024-12-23",
+                "devolucao_date": "2024-12-26",
+                "items": [
+                    {
+                        "product_id": 1,
+                        "adjustment_needed": True,
+                        "adjustment_value": 5000,
+                        "adjustment_notes": "Ajustar manga direita",
+                    }
+                ],
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Exemplo com produto temporário",
+            value={
+                "total_value": "800.00",
+                "advance_payment": "200.00",
+                "remaining_payment": "600.00",
+                "payment_method": "PIX",
+                "observations": "Produto personalizado",
+                "items": [
+                    {
+                        "temporary_product": {
+                            "product_type": "Paleto",
+                            "size": "M",
+                            "sleeve_length": "65cm",
+                            "color": "Preto",
+                            "brand": "Armani",
+                            "fabric": "Lã",
+                            "description": "Paletó social preto",
+                        },
+                        "adjustment_needed": True,
+                        "adjustment_value": 5000,
+                        "adjustment_notes": "Ajustar manga direita",
+                    }
+                ],
+            },
+            request_only=True,
+        ),
+    ],
 )
 class ServiceOrderUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -274,17 +523,12 @@ class ServiceOrderUpdateAPIView(APIView):
                 # Adicionar novos itens
                 for item_data in request.data["items"]:
                     if item_data.get("product_id"):
-                        # Produto do catálogo
-                        from products.models import Product
-
-                        product = Product.objects.get(id=item_data["product_id"])
-                        ServiceOrderItem.objects.create(
-                            service_order=service_order,
-                            product=product,
-                            adjustment_needed=item_data.get("adjustment_needed", False),
-                            adjustment_value=item_data.get("adjustment_value"),
-                            adjustment_notes=item_data.get("adjustment_notes"),
-                            created_by=request.user,
+                        # Produto do catálogo - DESABILITADO TEMPORARIAMENTE
+                        return Response(
+                            {
+                                "error": "Produtos do catálogo estão temporariamente desabilitados. Use temporary_product."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
                         )
                     elif item_data.get("temporary_product"):
                         # Produto temporário
@@ -292,6 +536,10 @@ class ServiceOrderUpdateAPIView(APIView):
                         temp_product = TemporaryProduct.objects.create(
                             product_type=temp_data["product_type"],
                             size=temp_data.get("size"),
+                            sleeve_length=temp_data.get("sleeve_length"),
+                            leg_length=temp_data.get("leg_length"),
+                            waist_size=temp_data.get("waist_size"),
+                            collar_size=temp_data.get("collar_size"),
                             color=temp_data.get("color"),
                             brand=temp_data.get("brand"),
                             fabric=temp_data.get("fabric"),
@@ -321,7 +569,11 @@ class ServiceOrderUpdateAPIView(APIView):
                             color_catalogue=color_catalogue,
                             color=color_instance,
                             adjustment_needed=item_data.get("adjustment_needed", False),
-                            adjustment_value=item_data.get("adjustment_value"),
+                            adjustment_value=(
+                                int(item_data.get("adjustment_value"))
+                                if item_data.get("adjustment_value")
+                                else None
+                            ),
                             adjustment_notes=item_data.get("adjustment_notes"),
                             created_by=request.user,
                         )
@@ -725,10 +977,10 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     ),
                 }
 
-                # Contatos do cliente
-                contacts = order.renter.contacts.all()
+                # Contatos do cliente (apenas o mais recente)
+                contact = order.renter.contacts.order_by("-date_created").first()
                 client_data["contacts"] = []
-                for contact in contacts:
+                if contact:
                     client_data["contacts"].append(
                         {
                             "id": contact.id,
@@ -737,10 +989,12 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         }
                     )
 
-                # Endereços do cliente
-                addresses = order.renter.personsadresses_set.all()
+                # Endereços do cliente (apenas o mais recente)
+                address = order.renter.personsadresses_set.order_by(
+                    "-date_created"
+                ).first()
                 client_data["addresses"] = []
-                for address in addresses:
+                if address:
                     city_data = None
                     if address.city:
                         city_data = {
@@ -806,8 +1060,12 @@ class ServiceOrderClientAPIView(APIView):
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
             person = service_order.renter
-            contact = person.contacts.first()
-            address = person.personsadresses_set.first()
+
+            # Buscar contato mais recente baseado em date_created
+            contact = person.contacts.order_by("-date_created").first()
+
+            # Buscar endereço mais recente baseado em date_created
+            address = person.personsadresses_set.order_by("-date_created").first()
 
             data = {
                 "id": person.id,
@@ -847,6 +1105,11 @@ class ServiceOrderClientAPIView(APIView):
             "properties": {
                 "cliente_nome": {"type": "string", "description": "Nome do cliente"},
                 "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email do cliente (opcional)",
+                },
                 "cpf": {"type": "string", "description": "CPF do cliente"},
                 "atendente_id": {
                     "type": "integer",
@@ -941,11 +1204,43 @@ class ServiceOrderPreTriageAPIView(APIView):
                     "created_by": request.user,
                 },
             )
-            # Criar contato se não existir
+            # Criar contato se não existir (verificando duplicatas)
+            email = data.get("email", "")
+            telefone = data.get("telefone")
+
+            # Verificar se já existe outro cliente com o mesmo email
+            if email:
+                existing_contact_with_email = (
+                    PersonsContacts.objects.filter(email=email)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_email:
+                    return Response(
+                        {"error": f"Já existe um cliente com o email '{email}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Verificar se já existe outro cliente com o mesmo telefone
+            if telefone:
+                existing_contact_with_phone = (
+                    PersonsContacts.objects.filter(phone=telefone)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_phone:
+                    return Response(
+                        {"error": f"Já existe um cliente com o telefone '{telefone}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Se não existe duplicata, criar contato
             PersonsContacts.objects.get_or_create(
-                phone=data.get("telefone"),
+                phone=telefone,
                 person=person,
-                defaults={"created_by": request.user},
+                defaults={"email": email, "created_by": request.user},
             )
             # Criar endereço se cidade for informada
             endereco = data.get("endereco", {})

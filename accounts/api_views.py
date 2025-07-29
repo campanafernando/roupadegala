@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .models import City, Person, PersonsContacts, PersonType
+from .models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 from .serializers import (
     ClientRegisterSerializer,
     ClientSearchSerializer,
@@ -312,6 +312,35 @@ class RegisterAPIView(APIView):
             person = Person.objects.create(
                 user=user, name=name, cpf=cpf, person_type=employee_type
             )
+            # Verificar se já existe outro cliente com o mesmo email
+            if email:
+                existing_contact_with_email = (
+                    PersonsContacts.objects.filter(email=email)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_email:
+                    return Response(
+                        {"error": f"Já existe um cliente com o email '{email}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Verificar se já existe outro cliente com o mesmo telefone
+            if phone:
+                existing_contact_with_phone = (
+                    PersonsContacts.objects.filter(phone=phone)
+                    .exclude(person=person)
+                    .first()
+                )
+
+                if existing_contact_with_phone:
+                    return Response(
+                        {"error": f"Já existe um cliente com o telefone '{phone}'"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Se não existe duplicata, criar novo contato
             PersonsContacts.objects.create(email=email, phone=phone, person=person)
 
             # Gerar tokens JWT
@@ -456,7 +485,8 @@ class EmployeeListAPIView(APIView):
 
         data = []
         for emp in employees:
-            contact = emp.contacts.first()
+            # Buscar contato mais recente baseado em date_created
+            contact = emp.contacts.order_by("-date_created").first()
             data.append(
                 {
                     "id": emp.id,
@@ -596,7 +626,8 @@ class EmployeeUpdateAPIView(APIView):
             person.save()
 
             # Atualizar contatos
-            contact = person.contacts.first()
+            # Buscar contato mais recente baseado em date_created
+            contact = person.contacts.order_by("-date_created").first()
             if contact:
                 if serializer.validated_data.get("email"):
                     contact.email = serializer.validated_data["email"]
@@ -605,11 +636,43 @@ class EmployeeUpdateAPIView(APIView):
                 contact.updated_by = request.user
                 contact.save()
             else:
-                # Criar contato se não existir
+                # Criar contato se não existir (verificando duplicatas em todos os clientes)
+                email = serializer.validated_data.get("email", "")
+                phone = serializer.validated_data.get("phone", "")
+
+                # Verificar se já existe outro cliente com o mesmo email
+                if email:
+                    existing_contact_with_email = (
+                        PersonsContacts.objects.filter(email=email)
+                        .exclude(person=person)
+                        .first()
+                    )
+
+                    if existing_contact_with_email:
+                        return Response(
+                            {"error": f"Já existe um cliente com o email '{email}'"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Verificar se já existe outro cliente com o mesmo telefone
+                if phone:
+                    existing_contact_with_phone = (
+                        PersonsContacts.objects.filter(phone=phone)
+                        .exclude(person=person)
+                        .first()
+                    )
+
+                    if existing_contact_with_phone:
+                        return Response(
+                            {"error": f"Já existe um cliente com o telefone '{phone}'"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Se não existe duplicata, criar novo contato
                 PersonsContacts.objects.create(
                     person=person,
-                    email=serializer.validated_data.get("email", ""),
-                    phone=serializer.validated_data.get("phone", ""),
+                    email=email,
+                    phone=phone,
                     created_by=request.user,
                 )
 
@@ -702,7 +765,8 @@ class UserSelfUpdateAPIView(APIView):
             user_person.save()
 
             # Atualizar contatos
-            contact = user_person.contacts.first()
+            # Buscar contato mais recente baseado em date_created
+            contact = user_person.contacts.order_by("-date_created").first()
             if contact:
                 if serializer.validated_data.get("email"):
                     contact.email = serializer.validated_data["email"]
@@ -711,11 +775,43 @@ class UserSelfUpdateAPIView(APIView):
                 contact.updated_by = request.user
                 contact.save()
             else:
-                # Criar contato se não existir
+                # Criar contato se não existir (verificando duplicatas em todos os clientes)
+                email = serializer.validated_data.get("email", "")
+                phone = serializer.validated_data.get("phone", "")
+
+                # Verificar se já existe outro cliente com o mesmo email
+                if email:
+                    existing_contact_with_email = (
+                        PersonsContacts.objects.filter(email=email)
+                        .exclude(person=user_person)
+                        .first()
+                    )
+
+                    if existing_contact_with_email:
+                        return Response(
+                            {"error": f"Já existe um cliente com o email '{email}'"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Verificar se já existe outro cliente com o mesmo telefone
+                if phone:
+                    existing_contact_with_phone = (
+                        PersonsContacts.objects.filter(phone=phone)
+                        .exclude(person=user_person)
+                        .first()
+                    )
+
+                    if existing_contact_with_phone:
+                        return Response(
+                            {"error": f"Já existe um cliente com o telefone '{phone}'"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Se não existe duplicata, criar novo contato
                 PersonsContacts.objects.create(
                     person=user_person,
-                    email=serializer.validated_data.get("email", ""),
-                    phone=serializer.validated_data.get("phone", ""),
+                    email=email,
+                    phone=phone,
                     created_by=request.user,
                 )
 
@@ -734,51 +830,253 @@ class UserSelfUpdateAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["accounts"],
+    summary="Registro/Atualização de cliente",
+    description="Cria um novo cliente ou atualiza um cliente existente baseado no CPF. Se o CPF já existir, atualiza os dados do cliente e cria novos registros de contato e endereço.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "Nome completo do cliente"},
+                "cpf": {"type": "string", "description": "CPF do cliente"},
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email do cliente (opcional)",
+                },
+                "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "cep": {"type": "string", "description": "CEP do endereço (opcional)"},
+                "rua": {"type": "string", "description": "Rua do endereço (opcional)"},
+                "numero": {
+                    "type": "string",
+                    "description": "Número do endereço (opcional)",
+                },
+                "bairro": {
+                    "type": "string",
+                    "description": "Bairro do endereço (opcional)",
+                },
+                "cidade": {
+                    "type": "string",
+                    "description": "Nome da cidade (opcional)",
+                },
+            },
+            "required": ["nome", "cpf", "telefone"],
+        }
+    },
+    responses={
+        200: {
+            "description": "Cliente criado/atualizado com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "client": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "name": {"type": "string"},
+                        "cpf": {"type": "string"},
+                        "email": {"type": "string"},
+                        "phone": {"type": "string"},
+                        "address": {
+                            "type": "object",
+                            "properties": {
+                                "street": {"type": "string"},
+                                "number": {"type": "string"},
+                                "neighborhood": {"type": "string"},
+                                "city": {"type": "string"},
+                                "cep": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        400: {"description": "Dados inválidos"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
 class ClientRegisterAPIView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ClientRegisterSerializer
 
     def post(self, request):
-        """Registro de cliente via API"""
+        """Registro/Atualização de cliente via API"""
         try:
-            name = request.data.get("name")
-            cpf = request.data.get("cpf", "").replace(".", "").replace("-", "")
-            email = request.data.get("email")
-            phone = request.data.get("phone")
-
-            if not all([name, cpf, phone]):
+            # Validar dados
+            serializer = self.serializer_class(data=request.data)
+            if not serializer.is_valid():
                 return Response(
-                    {"error": "Nome, CPF e telefone são obrigatórios"},
+                    {"error": "Dados inválidos", "details": serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            validated_data = serializer.validated_data
+            nome = validated_data.get("nome")
+            cpf = validated_data.get("cpf", "").replace(".", "").replace("-", "")
+            email = validated_data.get("email", "")
+            telefone = validated_data.get("telefone")
+
+            # Validar CPF
             if len(cpf) != 11:
                 return Response(
                     {"error": "CPF inválido"}, status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if Person.objects.filter(cpf=cpf).exists():
-                return Response(
-                    {"error": "CPF já cadastrado"}, status=status.HTTP_400_BAD_REQUEST
+            # Verificar se cliente já existe
+            client_type, _ = PersonType.objects.get_or_create(type="CLIENTE")
+            person, created = Person.objects.get_or_create(
+                cpf=cpf,
+                defaults={
+                    "name": nome.upper(),
+                    "person_type": client_type,
+                    "created_by": request.user,
+                },
+            )
+
+            if not created:
+                # Cliente já existe, atualizar nome se fornecido
+                if nome and nome.upper() != person.name:
+                    person.name = nome.upper()
+                    person.updated_by = request.user
+                    person.save()
+
+            # Criar novo contato (verificando duplicatas em todos os clientes)
+            if email or telefone:
+                # Verificar se já existe outro cliente com o mesmo email
+                if email:
+                    existing_contact_with_email = (
+                        PersonsContacts.objects.filter(email=email)
+                        .exclude(person=person)
+                        .first()
+                    )
+
+                    if existing_contact_with_email:
+                        return Response(
+                            {"error": f"Já existe um cliente com o email '{email}'"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Verificar se já existe outro cliente com o mesmo telefone
+                if telefone:
+                    existing_contact_with_phone = (
+                        PersonsContacts.objects.filter(phone=telefone)
+                        .exclude(person=person)
+                        .first()
+                    )
+
+                    if existing_contact_with_phone:
+                        return Response(
+                            {
+                                "error": f"Já existe um cliente com o telefone '{telefone}'"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Verificar se o cliente já tem este email ou telefone
+                should_create_contact = True
+
+                # Verificar se já existe um contato com este email para o mesmo cliente
+                if email:
+                    existing_email_contact = PersonsContacts.objects.filter(
+                        person=person, email=email
+                    ).first()
+
+                    if existing_email_contact:
+                        # Email já existe para este cliente, não criar novo
+                        should_create_contact = False
+
+                # Verificar se já existe um contato com este telefone para o mesmo cliente
+                if telefone:
+                    existing_phone_contact = PersonsContacts.objects.filter(
+                        person=person, phone=telefone
+                    ).first()
+
+                    if existing_phone_contact:
+                        # Telefone já existe para este cliente, não criar novo
+                        should_create_contact = False
+
+                # Só criar novo contato se não existir duplicata e for necessário
+                if should_create_contact:
+                    PersonsContacts.objects.create(
+                        email=email,
+                        phone=telefone,
+                        person=person,
+                        created_by=request.user,
+                    )
+
+            # Criar novo endereço se dados fornecidos
+            address_data = {
+                "cep": validated_data.get("cep", ""),
+                "street": validated_data.get("rua", ""),
+                "number": validated_data.get("numero", ""),
+                "neighborhood": validated_data.get("bairro", ""),
+                "city_name": validated_data.get("cidade", ""),
+            }
+
+            # Verificar se há dados de endereço para salvar
+            has_address_data = any(
+                address_data[key]
+                for key in ["cep", "street", "number", "neighborhood", "city_name"]
+            )
+
+            if has_address_data:
+                # Buscar ou criar cidade
+                city_obj = None
+                if address_data["city_name"]:
+                    city_obj, _ = City.objects.get_or_create(
+                        name=address_data["city_name"].upper(),
+                        defaults={"uf": "SP", "code": "0000"},  # Valores padrão
+                    )
+
+                # Criar endereço
+                PersonsAdresses.objects.create(
+                    person=person,
+                    street=address_data["street"],
+                    number=address_data["number"],
+                    cep=address_data["cep"],
+                    neighborhood=address_data["neighborhood"],
+                    city=city_obj,
+                    created_by=request.user,
                 )
 
-            client_type, _ = PersonType.objects.get_or_create(type="CLIENTE")
-            person = Person.objects.create(
-                name=name.upper(),
-                cpf=cpf,
-                person_type=client_type,
-                created_by=request.user,
+            # Buscar dados mais recentes para retorno
+            contact = person.contacts.order_by("-date_created").first()
+            address = person.personsadresses_set.order_by("-date_created").first()
+
+            response_data = {
+                "id": person.id,
+                "name": person.name,
+                "cpf": person.cpf,
+                "email": contact.email if contact else "",
+                "phone": contact.phone if contact else "",
+                "address": (
+                    {
+                        "street": address.street if address else "",
+                        "number": address.number if address else "",
+                        "neighborhood": address.neighborhood if address else "",
+                        "city": address.city.name if address and address.city else "",
+                        "cep": address.cep if address else "",
+                    }
+                    if address
+                    else None
+                ),
+            }
+
+            message = (
+                "Cliente criado com sucesso"
+                if created
+                else "Cliente atualizado com sucesso"
             )
 
-            PersonsContacts.objects.create(
-                email=email, phone=phone, person=person, created_by=request.user
+            return Response(
+                {"success": True, "message": message, "client": response_data}
             )
-
-            return Response({"success": True, "client": PersonSerializer(person).data})
 
         except Exception as e:
             return Response(
-                {"error": f"Erro ao criar cliente: {str(e)}"},
+                {"error": f"Erro ao processar cliente: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -798,8 +1096,12 @@ class ClientSearchAPIView(APIView):
 
         try:
             person = Person.objects.get(cpf=cpf)
-            contact = person.contacts.first()
-            address = person.personsadresses_set.first()
+
+            # Buscar contato mais recente baseado em date_created
+            contact = person.contacts.order_by("-date_created").first()
+
+            # Buscar endereço mais recente baseado em date_created
+            address = person.personsadresses_set.order_by("-date_created").first()
 
             data = {
                 "id": person.id,
@@ -825,6 +1127,86 @@ class ClientSearchAPIView(APIView):
         except Person.DoesNotExist:
             return Response(
                 {"error": "Cliente não encontrado"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+
+@extend_schema(
+    tags=["accounts"],
+    summary="Lista de clientes",
+    description="Retorna a lista de todos os clientes com seus dados mais recentes",
+    responses={
+        200: {
+            "description": "Lista de clientes",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "cpf": {"type": "string"},
+                    "email": {"type": "string"},
+                    "phone": {"type": "string"},
+                    "address": {
+                        "type": "object",
+                        "properties": {
+                            "street": {"type": "string"},
+                            "number": {"type": "string"},
+                            "neighborhood": {"type": "string"},
+                            "city": {"type": "string"},
+                            "cep": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        }
+    },
+)
+class ClientListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Lista de clientes"""
+        try:
+            # Buscar todos os clientes
+            clients = Person.objects.filter(person_type__type="CLIENTE").select_related(
+                "person_type"
+            )
+
+            data = []
+            for client in clients:
+                # Buscar contato mais recente baseado em date_created
+                contact = client.contacts.order_by("-date_created").first()
+
+                # Buscar endereço mais recente baseado em date_created
+                address = client.personsadresses_set.order_by("-date_created").first()
+
+                client_data = {
+                    "id": client.id,
+                    "name": client.name,
+                    "cpf": client.cpf,
+                    "email": contact.email if contact else "",
+                    "phone": contact.phone if contact else "",
+                    "address": (
+                        {
+                            "street": address.street if address else "",
+                            "number": address.number if address else "",
+                            "neighborhood": address.neighborhood if address else "",
+                            "city": address.city.name if address else "",
+                            "cep": address.cep if address else "",
+                        }
+                        if address
+                        else None
+                    ),
+                }
+
+                data.append(client_data)
+
+            return Response(data)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao listar clientes: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
@@ -1028,9 +1410,10 @@ class GetUserMeAPIView(APIView):
                             "type": person.person_type.type,
                         }
 
-                    # Contatos da pessoa
+                    # Contatos da pessoa (apenas o mais recente)
+                    contact = person.contacts.order_by("-date_created").first()
                     contacts_data = []
-                    for contact in person.contacts.all():
+                    if contact:
                         contacts_data.append(
                             {
                                 "id": contact.id,
@@ -1039,9 +1422,12 @@ class GetUserMeAPIView(APIView):
                             }
                         )
 
-                    # Endereços da pessoa
+                    # Endereços da pessoa (apenas o mais recente)
+                    address = person.personsadresses_set.order_by(
+                        "-date_created"
+                    ).first()
                     addresses_data = []
-                    for address in person.personsadresses_set.all():
+                    if address:
                         city_data = None
                         if address.city:
                             city_data = {

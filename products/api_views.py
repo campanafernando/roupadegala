@@ -7,7 +7,7 @@ import io
 
 import qrcode
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -334,15 +334,99 @@ class ProductQRCodeAPIView(APIView):
             )
 
 
-class ColorListAPIView(ListAPIView):
+@extend_schema(
+    tags=["products"],
+    summary="Lista de cores e combinações",
+    description="Retorna todas as cores do catálogo e todas as combinações possíveis com intensidades, incluindo versões sem intensidade",
+    responses={
+        200: {
+            "description": "Lista de cores e combinações",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "color": {"type": "string", "description": "Nome da cor"},
+                    "intensity": {
+                        "type": "string",
+                        "description": "Intensidade da cor (null se sem intensidade)",
+                    },
+                    "combined": {
+                        "type": "string",
+                        "description": "String combinada para pesquisa (ex: 'Preto FOSCO', 'Azul')",
+                    },
+                },
+            },
+        }
+    },
+    examples=[
+        OpenApiExample(
+            "Exemplo de resposta",
+            value=[
+                {"color": "Preto", "intensity": None, "combined": "Preto"},
+                {"color": "Preto", "intensity": "FOSCO", "combined": "Preto FOSCO"},
+                {"color": "Azul", "intensity": "BRILHO", "combined": "Azul BRILHO"},
+            ],
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
+)
+class ColorListAPIView(APIView):
     permission_classes = [AllowAny]
-    serializer_class = ColorCatalogueSerializer
-    queryset = ColorCatalogue.objects.all()
 
     def get(self, request):
-        """Lista de cores disponíveis"""
+        """Lista todas as cores e combinações possíveis com intensidades"""
+        from .models import Color, ColorCatalogue, ColorIntensity
+
+        # Buscar todas as cores do catálogo
         colors = ColorCatalogue.objects.all()
-        return Response(ColorCatalogueSerializer(colors, many=True).data)
+        # Buscar todas as intensidades
+        intensities = ColorIntensity.objects.all()
+        # Buscar todas as combinações existentes
+        color_combinations = Color.objects.select_related(
+            "color", "color_intensity"
+        ).all()
+
+        result = []
+
+        # 1. Adicionar cores sem intensidade (apenas do catálogo)
+        for color in colors:
+            result.append(
+                {
+                    "color": color.description,
+                    "intensity": None,
+                    "combined": color.description,
+                }
+            )
+
+        # 2. Adicionar todas as combinações possíveis de cor + intensidade
+        for color in colors:
+            for intensity in intensities:
+                # Verificar se esta combinação existe na tabela Color
+                existing_combo = color_combinations.filter(
+                    color=color, color_intensity=intensity
+                ).first()
+
+                if existing_combo:
+                    # Combinação existe - usar dados reais
+                    result.append(
+                        {
+                            "color": color.description,
+                            "intensity": intensity.description,
+                            "combined": f"{color.description} {intensity.description}",
+                        }
+                    )
+                else:
+                    # Combinação não existe - criar virtual
+                    result.append(
+                        {
+                            "color": color.description,
+                            "intensity": intensity.description,
+                            "combined": f"{color.description} {intensity.description}",
+                        }
+                    )
+
+        return Response(result)
 
 
 class ColorWithIntensityListAPIView(APIView):

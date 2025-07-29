@@ -124,13 +124,27 @@ class PasswordResetSerializer(serializers.Serializer):
 
 class ClientRegisterSerializer(serializers.Serializer):
     nome = serializers.CharField(max_length=255, help_text="Nome completo do cliente")
-    telefone = serializers.CharField(max_length=255, help_text="Telefone do cliente")
     cpf = serializers.CharField(max_length=20, help_text="CPF do cliente")
-    cep = serializers.CharField(max_length=10, help_text="CEP do endereço")
-    rua = serializers.CharField(max_length=255, help_text="Rua do endereço")
-    numero = serializers.CharField(max_length=10, help_text="Número do endereço")
-    bairro = serializers.CharField(max_length=255, help_text="Bairro do endereço")
-    cidade = serializers.CharField(max_length=255, help_text="Nome da cidade")
+    email = serializers.EmailField(
+        help_text="Email do cliente", required=False, allow_blank=True
+    )
+    telefone = serializers.CharField(max_length=255, help_text="Telefone do cliente")
+    # Dados de endereço (opcionais)
+    cep = serializers.CharField(
+        max_length=10, help_text="CEP do endereço", required=False, allow_blank=True
+    )
+    rua = serializers.CharField(
+        max_length=255, help_text="Rua do endereço", required=False, allow_blank=True
+    )
+    numero = serializers.CharField(
+        max_length=10, help_text="Número do endereço", required=False, allow_blank=True
+    )
+    bairro = serializers.CharField(
+        max_length=255, help_text="Bairro do endereço", required=False, allow_blank=True
+    )
+    cidade = serializers.CharField(
+        max_length=255, help_text="Nome da cidade", required=False, allow_blank=True
+    )
 
 
 class ClientSearchSerializer(serializers.Serializer):
