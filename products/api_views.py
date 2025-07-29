@@ -5,6 +5,7 @@ Views API para o app products
 import base64
 import io
 
+import pandas as pd
 import qrcode
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
@@ -19,6 +20,7 @@ from .models import (
     Button,
     Color,
     ColorCatalogue,
+    ColorIntensity,
     Fabric,
     Lapel,
     Model,
@@ -166,15 +168,30 @@ class ProductListAPIView(ListAPIView):
 @extend_schema(
     tags=["products"],
     summary="Criar produto",
-    description="Cria um novo produto no sistema",
-    request=ProductSerializer,
+    description="Cria um novo produto no sistema ou importa produtos via Excel",
+    request={
+        "application/json": ProductSerializer,
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {
+                "excel_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Arquivo Excel para importação em lote",
+                }
+            },
+        },
+    },
     responses={
         201: {
-            "description": "Produto criado com sucesso",
+            "description": "Produto(s) criado(s) com sucesso",
             "type": "object",
             "properties": {
                 "success": {"type": "boolean"},
-                "product": {"$ref": "#/components/schemas/Product"},
+                "message": {"type": "string"},
+                "products_created": {"type": "integer"},
+                "products_updated": {"type": "integer"},
+                "errors": {"type": "array", "items": {"type": "string"}},
             },
         },
         400: {"description": "Dados inválidos"},
@@ -184,7 +201,13 @@ class ProductCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """Criar novo produto"""
+        """Criar novo produto ou importar via Excel"""
+
+        # Verificar se é uma importação de Excel
+        if "excel_file" in request.FILES:
+            return self._import_from_excel(request)
+
+        # Criação individual de produto
         serializer = ProductSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -195,6 +218,221 @@ class ProductCreateAPIView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _import_from_excel(self, request):
+        """Importar produtos do arquivo Excel"""
+        try:
+            excel_file = request.FILES["excel_file"]
+
+            # Verificar extensão do arquivo
+            if not excel_file.name.endswith((".xlsx", ".xls")):
+                return Response(
+                    {"error": "Arquivo deve ser um Excel (.xlsx ou .xls)"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Ler o arquivo Excel
+            df = pd.read_excel(excel_file)
+
+            # Validar se o arquivo tem dados
+            if df.empty:
+                return Response(
+                    {"error": "Arquivo Excel está vazio"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validar colunas obrigatórias
+            required_columns = ["Tipo", "ID"]
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                return Response(
+                    {
+                        "error": f"Colunas obrigatórias ausentes: {', '.join(missing_columns)}"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            products_created = 0
+            products_updated = 0
+            errors = []
+            processed_label_codes = set()  # Para detectar duplicatas no próprio Excel
+
+            for index, row in df.iterrows():
+                try:
+                    # Pular linhas vazias ou com dados incompletos
+                    if pd.isna(row.get("Tipo")) or pd.isna(row.get("ID")):
+                        continue
+
+                    # Verificar duplicatas no próprio Excel
+                    label_code = str(row.get("ID", "")).strip()
+                    if label_code in processed_label_codes:
+                        errors.append(
+                            f"Linha {index + 2}: ID '{label_code}' duplicado no Excel"
+                        )
+                        continue
+
+                    processed_label_codes.add(label_code)
+
+                    # Mapear dados do Excel para o modelo
+                    product_data = self._map_excel_row_to_product(row)
+
+                    # Verificar se produto já existe pelo label_code
+                    existing_product = Product.objects.filter(
+                        label_code=product_data["label_code"]
+                    ).first()
+
+                    if existing_product:
+                        # Atualizar produto existente
+                        serializer = ProductSerializer(
+                            existing_product, data=product_data, partial=True
+                        )
+                        if serializer.is_valid():
+                            serializer.save(updated_by=request.user)
+                            products_updated += 1
+                        else:
+                            errors.append(f"Linha {index + 2}: {serializer.errors}")
+                    else:
+                        # Criar novo produto
+                        serializer = ProductSerializer(data=product_data)
+                        if serializer.is_valid():
+                            serializer.save(created_by=request.user)
+                            products_created += 1
+                        else:
+                            errors.append(f"Linha {index + 2}: {serializer.errors}")
+
+                except Exception as e:
+                    errors.append(f"Linha {index + 2}: {str(e)}")
+
+            # Preparar mensagem de resposta
+            if products_created == 0 and products_updated == 0 and errors:
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Nenhum produto foi processado devido a erros",
+                        "products_created": products_created,
+                        "products_updated": products_updated,
+                        "errors": errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            message = f"Importação concluída. {products_created} produtos criados, {products_updated} atualizados."
+            if errors:
+                message += f" {len(errors)} erros encontrados."
+
+            return Response(
+                {
+                    "success": True,
+                    "message": message,
+                    "products_created": products_created,
+                    "products_updated": products_updated,
+                    "errors": errors,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao processar arquivo Excel: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    def _map_excel_row_to_product(self, row):
+        """Mapear uma linha do Excel para dados do produto"""
+
+        # Obter ou criar ProductType
+        tipo_nome = str(row.get("Tipo", "")).strip()
+        if not tipo_nome or tipo_nome.lower() in ["nan", "none", ""]:
+            raise ValueError("Tipo do produto é obrigatório")
+
+        product_type, _ = ProductType.objects.get_or_create(
+            description=tipo_nome, defaults={"acronym": tipo_nome[:5].upper()}
+        )
+
+        # Obter ou criar Brand
+        marca_nome = str(row.get("Marca", "")).strip()
+        brand = None
+        if marca_nome and marca_nome.lower() not in ["nan", "none", ""]:
+            brand, _ = Brand.objects.get_or_create(description=marca_nome)
+
+        # Obter ou criar Fabric
+        material_nome = str(row.get("Material", "")).strip()
+        fabric = None
+        if material_nome and material_nome.lower() not in ["nan", "none", ""]:
+            fabric, _ = Fabric.objects.get_or_create(description=material_nome)
+
+        # Obter ou criar Color e ColorIntensity
+        cor_nome = str(row.get("Cor", "")).strip()
+        intensidade_nome = str(row.get("Intensidade de cor", "")).strip()
+        color = None
+
+        if cor_nome and cor_nome.lower() not in ["nan", "none", ""]:
+            color_catalogue, _ = ColorCatalogue.objects.get_or_create(
+                description=cor_nome
+            )
+
+            if intensidade_nome and intensidade_nome.lower() not in ["nan", "none", ""]:
+                color_intensity, _ = ColorIntensity.objects.get_or_create(
+                    description=intensidade_nome
+                )
+                color, _ = Color.objects.get_or_create(
+                    color=color_catalogue, color_intensity=color_intensity
+                )
+            else:
+                # Criar cor sem intensidade
+                color_intensity, _ = ColorIntensity.objects.get_or_create(
+                    description="Padrão"
+                )
+                color, _ = Color.objects.get_or_create(
+                    color=color_catalogue, color_intensity=color_intensity
+                )
+
+        # Obter ou criar Pattern
+        padronagem_nome = str(row.get("Padronagem", "")).strip()
+        pattern = None
+        if padronagem_nome and padronagem_nome.lower() not in ["nan", "none", ""]:
+            pattern, _ = Pattern.objects.get_or_create(description=padronagem_nome)
+
+        # Obter ou criar Button
+        botoes_nome = str(row.get("Botões", "")).strip()
+        button = None
+        if botoes_nome and botoes_nome.lower() not in ["nan", "none", ""]:
+            button, _ = Button.objects.get_or_create(description=botoes_nome)
+
+        # Obter ou criar Lapel
+        lapela_nome = str(row.get("Lapela", "")).strip()
+        lapel = None
+        if lapela_nome and lapela_nome.lower() not in ["nan", "none", ""]:
+            lapel, _ = Lapel.objects.get_or_create(description=lapela_nome)
+
+        # Obter ou criar Model
+        nome_produto = str(row.get("Nome do produto", "")).strip()
+        model = None
+        if nome_produto and nome_produto.lower() not in ["nan", "none", ""]:
+            model, _ = Model.objects.get_or_create(description=nome_produto)
+
+        # Usar o ID do Excel como label_code - VALIDAÇÃO CRÍTICA
+        label_code = str(row.get("ID", "")).strip()
+        if not label_code or label_code.lower() in ["nan", "none", ""]:
+            raise ValueError("ID do produto é obrigatório")
+
+        # Verificar se o label_code já existe no banco
+        if Product.objects.filter(label_code=label_code).exists():
+            # Não criar erro aqui, apenas retornar os dados para atualização
+            pass
+
+        return {
+            "product_type": product_type.id,
+            "brand": brand.id if brand else None,
+            "fabric": fabric.id if fabric else None,
+            "color": color.id if color else None,
+            "pattern": pattern.id if pattern else None,
+            "button": button.id if button else None,
+            "lapel": lapel.id if lapel else None,
+            "model": model.id if model else None,
+            "label_code": label_code,
+            "on_stock": True,
+        }
 
 
 class ProductUpdateAPIView(APIView):
@@ -427,6 +665,52 @@ class ColorListAPIView(APIView):
                     )
 
         return Response(result)
+
+
+@extend_schema(
+    tags=["products"],
+    summary="Lista de marcas",
+    description="Retorna todas as marcas disponíveis no sistema",
+    responses={
+        200: {
+            "description": "Lista de marcas",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "ID da marca"},
+                    "description": {"type": "string", "description": "Nome da marca"},
+                },
+            },
+        }
+    },
+    examples=[
+        OpenApiExample(
+            "Exemplo de resposta",
+            value=[
+                {"id": 1, "description": "Armani"},
+                {"id": 2, "description": "Zara"},
+                {"id": 3, "description": "Hugo Boss"},
+            ],
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
+)
+class BrandListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Lista todas as marcas disponíveis"""
+        brands = Brand.objects.all()
+        data = [
+            {
+                "id": brand.id,
+                "description": brand.description,
+            }
+            for brand in brands
+        ]
+        return Response(data)
 
 
 class ColorWithIntensityListAPIView(APIView):

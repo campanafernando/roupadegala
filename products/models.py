@@ -140,7 +140,7 @@ class Product(BaseModel):
         return self.product_type.acronym
 
     def save(self, *args, **kwargs):
-        # Geração automática do código de etiqueta
+        # Geração automática do código de etiqueta apenas se não foi fornecido
         if not self.label_code:
             count = (
                 Product.objects.filter(

@@ -137,3 +137,26 @@ class TemporaryProductCreateSerializer(serializers.Serializer):
     brand = serializers.CharField(required=False, help_text="Marca")
     fabric = serializers.CharField(required=False, help_text="Tecido")
     description = serializers.CharField(required=False, help_text="Descrição adicional")
+
+
+class ProductExcelImportSerializer(serializers.Serializer):
+    """Serializer para importação de produtos via Excel"""
+
+    tipo = serializers.CharField(help_text="Tipo do produto (Paletó, Calça, Colete)")
+    id = serializers.CharField(help_text="ID do produto (será usado como label_code)")
+    nome_do_produto = serializers.CharField(help_text="Nome do produto")
+    marca = serializers.CharField(help_text="Marca do produto")
+    material = serializers.CharField(help_text="Material do produto")
+    cor = serializers.CharField(help_text="Cor do produto")
+    intensidade_de_cor = serializers.CharField(help_text="Intensidade da cor")
+    padronagem = serializers.CharField(help_text="Padronagem do produto")
+    botoes = serializers.CharField(
+        required=False, allow_blank=True, help_text="Tipo de botões"
+    )
+    lapela = serializers.CharField(
+        required=False, allow_blank=True, help_text="Tipo de lapela"
+    )
+    tamanho = serializers.FloatField(help_text="Tamanho do produto")
+    foto = serializers.CharField(
+        required=False, allow_blank=True, help_text="Campo para foto"
+    )

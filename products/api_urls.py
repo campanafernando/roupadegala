@@ -6,6 +6,7 @@ from django.urls import path
 
 from .api_views import ColorWithIntensityListAPIView  # ADICIONADO
 from .api_views import (
+    BrandListAPIView,
     CatalogListAPIView,
     ColorListAPIView,
     ProductCreateAPIView,
@@ -49,6 +50,8 @@ urlpatterns = [
         ColorWithIntensityListAPIView.as_view(),
         name="api_color_with_intensity_list",
     ),
+    # Marcas
+    path("brands/", BrandListAPIView.as_view(), name="api_brand_list"),
     # Produtos temporários
     path(
         "temporary-products/create/",
