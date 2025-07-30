@@ -162,15 +162,16 @@ class Product(BaseModel):
 # Produto temporário (flexível para OS)
 class TemporaryProduct(BaseModel):
     PRODUCT_TYPE_CHOICES = [
-        ("Paleto", "Paletó"),
-        ("Calca", "Calça"),
-        ("Camisa", "Camisa"),
-        ("Colete", "Colete"),
-        ("Gravata", "Gravata"),
-        ("Sapato", "Sapato"),
-        ("Suspensorio", "Suspensório"),
-        ("Cinto", "Cinto"),
-        ("Lenco", "Lenço"),
+        ("paleto", "Paletó"),
+        ("calca", "Calça"),
+        ("camisa", "Camisa"),
+        ("colete", "Colete"),
+        ("gravata", "Gravata"),
+        ("sapato", "Sapato"),
+        ("suspensorio", "Suspensório"),
+        ("cinto", "Cinto"),
+        ("lenco", "Lenço"),
+        ("passante", "Passante"),
     ]
 
     product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
@@ -180,9 +181,16 @@ class TemporaryProduct(BaseModel):
     waist_size = models.CharField(max_length=10, null=True, blank=True)
     collar_size = models.CharField(max_length=10, null=True, blank=True)
     color = models.CharField(max_length=50, null=True, blank=True)
-    brand = models.CharField(max_length=100, null=True, blank=True)  # ✅ novo
-    fabric = models.CharField(max_length=100, null=True, blank=True)  # ✅ novo
+    brand = models.CharField(max_length=100, null=True, blank=True)
+    fabric = models.CharField(max_length=100, null=True, blank=True)
     description = models.CharField(max_length=255, null=True, blank=True)
+    # Novos campos para acessórios
+    extensor = models.BooleanField(default=False, null=True, blank=True)
+    extras = models.CharField(max_length=255, null=True, blank=True)
+    # Campo para indicar se foi vendido
+    venda = models.BooleanField(
+        default=False, null=True, blank=True, help_text="Indica se o item foi vendido"
+    )
 
     class Meta:
         db_table = "temporary_products"

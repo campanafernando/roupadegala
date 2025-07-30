@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -19,13 +19,13 @@ from products.models import TemporaryProduct
 
 from .models import ServiceOrder, ServiceOrderItem, ServiceOrderPhase
 from .serializers import (
+    FrontendServiceOrderUpdateSerializer,
     ServiceOrderClientSerializer,
     ServiceOrderDetailSerializer,
     ServiceOrderListByPhaseSerializer,
     ServiceOrderMarkPaidSerializer,
     ServiceOrderRefuseSerializer,
     ServiceOrderSerializer,
-    ServiceOrderUpdateSerializer,
 )
 
 
@@ -259,166 +259,8 @@ class ServiceOrderCreateAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Atualizar ordem de serviço",
-    description="Atualiza uma ordem de serviço existente com valores, pagamentos, observações, datas e itens (produtos do catálogo ou produtos temporários)",
-    request={
-        "application/json": {
-            "type": "object",
-            "properties": {
-                "total_value": {
-                    "type": "string",
-                    "description": "Valor total da ordem de serviço (ex: '1500.00')",
-                },
-                "advance_payment": {
-                    "type": "string",
-                    "description": "Valor já pago (ex: '500.00')",
-                },
-                "remaining_payment": {
-                    "type": "string",
-                    "description": "Valor restante a pagar (ex: '1000.00')",
-                },
-                "payment_method": {
-                    "type": "string",
-                    "description": "Método de pagamento (ex: 'Cartão de Crédito', 'PIX', 'Dinheiro')",
-                    "required": False,
-                },
-                "observations": {
-                    "type": "string",
-                    "description": "Observações sobre a ordem de serviço",
-                    "required": False,
-                },
-                "due_date": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Data de vencimento do pagamento (YYYY-MM-DD)",
-                    "required": False,
-                },
-                "prova_date": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Data da prova (YYYY-MM-DD)",
-                    "required": False,
-                },
-                "retirada_date": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Data de retirada (YYYY-MM-DD)",
-                    "required": False,
-                },
-                "devolucao_date": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Data de devolução (YYYY-MM-DD)",
-                    "required": False,
-                },
-                "items": {
-                    "type": "array",
-                    "description": "Lista de itens da ordem de serviço",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "product_id": {
-                                "type": "integer",
-                                "description": "ID do produto do catálogo (TEMPORARIAMENTE DESABILITADO - use temporary_product)",
-                            },
-                            "temporary_product": {
-                                "type": "object",
-                                "description": "Dados do produto temporário (use este OU product_id, não ambos)",
-                                "properties": {
-                                    "product_type": {
-                                        "type": "string",
-                                        "description": "Tipo do produto",
-                                        "enum": [
-                                            "Paleto",
-                                            "Calca",
-                                            "Camisa",
-                                            "Colete",
-                                            "Gravata",
-                                            "Sapato",
-                                            "Suspensorio",
-                                            "Cinto",
-                                            "Lenco",
-                                        ],
-                                    },
-                                    "size": {
-                                        "type": "string",
-                                        "description": "Tamanho do produto (ex: 'M', '42', 'L')",
-                                        "required": False,
-                                    },
-                                    "sleeve_length": {
-                                        "type": "string",
-                                        "description": "Comprimento da manga (ex: '65cm', '70cm')",
-                                        "required": False,
-                                    },
-                                    "leg_length": {
-                                        "type": "string",
-                                        "description": "Comprimento da perna (ex: '32', '34')",
-                                        "required": False,
-                                    },
-                                    "waist_size": {
-                                        "type": "string",
-                                        "description": "Tamanho da cintura (ex: '32', '34')",
-                                        "required": False,
-                                    },
-                                    "collar_size": {
-                                        "type": "string",
-                                        "description": "Tamanho do colarinho (ex: '40', '42')",
-                                        "required": False,
-                                    },
-                                    "color": {
-                                        "type": "string",
-                                        "description": "Cor do produto (ex: 'Preto', 'Azul')",
-                                        "required": False,
-                                    },
-                                    "brand": {
-                                        "type": "string",
-                                        "description": "Marca do produto (ex: 'Armani', 'Zara')",
-                                        "required": False,
-                                    },
-                                    "fabric": {
-                                        "type": "string",
-                                        "description": "Tecido do produto (ex: 'Algodão', 'Seda')",
-                                        "required": False,
-                                    },
-                                    "description": {
-                                        "type": "string",
-                                        "description": "Descrição adicional do produto",
-                                        "required": False,
-                                    },
-                                    "color_catalogue_id": {
-                                        "type": "integer",
-                                        "description": "ID do catálogo de cores (opcional)",
-                                        "required": False,
-                                    },
-                                    "color_intensity_id": {
-                                        "type": "integer",
-                                        "description": "ID da intensidade da cor (opcional, usado junto com color_catalogue_id)",
-                                        "required": False,
-                                    },
-                                },
-                                "required": ["product_type"],
-                            },
-                            "adjustment_needed": {
-                                "type": "boolean",
-                                "description": "Se o item precisa de ajuste",
-                                "default": False,
-                                "required": False,
-                            },
-                            "adjustment_value": {
-                                "type": "integer",
-                                "description": "Valor do ajuste em centavos (ex: 5000 para R$ 50,00)",
-                                "required": False,
-                            },
-                            "adjustment_notes": {
-                                "type": "string",
-                                "description": "Observações sobre o ajuste",
-                                "required": False,
-                            },
-                        },
-                    },
-                },
-            },
-        }
-    },
+    description="Atualiza uma ordem de serviço existente com dados completos do frontend",
+    request=FrontendServiceOrderUpdateSerializer,
     responses={
         200: {
             "description": "Ordem de serviço atualizada com sucesso",
@@ -432,151 +274,207 @@ class ServiceOrderCreateAPIView(APIView):
         404: {"description": "Ordem de serviço não encontrada"},
         500: {"description": "Erro interno do servidor"},
     },
-    examples=[
-        OpenApiExample(
-            "Exemplo com produto do catálogo",
-            value={
-                "total_value": "1500.00",
-                "advance_payment": "500.00",
-                "remaining_payment": "1000.00",
-                "payment_method": "Cartão de Crédito",
-                "observations": "Cliente solicitou ajuste no paletó",
-                "due_date": "2024-12-25",
-                "prova_date": "2024-12-20",
-                "retirada_date": "2024-12-23",
-                "devolucao_date": "2024-12-26",
-                "items": [
-                    {
-                        "product_id": 1,
-                        "adjustment_needed": True,
-                        "adjustment_value": 5000,
-                        "adjustment_notes": "Ajustar manga direita",
-                    }
-                ],
-            },
-            request_only=True,
-        ),
-        OpenApiExample(
-            "Exemplo com produto temporário",
-            value={
-                "total_value": "800.00",
-                "advance_payment": "200.00",
-                "remaining_payment": "600.00",
-                "payment_method": "PIX",
-                "observations": "Produto personalizado",
-                "items": [
-                    {
-                        "temporary_product": {
-                            "product_type": "Paleto",
-                            "size": "M",
-                            "sleeve_length": "65cm",
-                            "color": "Preto",
-                            "brand": "Armani",
-                            "fabric": "Lã",
-                            "description": "Paletó social preto",
-                        },
-                        "adjustment_needed": True,
-                        "adjustment_value": 5000,
-                        "adjustment_notes": "Ajustar manga direita",
-                    }
-                ],
-            },
-            request_only=True,
-        ),
-    ],
 )
 class ServiceOrderUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ServiceOrderUpdateSerializer
+    serializer_class = FrontendServiceOrderUpdateSerializer
 
     def put(self, request, order_id):
-        """Atualizar ordem de serviço"""
+        """Atualizar ordem de serviço com dados do frontend"""
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
 
-            # Atualizar dados básicos
-            if "total_value" in request.data:
-                service_order.total_value = request.data["total_value"]
-            if "advance_payment" in request.data:
-                service_order.advance_payment = request.data["advance_payment"]
-            if "payment_method" in request.data:
-                service_order.payment_method = request.data["payment_method"]
-            if "max_payment_date" in request.data:
-                service_order.max_payment_date = request.data["max_payment_date"]
-            if "observations" in request.data:
-                service_order.observations = request.data["observations"]
-            if "prova_date" in request.data:
-                service_order.prova_date = request.data["prova_date"]
-            if "retirada_date" in request.data:
-                service_order.retirada_date = request.data["retirada_date"]
-            if "devolucao_date" in request.data:
-                service_order.devolucao_date = request.data["devolucao_date"]
+            # Validar dados com o serializer
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
 
-            service_order.save(update_fields=["date_updated"])
-            service_order.update(request.user)
+            # Processar dados da ordem de serviço
+            if "ordem_servico" in data:
+                os_data = data["ordem_servico"]
 
-            # Processar itens se fornecidos
-            if "items" in request.data:
-                # Remover itens existentes
-                service_order.items.all().delete()
+                # Atualizar datas
+                if "data_evento" in os_data:
+                    service_order.event_date = os_data["data_evento"]
+                if "data_retirada" in os_data:
+                    service_order.retirada_date = os_data["data_retirada"]
 
-                # Adicionar novos itens
-                for item_data in request.data["items"]:
-                    if item_data.get("product_id"):
-                        # Produto do catálogo - DESABILITADO TEMPORARIAMENTE
-                        return Response(
-                            {
-                                "error": "Produtos do catálogo estão temporariamente desabilitados. Use temporary_product."
+                # Atualizar informações básicas
+                if "ocasiao" in os_data:
+                    service_order.occasion = os_data["ocasiao"].upper()
+                if "modalidade" in os_data:
+                    modalidade = os_data["modalidade"]
+                    if modalidade == "Compra":
+                        service_order.purchase = True
+                    elif modalidade == "Aluguel":
+                        service_order.purchase = False
+                    elif modalidade == "Aluguel + Venda":
+                        service_order.purchase = False  # Mantém como aluguel
+
+                    # Salvar modalidade no campo específico
+                    service_order.service_type = modalidade
+
+                # Atualizar pagamento
+                if "pagamento" in os_data:
+                    pagamento = os_data["pagamento"]
+                    if "total" in pagamento:
+                        service_order.total_value = pagamento["total"]
+                    if "sinal" in pagamento:
+                        service_order.advance_payment = pagamento["sinal"]
+                    if "restante" in pagamento:
+                        service_order.remaining_payment = pagamento["restante"]
+
+            # Processar dados do cliente
+            if "cliente" in data:
+                cliente_data = data["cliente"]
+
+                # Buscar ou criar cliente
+                cpf_limpo = cliente_data["cpf"].replace(".", "").replace("-", "")
+                person, created = Person.objects.get_or_create(
+                    cpf=cpf_limpo,
+                    defaults={
+                        "name": cliente_data["nome"].upper(),
+                        "person_type": PersonType.objects.get_or_create(type="CLIENTE")[
+                            0
+                        ],
+                        "created_by": request.user,
+                    },
+                )
+
+                if not created:
+                    # Atualizar nome se mudou
+                    if person.name != cliente_data["nome"].upper():
+                        person.name = cliente_data["nome"].upper()
+                        person.save()
+
+                service_order.renter = person
+
+                # Processar contatos
+                if "contatos" in cliente_data:
+                    contatos = cliente_data["contatos"]
+                    if contatos:
+                        # Pegar apenas o último contato da lista
+                        contato = contatos[-1]
+
+                        if contato["tipo"] == "telefone":
+                            # Verificar se contato já existe
+                            existing_contact = PersonsContacts.objects.filter(
+                                phone=contato["valor"],
+                                person=person,
+                            ).first()
+
+                            # Só criar se não existir
+                            if not existing_contact:
+                                # Remover contatos antigos do cliente
+                                PersonsContacts.objects.filter(person=person).delete()
+
+                                # Criar novo contato
+                                PersonsContacts.objects.create(
+                                    phone=contato["valor"],
+                                    person=person,
+                                    created_by=request.user,
+                                )
+
+                # Processar endereços
+                if "enderecos" in cliente_data:
+                    # Manter apenas o endereço mais recente (último da lista)
+                    enderecos = cliente_data["enderecos"]
+                    if enderecos:
+                        # Pegar apenas o último endereço da lista
+                        endereco = enderecos[-1]
+
+                        # Buscar cidade
+                        city, _ = City.objects.get_or_create(
+                            name=endereco["cidade"].upper(),
+                            defaults={
+                                "code": "00000",
+                                "uf": "SP",
+                                "created_by": request.user,
                             },
-                            status=status.HTTP_400_BAD_REQUEST,
                         )
-                    elif item_data.get("temporary_product"):
-                        # Produto temporário
-                        temp_data = item_data["temporary_product"]
-                        temp_product = TemporaryProduct.objects.create(
-                            product_type=temp_data["product_type"],
-                            size=temp_data.get("size"),
-                            sleeve_length=temp_data.get("sleeve_length"),
-                            leg_length=temp_data.get("leg_length"),
-                            waist_size=temp_data.get("waist_size"),
-                            collar_size=temp_data.get("collar_size"),
-                            color=temp_data.get("color"),
-                            brand=temp_data.get("brand"),
-                            fabric=temp_data.get("fabric"),
-                            description=temp_data.get("description"),
-                            created_by=request.user,
-                        )
-                        color_catalogue = None
-                        color_instance = None
-                        if temp_data.get("color_catalogue_id") and temp_data.get(
-                            "color_intensity_id"
-                        ):
-                            from products.models import Color
 
-                            color_instance = Color.objects.filter(
-                                color_id=temp_data["color_catalogue_id"],
-                                color_intensity_id=temp_data["color_intensity_id"],
-                            ).first()
-                        elif temp_data.get("color_catalogue_id"):
-                            from products.models import ColorCatalogue
+                        # Verificar se endereço já existe
+                        existing_address = PersonsAdresses.objects.filter(
+                            person=person,
+                            street=endereco["rua"],
+                            number=endereco["numero"],
+                            cep=endereco["cep"],
+                            neighborhood=endereco["bairro"],
+                            city=city,
+                        ).first()
 
-                            color_catalogue = ColorCatalogue.objects.filter(
-                                id=temp_data["color_catalogue_id"]
-                            ).first()
-                        ServiceOrderItem.objects.create(
-                            service_order=service_order,
-                            temporary_product=temp_product,
-                            color_catalogue=color_catalogue,
-                            color=color_instance,
-                            adjustment_needed=item_data.get("adjustment_needed", False),
-                            adjustment_value=(
-                                int(item_data.get("adjustment_value"))
-                                if item_data.get("adjustment_value")
-                                else None
-                            ),
-                            adjustment_notes=item_data.get("adjustment_notes"),
-                            created_by=request.user,
-                        )
+                        # Só criar se não existir
+                        if not existing_address:
+                            # Remover endereços antigos do cliente
+                            PersonsAdresses.objects.filter(person=person).delete()
+
+                            # Criar novo endereço
+                            PersonsAdresses.objects.create(
+                                person=person,
+                                street=endereco["rua"],
+                                number=endereco["numero"],
+                                cep=endereco["cep"],
+                                neighborhood=endereco["bairro"],
+                                city=city,
+                                created_by=request.user,
+                            )
+
+            # Remover itens existentes
+            service_order.items.all().delete()
+
+            # Processar itens (roupas)
+            if "ordem_servico" in data and "itens" in data["ordem_servico"]:
+                for item in data["ordem_servico"]["itens"]:
+                    # Tratar campos vazios convertendo para None
+                    def clean_field(value):
+                        return value if value and value.strip() else None
+
+                    temp_product = TemporaryProduct.objects.create(
+                        product_type=item["tipo"],
+                        size=clean_field(item.get("numero")),
+                        sleeve_length=clean_field(item.get("manga")),
+                        color=clean_field(item.get("cor")),
+                        brand=clean_field(item.get("marca")),
+                        description=clean_field(item.get("extras")),
+                        venda=item.get("venda", False),
+                        created_by=request.user,
+                    )
+
+                    # Criar item da OS
+                    ServiceOrderItem.objects.create(
+                        service_order=service_order,
+                        temporary_product=temp_product,
+                        adjustment_needed=bool(clean_field(item.get("ajuste"))),
+                        adjustment_notes=clean_field(item.get("ajuste")),
+                        created_by=request.user,
+                    )
+
+            # Processar acessórios
+            if "ordem_servico" in data and "acessorios" in data["ordem_servico"]:
+                for acessorio in data["ordem_servico"]["acessorios"]:
+                    # Tratar campos vazios convertendo para None
+                    def clean_field(value):
+                        return value if value and value.strip() else None
+
+                    temp_product = TemporaryProduct.objects.create(
+                        product_type=acessorio["tipo"],
+                        color=clean_field(acessorio.get("cor")),
+                        brand=clean_field(acessorio.get("marca")),
+                        description=clean_field(acessorio.get("descricao")),
+                        extensor=acessorio.get("extensor", False),
+                        venda=acessorio.get("venda", False),
+                        created_by=request.user,
+                    )
+
+                    # Criar item da OS
+                    ServiceOrderItem.objects.create(
+                        service_order=service_order,
+                        temporary_product=temp_product,
+                        created_by=request.user,
+                    )
+
+            service_order.save()
+            service_order.update(request.user)
 
             return Response(
                 {

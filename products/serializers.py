@@ -77,9 +77,72 @@ class ProductTypeSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    # Campos relacionados para facilitar a visualização
+    product_type_name = serializers.CharField(
+        source="product_type.description", read_only=True
+    )
+    brand_name = serializers.CharField(source="brand.description", read_only=True)
+    fabric_name = serializers.CharField(source="fabric.description", read_only=True)
+    color_name = serializers.CharField(source="color.color.description", read_only=True)
+    color_intensity_name = serializers.CharField(
+        source="color.color_intensity.description", read_only=True
+    )
+    pattern_name = serializers.CharField(source="pattern.description", read_only=True)
+    button_name = serializers.CharField(source="button.description", read_only=True)
+    lapel_name = serializers.CharField(source="lapel.description", read_only=True)
+    model_name = serializers.CharField(source="model.description", read_only=True)
+
+    # Campos para compatibilidade com Excel
+    tipo = serializers.CharField(source="product_type.description", read_only=True)
+    excel_id = serializers.CharField(source="label_code", read_only=True)
+    nome_do_produto = serializers.CharField(source="model.description", read_only=True)
+    marca = serializers.CharField(source="brand.description", read_only=True)
+    material = serializers.CharField(source="fabric.description", read_only=True)
+    cor = serializers.CharField(source="color.color.description", read_only=True)
+    intensidade_de_cor = serializers.CharField(
+        source="color.color_intensity.description", read_only=True
+    )
+    padronagem = serializers.CharField(source="pattern.description", read_only=True)
+    botoes = serializers.CharField(source="button.description", read_only=True)
+    lapela = serializers.CharField(source="lapel.description", read_only=True)
+
     class Meta:
         model = Product
-        fields = "__all__"
+        fields = [
+            "id",
+            "label_code",
+            "on_stock",
+            "date_created",
+            "date_updated",
+            "product_type",
+            "brand",
+            "fabric",
+            "color",
+            "pattern",
+            "button",
+            "lapel",
+            "model",
+            "product_type_name",
+            "brand_name",
+            "fabric_name",
+            "color_name",
+            "color_intensity_name",
+            "pattern_name",
+            "button_name",
+            "lapel_name",
+            "model_name",
+            # Campos para compatibilidade com Excel
+            "tipo",
+            "excel_id",
+            "nome_do_produto",
+            "marca",
+            "material",
+            "cor",
+            "intensidade_de_cor",
+            "padronagem",
+            "botoes",
+            "lapela",
+        ]
 
 
 class TemporaryProductSerializer(serializers.ModelSerializer):

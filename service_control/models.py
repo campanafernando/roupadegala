@@ -44,6 +44,12 @@ class ServiceOrder(BaseModel):
     adjustment_needed = models.BooleanField(default=None, null=True)
     came_from = models.CharField(max_length=255, default=None, null=True)
     purchase = models.BooleanField(default=False)
+    service_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Tipo de serviço (Aluguel, Compra, Aluguel + Venda)",
+    )
     observations = models.TextField(null=True, blank=True)
     service_order_phase = models.ForeignKey(
         ServiceOrderPhase, on_delete=models.SET_NULL, null=True

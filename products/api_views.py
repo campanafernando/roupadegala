@@ -81,13 +81,13 @@ class ProductDashboardAPIView(APIView):
 
         # Produtos por tipo
         products_by_type = {}
-        for product_type in ProductType.objects.all():
+        for product_type in ProductType.objects.all().order_by("description"):
             count = Product.objects.filter(product_type=product_type).count()
             products_by_type[product_type.description] = count
 
         # Produtos por marca
         products_by_brand = {}
-        for brand in Brand.objects.all():
+        for brand in Brand.objects.all().order_by("description"):
             count = Product.objects.filter(brand=brand).count()
             products_by_brand[brand.description] = count
 
@@ -161,6 +161,9 @@ class ProductListAPIView(ListAPIView):
             queryset = queryset.filter(brand__description__icontains=brand)
         if in_stock is not None:
             queryset = queryset.filter(on_stock=in_stock.lower() == "true")
+
+        # Adicionar ordenamento alfabético por tipo de produto e marca
+        queryset = queryset.order_by("product_type__description", "brand__description")
 
         return queryset
 
@@ -616,10 +619,10 @@ class ColorListAPIView(APIView):
         """Lista todas as cores e combinações possíveis com intensidades"""
         from .models import Color, ColorCatalogue, ColorIntensity
 
-        # Buscar todas as cores do catálogo
-        colors = ColorCatalogue.objects.all()
-        # Buscar todas as intensidades
-        intensities = ColorIntensity.objects.all()
+        # Buscar todas as cores do catálogo ordenadas alfabeticamente
+        colors = ColorCatalogue.objects.all().order_by("description")
+        # Buscar todas as intensidades ordenadas alfabeticamente
+        intensities = ColorIntensity.objects.all().order_by("description")
         # Buscar todas as combinações existentes
         color_combinations = Color.objects.select_related(
             "color", "color_intensity"
@@ -664,6 +667,9 @@ class ColorListAPIView(APIView):
                         }
                     )
 
+        # Ordenar o resultado final alfabeticamente por cor e depois por intensidade
+        result.sort(key=lambda x: (x["color"], x["intensity"] or ""))
+
         return Response(result)
 
 
@@ -702,7 +708,7 @@ class BrandListAPIView(APIView):
 
     def get(self, request):
         """Lista todas as marcas disponíveis"""
-        brands = Brand.objects.all()
+        brands = Brand.objects.all().order_by("description")
         data = [
             {
                 "id": brand.id,
@@ -718,7 +724,11 @@ class ColorWithIntensityListAPIView(APIView):
 
     def get(self, request):
         """Lista todas as combinações de cor e intensidade"""
-        combos = Color.objects.select_related("color", "color_intensity").all()
+        combos = (
+            Color.objects.select_related("color", "color_intensity")
+            .all()
+            .order_by("color__description", "color_intensity__description")
+        )
         data = [
             {
                 "id": combo.id,
@@ -760,17 +770,29 @@ class CatalogListAPIView(APIView):
     def get(self, request):
         """Lista todos os catálogos (marcas, tecidos, etc.)"""
         catalogs = {
-            "brands": BrandSerializer(Brand.objects.all(), many=True).data,
-            "fabrics": FabricSerializer(Fabric.objects.all(), many=True).data,
-            "colors": ColorCatalogueSerializer(
-                ColorCatalogue.objects.all(), many=True
+            "brands": BrandSerializer(
+                Brand.objects.all().order_by("description"), many=True
             ).data,
-            "patterns": PatternSerializer(Pattern.objects.all(), many=True).data,
-            "buttons": ButtonSerializer(Button.objects.all(), many=True).data,
-            "lapels": LapelSerializer(Lapel.objects.all(), many=True).data,
-            "models": ModelSerializer(Model.objects.all(), many=True).data,
+            "fabrics": FabricSerializer(
+                Fabric.objects.all().order_by("description"), many=True
+            ).data,
+            "colors": ColorCatalogueSerializer(
+                ColorCatalogue.objects.all().order_by("description"), many=True
+            ).data,
+            "patterns": PatternSerializer(
+                Pattern.objects.all().order_by("description"), many=True
+            ).data,
+            "buttons": ButtonSerializer(
+                Button.objects.all().order_by("description"), many=True
+            ).data,
+            "lapels": LapelSerializer(
+                Lapel.objects.all().order_by("description"), many=True
+            ).data,
+            "models": ModelSerializer(
+                Model.objects.all().order_by("description"), many=True
+            ).data,
             "product_types": ProductTypeSerializer(
-                ProductType.objects.all(), many=True
+                ProductType.objects.all().order_by("description"), many=True
             ).data,
         }
 

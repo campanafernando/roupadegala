@@ -84,29 +84,6 @@ class ServiceOrderRefuseSerializer(serializers.Serializer):
     )
 
 
-class ServiceOrderUpdateSerializer(serializers.Serializer):
-    """Serializer para atualização de ordem de serviço"""
-
-    order_id = serializers.IntegerField(help_text="ID da ordem de serviço")
-    total_value = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor total"
-    )
-    advance_payment = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor pago"
-    )
-    remaining_payment = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor restante"
-    )
-    payment_method = serializers.CharField(
-        required=False, help_text="Método de pagamento"
-    )
-    observations = serializers.CharField(required=False, help_text="Observações")
-    due_date = serializers.DateField(required=False, help_text="Data de vencimento")
-    items = serializers.ListField(
-        child=serializers.DictField(), help_text="Lista de itens"
-    )
-
-
 class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     """Serializer para listagem de ordens por fase com dados do cliente"""
 
@@ -134,3 +111,161 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
 
     # Dados do cliente
     client = serializers.DictField(help_text="Dados completos do cliente")
+
+
+# Serializer para o payload do frontend
+class FrontendOrderItemSerializer(serializers.Serializer):
+    """Serializer para itens de roupa do payload do frontend"""
+
+    tipo = serializers.CharField(
+        help_text="Tipo do produto (paleto, camisa, calca, etc)"
+    )
+    numero = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Número/tamanho"
+    )
+    cor = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Cor do produto"
+    )
+    manga = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Tamanho da manga"
+    )
+    marca = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Marca do produto"
+    )
+    ajuste = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Ajuste necessário"
+    )
+    extras = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Informações extras",
+    )
+    cintura = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Tamanho da cintura",
+    )
+    perna = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Comprimento da perna",
+    )
+    ajuste_cintura = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Ajuste da cintura"
+    )
+    ajuste_comprimento = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Ajuste do comprimento",
+    )
+    venda = serializers.BooleanField(
+        required=False, default=False, help_text="Indica se o item foi vendido"
+    )
+
+
+class FrontendAccessorySerializer(serializers.Serializer):
+    """Serializer para acessórios do payload do frontend"""
+
+    tipo = serializers.CharField(help_text="Tipo do acessório")
+    cor = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Cor do acessório"
+    )
+    descricao = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Descrição do acessório",
+    )
+    marca = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Marca do acessório",
+    )
+    extensor = serializers.BooleanField(
+        required=False, default=False, help_text="Se possui extensor"
+    )
+    venda = serializers.BooleanField(
+        required=False, default=False, help_text="Indica se o acessório foi vendido"
+    )
+
+
+class FrontendPaymentSerializer(serializers.Serializer):
+    """Serializer para dados de pagamento do payload do frontend"""
+
+    total = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total"
+    )
+    sinal = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor do sinal"
+    )
+    restante = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor restante"
+    )
+
+
+class FrontendOrderServiceSerializer(serializers.Serializer):
+    """Serializer para dados da ordem de serviço do payload do frontend"""
+
+    data_pedido = serializers.DateField(required=False, help_text="Data do pedido")
+    data_evento = serializers.DateField(help_text="Data do evento")
+    data_retirada = serializers.DateField(required=False, help_text="Data de retirada")
+    ocasiao = serializers.CharField(help_text="Tipo de ocasião")
+    modalidade = serializers.ChoiceField(
+        choices=[
+            ("Aluguel", "Aluguel"),
+            ("Compra", "Compra"),
+            ("Aluguel + Venda", "Aluguel + Venda"),
+        ],
+        help_text="Modalidade do serviço",
+    )
+    itens = FrontendOrderItemSerializer(
+        many=True, required=False, help_text="Lista de itens"
+    )
+    acessorios = FrontendAccessorySerializer(
+        many=True, required=False, help_text="Lista de acessórios"
+    )
+    pagamento = FrontendPaymentSerializer(help_text="Dados de pagamento")
+
+
+class FrontendContactSerializer(serializers.Serializer):
+    """Serializer para contatos do cliente do payload do frontend"""
+
+    tipo = serializers.CharField(help_text="Tipo de contato (telefone, email, etc)")
+    valor = serializers.CharField(help_text="Valor do contato")
+
+
+class FrontendAddressSerializer(serializers.Serializer):
+    """Serializer para endereços do cliente do payload do frontend"""
+
+    cep = serializers.CharField(help_text="CEP")
+    rua = serializers.CharField(help_text="Rua")
+    numero = serializers.CharField(help_text="Número")
+    bairro = serializers.CharField(help_text="Bairro")
+    cidade = serializers.CharField(help_text="Cidade")
+
+
+class FrontendClientSerializer(serializers.Serializer):
+    """Serializer para dados do cliente do payload do frontend"""
+
+    nome = serializers.CharField(help_text="Nome do cliente")
+    cpf = serializers.CharField(help_text="CPF do cliente")
+    contatos = FrontendContactSerializer(
+        many=True, required=False, help_text="Lista de contatos"
+    )
+    enderecos = FrontendAddressSerializer(
+        many=True, required=False, help_text="Lista de endereços"
+    )
+
+
+class FrontendServiceOrderUpdateSerializer(serializers.Serializer):
+    """Serializer completo para o payload do frontend"""
+
+    ordem_servico = FrontendOrderServiceSerializer(
+        help_text="Dados da ordem de serviço"
+    )
+    cliente = FrontendClientSerializer(help_text="Dados do cliente")
