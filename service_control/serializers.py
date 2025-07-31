@@ -80,8 +80,14 @@ class ServiceOrderRefuseSerializer(serializers.Serializer):
     """Serializer para recusar ordem de serviço"""
 
     justification_refusal = serializers.CharField(
-        required=False, help_text="Justificativa da recusa"
+        required=True, help_text="Justificativa da recusa"
     )
+
+
+class ServiceOrderMarkRetrievedSerializer(serializers.Serializer):
+    """Serializer para marcar ordem de serviço como retirada"""
+
+    pass
 
 
 class ServiceOrderListByPhaseSerializer(serializers.Serializer):
@@ -214,6 +220,9 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
     data_pedido = serializers.DateField(required=False, help_text="Data do pedido")
     data_evento = serializers.DateField(help_text="Data do evento")
     data_retirada = serializers.DateField(required=False, help_text="Data de retirada")
+    data_devolucao = serializers.DateField(
+        required=False, help_text="Data de devolução"
+    )
     ocasiao = serializers.CharField(help_text="Tipo de ocasião")
     modalidade = serializers.ChoiceField(
         choices=[

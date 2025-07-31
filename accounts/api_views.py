@@ -284,8 +284,12 @@ class RegisterAPIView(APIView):
         password_confirm = request.data.get("password_confirm")
         name = request.data.get("name")
         cpf = request.data.get("cpf")
-        email = request.data.get("email")
+        email = request.data.get("email", "").strip()
         phone = request.data.get("phone")
+
+        # Tratar email vazio como None para evitar constraint unique
+        if not email:
+            email = None
 
         errors = {}
 

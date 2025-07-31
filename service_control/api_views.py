@@ -4,6 +4,7 @@ Views API para o app service_control
 
 from datetime import timedelta
 
+from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -24,6 +25,7 @@ from .serializers import (
     ServiceOrderDetailSerializer,
     ServiceOrderListByPhaseSerializer,
     ServiceOrderMarkPaidSerializer,
+    ServiceOrderMarkRetrievedSerializer,
     ServiceOrderRefuseSerializer,
     ServiceOrderSerializer,
 )
@@ -162,8 +164,12 @@ class ServiceOrderCreateAPIView(APIView):
             )
 
             # Criar contato (verificando duplicatas)
-            email = order_data["email"]
+            email = order_data.get("email", "").strip()
             telefone = order_data["telefone"]
+
+            # Tratar email vazio como None para evitar constraint unique
+            if not email:
+                email = None
 
             # Verificar se já existe outro cliente com o mesmo email
             if email:
@@ -474,6 +480,27 @@ class ServiceOrderUpdateAPIView(APIView):
                     )
 
             service_order.save()
+
+            # Mover automaticamente para AGUARDANDO_RETIRADA após atualização
+            aguardando_retirada_phase = ServiceOrderPhase.objects.filter(
+                name="AGUARDANDO_RETIRADA"
+            ).first()
+
+            if aguardando_retirada_phase and service_order.service_order_phase:
+                # Só mover se não estiver já em AGUARDANDO_RETIRADA ou fases finais
+                current_phase_name = service_order.service_order_phase.name
+                if current_phase_name not in [
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                    "CONCLUÍDO",
+                    "RECUSADA",
+                ]:
+                    service_order.service_order_phase = aguardando_retirada_phase
+                    service_order.save()
+                    print(
+                        f"OS {service_order.id} movida automaticamente para AGUARDANDO_RETIRADA após atualização"
+                    )
+
             service_order.update(request.user)
 
             return Response(
@@ -627,7 +654,7 @@ class ServiceOrderRefuseAPIView(APIView):
         """Recusar ordem de serviço"""
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
-            justification = request.data.get("justification", "").strip()
+            justification = request.data.get("justification_refusal", "").strip()
 
             # Justificativa obrigatória
             if not justification:
@@ -636,13 +663,10 @@ class ServiceOrderRefuseAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Buscar fase "RECUSADA"
-            refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
-            if not refused_phase:
-                return Response(
-                    {"error": "Fase 'RECUSADA' não encontrada."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            # Buscar ou criar fase "RECUSADA"
+            refused_phase, created = ServiceOrderPhase.objects.get_or_create(
+                name="RECUSADA", defaults={"created_by": request.user}
+            )
 
             # Permissão: só atendente responsável ou administrador pode recusar OS pendente
             user_person = getattr(request.user, "person", None)
@@ -667,7 +691,7 @@ class ServiceOrderRefuseAPIView(APIView):
             # Recusar OS
             service_order.service_order_phase = refused_phase
             service_order.justification_refusal = justification
-            service_order.save()
+            service_order.cancel(request.user)  # Atualiza date_canceled e canceled_by
 
             return Response({"success": True, "message": "OS recusada"})
 
@@ -679,6 +703,117 @@ class ServiceOrderRefuseAPIView(APIView):
         except Exception as e:
             return Response(
                 {"error": f"Erro ao recusar OS: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
+    summary="Marcar ordem de serviço como retirada",
+    description="Marca uma ordem de serviço como retirada, alterando sua fase para AGUARDANDO_DEVOLUCAO e registrando a data de retirada",
+    responses={
+        200: {
+            "description": "Ordem de serviço marcada como retirada",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+        400: {"description": "OS não pode ser marcada como retirada"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class ServiceOrderMarkRetrievedAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceOrderMarkRetrievedSerializer
+
+    def post(self, request, order_id):
+        """Marcar ordem de serviço como retirada"""
+        try:
+            service_order = get_object_or_404(ServiceOrder, id=order_id)
+
+            # Verificar se a OS pode ser marcada como retirada
+            if not service_order.service_order_phase:
+                return Response(
+                    {"error": "OS não possui fase definida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se já está na fase AGUARDANDO_DEVOLUCAO
+            if service_order.service_order_phase.name == "AGUARDANDO_DEVOLUCAO":
+                return Response(
+                    {"error": "OS já está aguardando devolução."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se já está finalizada
+            if service_order.service_order_phase.name == "FINALIZADO":
+                return Response(
+                    {"error": "OS já está finalizada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se está na fase AGUARDANDO_RETIRADA
+            if service_order.service_order_phase.name != "AGUARDANDO_RETIRADA":
+                return Response(
+                    {
+                        "error": "OS deve estar na fase AGUARDANDO_RETIRADA para ser marcada como retirada."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Buscar ou criar fase "AGUARDANDO_DEVOLUCAO"
+            aguardando_devolucao_phase, created = (
+                ServiceOrderPhase.objects.get_or_create(
+                    name="AGUARDANDO_DEVOLUCAO", defaults={"created_by": request.user}
+                )
+            )
+
+            # Verificar permissões
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_employee = (
+                user_person
+                and service_order.employee
+                and user_person.id == service_order.employee.id
+            )
+            is_attendant = (
+                user_person
+                and service_order.attendant
+                and user_person.id == service_order.attendant.id
+            )
+
+            if not (is_admin or is_employee or is_attendant):
+                return Response(
+                    {
+                        "error": "Apenas o atendente responsável, recepcionista ou um administrador pode marcar uma OS como retirada."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Marcar como retirada
+            service_order.service_order_phase = aguardando_devolucao_phase
+            service_order.data_retirado = timezone.now()
+            service_order.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS marcada como retirada com sucesso",
+                    "data_retirado": service_order.data_retirado,
+                }
+            )
+
+        except ServiceOrder.DoesNotExist:
+            return Response(
+                {"error": "Ordem de serviço não encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao marcar OS como retirada: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -848,15 +983,88 @@ class ServiceOrderListByPhaseAPIView(APIView):
     def get(self, request, phase_name):
         """Listar ordens de serviço por fase com dados completos do cliente"""
         try:
+            from datetime import date
+
+            today = date.today()
+
+            # Função para mover automaticamente para RECUSADA quem passou da data do evento
+            def move_to_refused_if_event_passed():
+                refused_phase = ServiceOrderPhase.objects.filter(
+                    name="RECUSADA"
+                ).first()
+                if not refused_phase:
+                    return
+
+                # Buscar OS que passaram da data do evento e não foram retiradas
+                overdue_orders = ServiceOrder.objects.filter(
+                    event_date__lt=today,
+                    data_retirado__isnull=True,  # Não foi retirada
+                    service_order_phase__name__in=[
+                        "PENDENTE",
+                        "AGUARDANDO PAGAMENTO",
+                        "FINALIZADO",
+                        "AGUARDANDO_RETIRADA",
+                    ],
+                ).exclude(service_order_phase__name="RECUSADA")
+
+                for order in overdue_orders:
+                    order.service_order_phase = refused_phase
+                    order.justification_refusal = "Cliente não retirou o produto"
+                    order.save()
+                    print(
+                        f"OS {order.id} movida automaticamente para RECUSADA - Cliente não retirou o produto"
+                    )
+
+            # Executar verificação automática
+            move_to_refused_if_event_passed()
+
             phase = ServiceOrderPhase.objects.filter(name__icontains=phase_name).first()
             if not phase:
                 return Response(
                     {"error": "Fase não encontrada"}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            orders = ServiceOrder.objects.filter(
-                service_order_phase=phase
-            ).select_related("renter", "employee", "attendant", "renter__person_type")
+            # Filtrar orders baseado na fase
+            if phase.name == "ATRASADO":
+                # Fase ATRASADO: OS em AGUARDANDO_DEVOLUCAO cuja data_devolucao já passou
+                # OU OS que passou a data da retirada mas ainda não passou a data do evento
+                aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
+                    name="AGUARDANDO_DEVOLUCAO"
+                ).first()
+
+                orders = ServiceOrder.objects.filter(
+                    models.Q(
+                        service_order_phase=aguardando_devolucao_phase,
+                        devolucao_date__lt=today,
+                    )
+                    | models.Q(
+                        retirada_date__lt=today,
+                        event_date__gt=today,
+                        service_order_phase__name__in=[
+                            "FINALIZADO",
+                            "AGUARDANDO_RETIRADA",
+                        ],
+                    )
+                ).select_related(
+                    "renter", "employee", "attendant", "renter__person_type"
+                )
+
+            elif phase.name == "AGUARDANDO_DEVOLUCAO":
+                # Fase AGUARDANDO_DEVOLUCAO: apenas as que ainda respeitam a data de devolução
+                orders = ServiceOrder.objects.filter(
+                    service_order_phase=phase,
+                    devolucao_date__gte=today,  # Ainda não passou da data de devolução
+                ).select_related(
+                    "renter", "employee", "attendant", "renter__person_type"
+                )
+
+            else:
+                # Outras fases: comportamento normal
+                orders = ServiceOrder.objects.filter(
+                    service_order_phase=phase
+                ).select_related(
+                    "renter", "employee", "attendant", "renter__person_type"
+                )
 
             data = []
             for order in orders:
@@ -1103,8 +1311,12 @@ class ServiceOrderPreTriageAPIView(APIView):
                 },
             )
             # Criar contato se não existir (verificando duplicatas)
-            email = data.get("email", "")
+            email = data.get("email", "").strip()
             telefone = data.get("telefone")
+
+            # Tratar email vazio como None para evitar constraint unique
+            if not email:
+                email = None
 
             # Verificar se já existe outro cliente com o mesmo email
             if email:

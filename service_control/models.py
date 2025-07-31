@@ -58,6 +58,12 @@ class ServiceOrder(BaseModel):
     prova_date = models.DateField(null=True, blank=True)
     retirada_date = models.DateField(null=True, blank=True)
     devolucao_date = models.DateField(null=True, blank=True)
+    data_devolvido = models.DateTimeField(
+        null=True, blank=True, help_text="Data e hora em que foi devolvido"
+    )
+    data_retirado = models.DateTimeField(
+        null=True, blank=True, help_text="Data e hora em que foi retirado"
+    )
 
     class Meta:
         db_table = "service_orders"

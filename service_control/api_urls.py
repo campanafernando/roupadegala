@@ -12,6 +12,7 @@ from .api_views import (
     ServiceOrderListAPIView,
     ServiceOrderListByPhaseAPIView,
     ServiceOrderMarkPaidAPIView,
+    ServiceOrderMarkRetrievedAPIView,
     ServiceOrderPreTriageAPIView,
     ServiceOrderRefuseAPIView,
     ServiceOrderUpdateAPIView,
@@ -54,6 +55,11 @@ urlpatterns = [
         "service-orders/<int:order_id>/refuse/",
         ServiceOrderRefuseAPIView.as_view(),
         name="api_service_order_refuse",
+    ),
+    path(
+        "service-orders/<int:order_id>/mark-retrieved/",
+        ServiceOrderMarkRetrievedAPIView.as_view(),
+        name="api_service_order_mark_retrieved",
     ),
     path(
         "service-orders/<int:order_id>/client/",
