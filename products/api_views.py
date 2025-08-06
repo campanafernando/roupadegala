@@ -4,6 +4,7 @@ Views API para o app products
 
 import base64
 import io
+import os
 
 import pandas as pd
 import qrcode
@@ -11,6 +12,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,7 +22,6 @@ from .models import (
     Button,
     Color,
     ColorCatalogue,
-    ColorIntensity,
     Fabric,
     Lapel,
     Model,
@@ -38,7 +39,6 @@ from .serializers import (
     ModelSerializer,
     PatternSerializer,
     ProductSerializer,
-    ProductStockUpdateSerializer,
     ProductTypeSerializer,
     ProductUpdateSerializer,
     TemporaryProductCreateSerializer,
@@ -76,26 +76,22 @@ class ProductDashboardAPIView(APIView):
     def get(self, request):
         """Dashboard de produtos com estatísticas"""
         total_products = Product.objects.count()
-        in_stock = Product.objects.filter(on_stock=True).count()
-        out_of_stock = Product.objects.filter(on_stock=False).count()
 
         # Produtos por tipo
         products_by_type = {}
-        for product_type in ProductType.objects.all().order_by("description"):
-            count = Product.objects.filter(product_type=product_type).count()
-            products_by_type[product_type.description] = count
+        for tipo in Product.objects.values_list("tipo", flat=True).distinct():
+            count = Product.objects.filter(tipo=tipo).count()
+            products_by_type[tipo] = count
 
         # Produtos por marca
         products_by_brand = {}
-        for brand in Brand.objects.all().order_by("description"):
-            count = Product.objects.filter(brand=brand).count()
-            products_by_brand[brand.description] = count
+        for marca in Product.objects.values_list("marca", flat=True).distinct():
+            count = Product.objects.filter(marca=marca).count()
+            products_by_brand[marca] = count
 
         return Response(
             {
                 "total_products": total_products,
-                "in_stock": in_stock,
-                "out_of_stock": out_of_stock,
                 "products_by_type": products_by_type,
                 "products_by_brand": products_by_brand,
             }
@@ -108,24 +104,17 @@ class ProductDashboardAPIView(APIView):
     description="Retorna a lista de produtos com filtros opcionais",
     parameters=[
         OpenApiParameter(
-            name="product_type",
+            name="tipo",
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
-            description="Filtrar por tipo de produto",
+            description="Filtrar por tipo de produto (Paletó, Calça, Colete)",
             required=False,
         ),
         OpenApiParameter(
-            name="brand",
+            name="marca",
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
             description="Filtrar por marca",
-            required=False,
-        ),
-        OpenApiParameter(
-            name="in_stock",
-            type=OpenApiTypes.BOOL,
-            location=OpenApiParameter.QUERY,
-            description="Filtrar por disponibilidade em estoque",
             required=False,
         ),
     ],
@@ -137,305 +126,21 @@ class ProductListAPIView(ListAPIView):
     queryset = Product.objects.all()
 
     def get_queryset(self):
-        queryset = Product.objects.select_related(
-            "product_type",
-            "brand",
-            "fabric",
-            "color",
-            "pattern",
-            "button",
-            "lapel",
-            "model",
-        )
+        queryset = Product.objects.all()
 
         # Filtros
-        product_type = self.request.GET.get("product_type")
-        brand = self.request.GET.get("brand")
-        in_stock = self.request.GET.get("in_stock")
+        tipo = self.request.GET.get("tipo")
+        marca = self.request.GET.get("marca")
 
-        if product_type:
-            queryset = queryset.filter(
-                product_type__description__icontains=product_type
-            )
-        if brand:
-            queryset = queryset.filter(brand__description__icontains=brand)
-        if in_stock is not None:
-            queryset = queryset.filter(on_stock=in_stock.lower() == "true")
+        if tipo:
+            queryset = queryset.filter(tipo__icontains=tipo)
+        if marca:
+            queryset = queryset.filter(marca__icontains=marca)
 
-        # Adicionar ordenamento alfabético por tipo de produto e marca
-        queryset = queryset.order_by("product_type__description", "brand__description")
+        # Adicionar ordenamento alfabético por tipo e marca
+        queryset = queryset.order_by("tipo", "marca")
 
         return queryset
-
-
-@extend_schema(
-    tags=["products"],
-    summary="Criar produto",
-    description="Cria um novo produto no sistema ou importa produtos via Excel",
-    request={
-        "application/json": ProductSerializer,
-        "multipart/form-data": {
-            "type": "object",
-            "properties": {
-                "excel_file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Arquivo Excel para importação em lote",
-                }
-            },
-        },
-    },
-    responses={
-        201: {
-            "description": "Produto(s) criado(s) com sucesso",
-            "type": "object",
-            "properties": {
-                "success": {"type": "boolean"},
-                "message": {"type": "string"},
-                "products_created": {"type": "integer"},
-                "products_updated": {"type": "integer"},
-                "errors": {"type": "array", "items": {"type": "string"}},
-            },
-        },
-        400: {"description": "Dados inválidos"},
-    },
-)
-class ProductCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        """Criar novo produto ou importar via Excel"""
-
-        # Verificar se é uma importação de Excel
-        if "excel_file" in request.FILES:
-            return self._import_from_excel(request)
-
-        # Criação individual de produto
-        serializer = ProductSerializer(data=request.data)
-
-        if serializer.is_valid():
-            product = serializer.save(created_by=request.user)
-            return Response(
-                {"success": True, "product": ProductSerializer(product).data},
-                status=status.HTTP_201_CREATED,
-            )
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def _import_from_excel(self, request):
-        """Importar produtos do arquivo Excel"""
-        try:
-            excel_file = request.FILES["excel_file"]
-
-            # Verificar extensão do arquivo
-            if not excel_file.name.endswith((".xlsx", ".xls")):
-                return Response(
-                    {"error": "Arquivo deve ser um Excel (.xlsx ou .xls)"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Ler o arquivo Excel
-            df = pd.read_excel(excel_file)
-
-            # Validar se o arquivo tem dados
-            if df.empty:
-                return Response(
-                    {"error": "Arquivo Excel está vazio"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Validar colunas obrigatórias
-            required_columns = ["Tipo", "ID"]
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                return Response(
-                    {
-                        "error": f"Colunas obrigatórias ausentes: {', '.join(missing_columns)}"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            products_created = 0
-            products_updated = 0
-            errors = []
-            processed_label_codes = set()  # Para detectar duplicatas no próprio Excel
-
-            for index, row in df.iterrows():
-                try:
-                    # Pular linhas vazias ou com dados incompletos
-                    if pd.isna(row.get("Tipo")) or pd.isna(row.get("ID")):
-                        continue
-
-                    # Verificar duplicatas no próprio Excel
-                    label_code = str(row.get("ID", "")).strip()
-                    if label_code in processed_label_codes:
-                        errors.append(
-                            f"Linha {index + 2}: ID '{label_code}' duplicado no Excel"
-                        )
-                        continue
-
-                    processed_label_codes.add(label_code)
-
-                    # Mapear dados do Excel para o modelo
-                    product_data = self._map_excel_row_to_product(row)
-
-                    # Verificar se produto já existe pelo label_code
-                    existing_product = Product.objects.filter(
-                        label_code=product_data["label_code"]
-                    ).first()
-
-                    if existing_product:
-                        # Atualizar produto existente
-                        serializer = ProductSerializer(
-                            existing_product, data=product_data, partial=True
-                        )
-                        if serializer.is_valid():
-                            serializer.save(updated_by=request.user)
-                            products_updated += 1
-                        else:
-                            errors.append(f"Linha {index + 2}: {serializer.errors}")
-                    else:
-                        # Criar novo produto
-                        serializer = ProductSerializer(data=product_data)
-                        if serializer.is_valid():
-                            serializer.save(created_by=request.user)
-                            products_created += 1
-                        else:
-                            errors.append(f"Linha {index + 2}: {serializer.errors}")
-
-                except Exception as e:
-                    errors.append(f"Linha {index + 2}: {str(e)}")
-
-            # Preparar mensagem de resposta
-            if products_created == 0 and products_updated == 0 and errors:
-                return Response(
-                    {
-                        "success": False,
-                        "message": "Nenhum produto foi processado devido a erros",
-                        "products_created": products_created,
-                        "products_updated": products_updated,
-                        "errors": errors,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            message = f"Importação concluída. {products_created} produtos criados, {products_updated} atualizados."
-            if errors:
-                message += f" {len(errors)} erros encontrados."
-
-            return Response(
-                {
-                    "success": True,
-                    "message": message,
-                    "products_created": products_created,
-                    "products_updated": products_updated,
-                    "errors": errors,
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Erro ao processar arquivo Excel: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    def _map_excel_row_to_product(self, row):
-        """Mapear uma linha do Excel para dados do produto"""
-
-        # Obter ou criar ProductType
-        tipo_nome = str(row.get("Tipo", "")).strip()
-        if not tipo_nome or tipo_nome.lower() in ["nan", "none", ""]:
-            raise ValueError("Tipo do produto é obrigatório")
-
-        product_type, _ = ProductType.objects.get_or_create(
-            description=tipo_nome, defaults={"acronym": tipo_nome[:5].upper()}
-        )
-
-        # Obter ou criar Brand
-        marca_nome = str(row.get("Marca", "")).strip()
-        brand = None
-        if marca_nome and marca_nome.lower() not in ["nan", "none", ""]:
-            brand, _ = Brand.objects.get_or_create(description=marca_nome)
-
-        # Obter ou criar Fabric
-        material_nome = str(row.get("Material", "")).strip()
-        fabric = None
-        if material_nome and material_nome.lower() not in ["nan", "none", ""]:
-            fabric, _ = Fabric.objects.get_or_create(description=material_nome)
-
-        # Obter ou criar Color e ColorIntensity
-        cor_nome = str(row.get("Cor", "")).strip()
-        intensidade_nome = str(row.get("Intensidade de cor", "")).strip()
-        color = None
-
-        if cor_nome and cor_nome.lower() not in ["nan", "none", ""]:
-            color_catalogue, _ = ColorCatalogue.objects.get_or_create(
-                description=cor_nome
-            )
-
-            if intensidade_nome and intensidade_nome.lower() not in ["nan", "none", ""]:
-                color_intensity, _ = ColorIntensity.objects.get_or_create(
-                    description=intensidade_nome
-                )
-                color, _ = Color.objects.get_or_create(
-                    color=color_catalogue, color_intensity=color_intensity
-                )
-            else:
-                # Criar cor sem intensidade
-                color_intensity, _ = ColorIntensity.objects.get_or_create(
-                    description="Padrão"
-                )
-                color, _ = Color.objects.get_or_create(
-                    color=color_catalogue, color_intensity=color_intensity
-                )
-
-        # Obter ou criar Pattern
-        padronagem_nome = str(row.get("Padronagem", "")).strip()
-        pattern = None
-        if padronagem_nome and padronagem_nome.lower() not in ["nan", "none", ""]:
-            pattern, _ = Pattern.objects.get_or_create(description=padronagem_nome)
-
-        # Obter ou criar Button
-        botoes_nome = str(row.get("Botões", "")).strip()
-        button = None
-        if botoes_nome and botoes_nome.lower() not in ["nan", "none", ""]:
-            button, _ = Button.objects.get_or_create(description=botoes_nome)
-
-        # Obter ou criar Lapel
-        lapela_nome = str(row.get("Lapela", "")).strip()
-        lapel = None
-        if lapela_nome and lapela_nome.lower() not in ["nan", "none", ""]:
-            lapel, _ = Lapel.objects.get_or_create(description=lapela_nome)
-
-        # Obter ou criar Model
-        nome_produto = str(row.get("Nome do produto", "")).strip()
-        model = None
-        if nome_produto and nome_produto.lower() not in ["nan", "none", ""]:
-            model, _ = Model.objects.get_or_create(description=nome_produto)
-
-        # Usar o ID do Excel como label_code - VALIDAÇÃO CRÍTICA
-        label_code = str(row.get("ID", "")).strip()
-        if not label_code or label_code.lower() in ["nan", "none", ""]:
-            raise ValueError("ID do produto é obrigatório")
-
-        # Verificar se o label_code já existe no banco
-        if Product.objects.filter(label_code=label_code).exists():
-            # Não criar erro aqui, apenas retornar os dados para atualização
-            pass
-
-        return {
-            "product_type": product_type.id,
-            "brand": brand.id if brand else None,
-            "fabric": fabric.id if fabric else None,
-            "color": color.id if color else None,
-            "pattern": pattern.id if pattern else None,
-            "button": button.id if button else None,
-            "lapel": lapel.id if lapel else None,
-            "model": model.id if model else None,
-            "label_code": label_code,
-            "on_stock": True,
-        }
 
 
 class ProductUpdateAPIView(APIView):
@@ -462,37 +167,266 @@ class ProductUpdateAPIView(APIView):
             )
 
 
+@extend_schema(
+    tags=["products"],
+    summary="Importar produtos via Excel",
+    description="Importa produtos de um arquivo Excel, criando novos produtos ou atualizando existentes baseado no ID",
+    request={
+        "multipart/form-data": {
+            "type": "object",
+            "properties": {
+                "excel_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Arquivo Excel (.xlsx, .xls) com dados dos produtos",
+                }
+            },
+        },
+    },
+    responses={
+        200: {
+            "description": "Produtos importados com sucesso",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "products_created": {"type": "integer"},
+                "products_updated": {"type": "integer"},
+                "errors": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        400: {"description": "Arquivo não fornecido ou formato inválido"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
 class ProductStockUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductStockUpdateSerializer
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        """Atualizar estoque de produtos"""
+        """Importar produtos via arquivo Excel"""
         try:
-            product_id = request.data.get("product_id")
-            on_stock = request.data.get("on_stock", True)
+            # Verificar se foi enviado um arquivo
+            if "excel_file" not in request.FILES:
+                return Response(
+                    {"error": "Arquivo Excel não fornecido"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            product = Product.objects.get(id=product_id)
-            product.on_stock = on_stock
-            product.save(update_fields=["on_stock"])
+            excel_file = request.FILES["excel_file"]
 
-            return Response(
-                {
-                    "success": True,
-                    "message": f"Estoque do produto {product.label_code} atualizado",
-                    "on_stock": on_stock,
-                }
-            )
+            # Validar extensão do arquivo
+            if not excel_file.name.endswith((".xlsx", ".xls")):
+                return Response(
+                    {"error": "Apenas arquivos Excel (.xlsx, .xls) são permitidos"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        except Product.DoesNotExist:
-            return Response(
-                {"error": "Produto não encontrado"}, status=status.HTTP_404_NOT_FOUND
-            )
+            # Processar o arquivo Excel
+            result = self._process_excel_file(excel_file)
+
+            return Response(result, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response(
-                {"error": f"Erro ao atualizar estoque: {str(e)}"},
+                {"error": f"Erro ao processar arquivo Excel: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    def _process_excel_file(self, excel_file):
+        """Processa o arquivo Excel e salva os produtos"""
+
+        products_created = 0
+        products_updated = 0
+        errors = []
+
+        try:
+            # Ler o arquivo Excel
+            df = pd.read_excel(excel_file)
+
+            # Validar colunas obrigatórias
+            required_columns = [
+                "Tipo",
+                "ID",
+                "Nome do produto",
+                "Marca",
+                "Material",
+                "Cor",
+                "Intensidade de cor",
+                "Padronagem",
+                "Tamanho",
+            ]
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return {
+                    "error": f"Colunas obrigatórias não encontradas: {', '.join(missing_columns)}"
+                }
+
+            # Processar cada linha
+            for index, row in df.iterrows():
+                try:
+                    # Verificar se o produto já existe pelo ID
+                    id_produto = str(row.get("ID", "")).strip()
+                    if not id_produto or id_produto == "nan":
+                        errors.append(f"Linha {index + 2}: ID do produto não fornecido")
+                        continue
+
+                    # Verificar se produto já existe
+                    existing_product = Product.objects.filter(
+                        id_produto=id_produto
+                    ).first()
+
+                    if existing_product:
+                        # Atualizar produto existente
+                        self._update_product_from_row(existing_product, row, index)
+                        products_updated += 1
+                    else:
+                        # Criar novo produto
+                        self._create_product_from_row(row, index)
+                        products_created += 1
+
+                except Exception as e:
+                    errors.append(f"Linha {index + 2}: {str(e)}")
+
+            return {
+                "success": True,
+                "message": f"Processamento concluído. {products_created} produtos criados, {products_updated} atualizados",
+                "products_created": products_created,
+                "products_updated": products_updated,
+                "errors": errors,
+            }
+
+        except Exception as e:
+            return {"error": f"Erro ao ler arquivo Excel: {str(e)}"}
+
+    def _create_product_from_row(self, row, index):
+        """Cria um novo produto a partir de uma linha do Excel"""
+        try:
+            # Extrair dados da linha
+            tipo = str(row.get("Tipo", "")).strip()
+            id_produto = str(row.get("ID", "")).strip()
+            nome_produto = str(row.get("Nome do produto", "")).strip()
+            marca = str(row.get("Marca", "")).strip()
+            material = str(row.get("Material", "")).strip()
+            cor = str(row.get("Cor", "")).strip()
+            intensidade_cor = str(row.get("Intensidade de cor", "")).strip()
+            padronagem = str(row.get("Padronagem", "")).strip()
+            botoes = (
+                str(row.get("Botões", "")).strip()
+                if pd.notna(row.get("Botões"))
+                else None
+            )
+            lapela = (
+                str(row.get("Lapela", "")).strip()
+                if pd.notna(row.get("Lapela"))
+                else None
+            )
+            tamanho = (
+                float(row.get("Tamanho", 0)) if pd.notna(row.get("Tamanho")) else 0.00
+            )
+            foto_path = (
+                str(row.get("Foto", "")).strip() if pd.notna(row.get("Foto")) else None
+            )
+
+            # Validar dados obrigatórios
+            if not all(
+                [
+                    tipo,
+                    id_produto,
+                    nome_produto,
+                    marca,
+                    material,
+                    cor,
+                    intensidade_cor,
+                    padronagem,
+                ]
+            ):
+                raise ValueError("Dados obrigatórios não fornecidos")
+
+            # Criar produto
+            product = Product(
+                tipo=tipo,
+                id_produto=id_produto,
+                nome_produto=nome_produto,
+                marca=marca,
+                material=material,
+                cor=cor,
+                intensidade_cor=intensidade_cor,
+                padronagem=padronagem,
+                botoes=botoes,
+                lapela=lapela,
+                tamanho=tamanho,
+            )
+
+            # Processar foto se existir
+            if foto_path and foto_path != "nan":
+                self._process_photo(product, foto_path)
+
+            product.save()
+
+        except Exception as e:
+            raise ValueError(f"Erro ao criar produto: {str(e)}")
+
+    def _update_product_from_row(self, product, row, index):
+        """Atualiza um produto existente a partir de uma linha do Excel"""
+        try:
+            # Atualizar campos
+            product.tipo = str(row.get("Tipo", "")).strip()
+            product.nome_produto = str(row.get("Nome do produto", "")).strip()
+            product.marca = str(row.get("Marca", "")).strip()
+            product.material = str(row.get("Material", "")).strip()
+            product.cor = str(row.get("Cor", "")).strip()
+            product.intensidade_cor = str(row.get("Intensidade de cor", "")).strip()
+            product.padronagem = str(row.get("Padronagem", "")).strip()
+            product.botoes = (
+                str(row.get("Botões", "")).strip()
+                if pd.notna(row.get("Botões"))
+                else None
+            )
+            product.lapela = (
+                str(row.get("Lapela", "")).strip()
+                if pd.notna(row.get("Lapela"))
+                else None
+            )
+            product.tamanho = (
+                float(row.get("Tamanho", 0)) if pd.notna(row.get("Tamanho")) else 0.00
+            )
+
+            # Processar foto se existir
+            foto_path = (
+                str(row.get("Foto", "")).strip() if pd.notna(row.get("Foto")) else None
+            )
+            if foto_path and foto_path != "nan":
+                self._process_photo(product, foto_path)
+
+            product.save()
+
+        except Exception as e:
+            raise ValueError(f"Erro ao atualizar produto: {str(e)}")
+
+    def _process_photo(self, product, foto_path):
+        """Processa a foto do produto e converte para base64"""
+        try:
+            # Verificar se o caminho da foto existe
+            if os.path.exists(foto_path):
+                with open(foto_path, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+                    product.foto_base64 = encoded_string
+            else:
+                # Se o caminho não existir, tentar buscar na pasta do projeto
+                project_path = os.path.join(os.getcwd(), foto_path)
+                if os.path.exists(project_path):
+                    with open(project_path, "rb") as image_file:
+                        encoded_string = base64.b64encode(image_file.read()).decode(
+                            "utf-8"
+                        )
+                        product.foto_base64 = encoded_string
+                else:
+                    print(f"Arquivo de foto não encontrado: {foto_path}")
+
+        except Exception as e:
+            print(f"Erro ao processar foto {foto_path}: {str(e)}")
 
 
 @extend_schema(
@@ -514,14 +448,15 @@ class ProductStockUpdateAPIView(APIView):
             "properties": {
                 "success": {"type": "boolean"},
                 "qr_code": {"type": "string", "description": "QR Code em base64"},
-                "label_code": {"type": "string"},
+                "id_produto": {"type": "string"},
                 "product_info": {
                     "type": "object",
                     "properties": {
                         "id": {"type": "integer"},
-                        "type": {"type": "string"},
-                        "brand": {"type": "string"},
-                        "color": {"type": "string"},
+                        "tipo": {"type": "string"},
+                        "nome_produto": {"type": "string"},
+                        "marca": {"type": "string"},
+                        "cor": {"type": "string"},
                     },
                 },
             },
@@ -540,7 +475,7 @@ class ProductQRCodeAPIView(APIView):
 
             # Criar QR Code
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
-            qr.add_data(f"Produto: {product.label_code}")
+            qr.add_data(f"Produto: {product.id_produto}")
             qr.make(fit=True)
 
             # Converter para imagem
@@ -555,16 +490,13 @@ class ProductQRCodeAPIView(APIView):
                 {
                     "success": True,
                     "qr_code": f"data:image/png;base64,{qr_code_base64}",
-                    "label_code": product.label_code,
+                    "id_produto": product.id_produto,
                     "product_info": {
                         "id": product.id,
-                        "type": (
-                            product.product_type.description
-                            if product.product_type
-                            else ""
-                        ),
-                        "brand": product.brand.description if product.brand else "",
-                        "color": product.color.description if product.color else "",
+                        "tipo": product.tipo,
+                        "nome_produto": product.nome_produto,
+                        "marca": product.marca,
+                        "cor": product.cor,
                     },
                 }
             )

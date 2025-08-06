@@ -9,7 +9,6 @@ from .api_views import (
     BrandListAPIView,
     CatalogListAPIView,
     ColorListAPIView,
-    ProductCreateAPIView,
     ProductDashboardAPIView,
     ProductListAPIView,
     ProductQRCodeAPIView,
@@ -27,7 +26,6 @@ urlpatterns = [
     ),
     # Produtos
     path("products/", ProductListAPIView.as_view(), name="api_product_list"),
-    path("products/create/", ProductCreateAPIView.as_view(), name="api_product_create"),
     path(
         "products/<int:product_id>/update/",
         ProductUpdateAPIView.as_view(),

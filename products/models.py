@@ -1,3 +1,6 @@
+import base64
+import os
+
 from django.db import models
 
 from accounts.models import BaseModel
@@ -88,75 +91,88 @@ class ProductType(BaseModel):
         return self.description
 
 
-# Produto real do estoque
+# Produto real do estoque - ADAPTADO PARA SER COERENTE COM A PLANILHA EXCEL
 class Product(BaseModel):
-    product_type = models.ForeignKey(
-        ProductType, on_delete=models.CASCADE, related_name="products"
+    # Campos principais da planilha
+    tipo = models.CharField(
+        max_length=50, help_text="Tipo do produto (Paletó, Calça, Colete)", default=""
     )
-    brand = models.ForeignKey(
-        Brand, on_delete=models.SET_NULL, null=True, related_name="products_by_brand"
+    id_produto = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="ID único do produto (ex: P000001)",
+        default="",
     )
-    fabric = models.ForeignKey(
-        Fabric, on_delete=models.SET_NULL, null=True, related_name="products_by_fabric"
+    nome_produto = models.CharField(
+        max_length=255, help_text="Nome descritivo do produto", default=""
     )
-    color = models.ForeignKey(
-        Color, on_delete=models.SET_NULL, null=True, related_name="products_by_color"
+    marca = models.CharField(
+        max_length=100, help_text="Marca/fabricante do produto", default=""
     )
-    pattern = models.ForeignKey(
-        Pattern,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="products_by_pattern",
+    material = models.CharField(
+        max_length=255, help_text="Composição do material", default=""
     )
-    button = models.ForeignKey(
-        Button,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="products_by_button",
+    cor = models.CharField(
+        max_length=100, help_text="Cor principal do produto", default=""
     )
-    lapel = models.ForeignKey(
-        Lapel,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="products_by_lapel",
+    intensidade_cor = models.CharField(
+        max_length=100, help_text="Intensidade da cor (Fosco, Acetinado)", default=""
     )
-    model = models.ForeignKey(
-        Model,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="products_by_model",
+    padronagem = models.CharField(
+        max_length=100, help_text="Padrão do tecido", default=""
     )
-    label_code = models.CharField(max_length=255, unique=True, blank=True)
-    on_stock = models.BooleanField(default=True)
+    botoes = models.CharField(
+        max_length=50, blank=True, null=True, help_text="Tipo de botões (Um, Duplo)"
+    )
+    lapela = models.CharField(
+        max_length=50, blank=True, null=True, help_text="Tipo de lapela (Bico, Shale)"
+    )
+    tamanho = models.DecimalField(
+        max_digits=5, decimal_places=2, help_text="Tamanho numérico", default=0.00
+    )
+    foto_base64 = models.TextField(
+        blank=True, null=True, help_text="Foto do produto em base64"
+    )
 
     class Meta:
         db_table = "products"
 
     def __str__(self):
-        return self.product_type.acronym
+        return f"{self.tipo} - {self.id_produto} - {self.nome_produto}"
 
-    def save(self, *args, **kwargs):
-        # Geração automática do código de etiqueta apenas se não foi fornecido
-        if not self.label_code:
-            count = (
-                Product.objects.filter(
-                    product_type=self.product_type, brand=self.brand, color=self.color
-                ).count()
-                + 1
-            )
+    def save_photo_from_file(self, file_path):
+        """
+        Salva uma foto do produto convertendo arquivo para base64
+        """
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+                    self.foto_base64 = encoded_string
+                    self.save()
+                return True
+            return False
+        except Exception as e:
+            print(f"Erro ao salvar foto: {e}")
+            return False
 
-            sequencial = str(count).zfill(4)  # preenche com zeros à esquerda
-            product_type_id = str(self.product_type.id)
-            brand_id = str(self.brand.id if self.brand else 0)
-            color_id = str(self.color.id if self.color else 0)
+    def save_photo_from_base64(self, base64_string):
+        """
+        Salva uma foto do produto diretamente em base64
+        """
+        try:
+            self.foto_base64 = base64_string
+            self.save()
+            return True
+        except Exception as e:
+            print(f"Erro ao salvar foto base64: {e}")
+            return False
 
-            self.label_code = f"{sequencial}.{product_type_id}{brand_id}{color_id}"
-
-        super().save(*args, **kwargs)
+    def get_photo_base64(self):
+        """
+        Retorna a foto em base64 se existir
+        """
+        return self.foto_base64 if self.foto_base64 else None
 
 
 # Produto temporário (flexível para OS)
