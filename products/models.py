@@ -207,6 +207,16 @@ class TemporaryProduct(BaseModel):
     venda = models.BooleanField(
         default=False, null=True, blank=True, help_text="Indica se o item foi vendido"
     )
+    # Campos específicos para ajustes da calça
+    ajuste_cintura = models.CharField(
+        max_length=255, null=True, blank=True, help_text="Ajuste específico da cintura"
+    )
+    ajuste_comprimento = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Ajuste específico do comprimento",
+    )
 
     class Meta:
         db_table = "temporary_products"

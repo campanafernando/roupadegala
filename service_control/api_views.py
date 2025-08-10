@@ -304,6 +304,8 @@ class ServiceOrderUpdateAPIView(APIView):
                     service_order.event_date = os_data["data_evento"]
                 if "data_retirada" in os_data:
                     service_order.retirada_date = os_data["data_retirada"]
+                if "data_devolucao" in os_data:
+                    service_order.devolucao_date = os_data["data_devolucao"]
 
                 # Atualizar informações básicas
                 if "ocasiao" in os_data:
@@ -435,6 +437,7 @@ class ServiceOrderUpdateAPIView(APIView):
                     def clean_field(value):
                         return value if value and value.strip() else None
 
+                    # Criar produto temporário com campos básicos
                     temp_product = TemporaryProduct.objects.create(
                         product_type=item["tipo"],
                         size=clean_field(item.get("numero")),
@@ -445,6 +448,18 @@ class ServiceOrderUpdateAPIView(APIView):
                         venda=item.get("venda", False),
                         created_by=request.user,
                     )
+
+                    # Campos específicos para calça
+                    if item["tipo"] == "calca":
+                        temp_product.waist_size = clean_field(item.get("cintura"))
+                        temp_product.leg_length = clean_field(item.get("perna"))
+                        temp_product.ajuste_cintura = clean_field(
+                            item.get("ajuste_cintura")
+                        )
+                        temp_product.ajuste_comprimento = clean_field(
+                            item.get("ajuste_comprimento")
+                        )
+                        temp_product.save()
 
                     # Criar item da OS
                     ServiceOrderItem.objects.create(
@@ -1032,38 +1047,48 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     name="AGUARDANDO_DEVOLUCAO"
                 ).first()
 
-                orders = ServiceOrder.objects.filter(
-                    models.Q(
-                        service_order_phase=aguardando_devolucao_phase,
-                        devolucao_date__lt=today,
+                orders = (
+                    ServiceOrder.objects.filter(
+                        models.Q(
+                            service_order_phase=aguardando_devolucao_phase,
+                            devolucao_date__lt=today,
+                        )
+                        | models.Q(
+                            retirada_date__lt=today,
+                            event_date__gt=today,
+                            service_order_phase__name__in=[
+                                "FINALIZADO",
+                                "AGUARDANDO_RETIRADA",
+                            ],
+                        )
                     )
-                    | models.Q(
-                        retirada_date__lt=today,
-                        event_date__gt=today,
-                        service_order_phase__name__in=[
-                            "FINALIZADO",
-                            "AGUARDANDO_RETIRADA",
-                        ],
+                    .select_related(
+                        "renter", "employee", "attendant", "renter__person_type"
                     )
-                ).select_related(
-                    "renter", "employee", "attendant", "renter__person_type"
+                    .prefetch_related("items__temporary_product", "items__product")
                 )
 
             elif phase.name == "AGUARDANDO_DEVOLUCAO":
                 # Fase AGUARDANDO_DEVOLUCAO: apenas as que ainda respeitam a data de devolução
-                orders = ServiceOrder.objects.filter(
-                    service_order_phase=phase,
-                    devolucao_date__gte=today,  # Ainda não passou da data de devolução
-                ).select_related(
-                    "renter", "employee", "attendant", "renter__person_type"
+                orders = (
+                    ServiceOrder.objects.filter(
+                        service_order_phase=phase,
+                        devolucao_date__gte=today,  # Ainda não passou da data de devolução
+                    )
+                    .select_related(
+                        "renter", "employee", "attendant", "renter__person_type"
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
                 )
 
             else:
                 # Outras fases: comportamento normal
-                orders = ServiceOrder.objects.filter(
-                    service_order_phase=phase
-                ).select_related(
-                    "renter", "employee", "attendant", "renter__person_type"
+                orders = (
+                    ServiceOrder.objects.filter(service_order_phase=phase)
+                    .select_related(
+                        "renter", "employee", "attendant", "renter__person_type"
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
                 )
 
             data = []
@@ -1136,6 +1161,194 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "devolucao_date": order.devolucao_date,
                     "client": client_data,
                 }
+
+                # Dados do cliente no formato esperado pelo frontend
+                cliente_data = {
+                    "nome": order.renter.name,
+                    "cpf": order.renter.cpf,
+                    "contatos": [],
+                    "enderecos": [],
+                }
+
+                # Contatos do cliente
+                if contact:
+                    if contact.email:
+                        cliente_data["contatos"].append(
+                            {"tipo": "email", "valor": contact.email}
+                        )
+                    if contact.phone:
+                        cliente_data["contatos"].append(
+                            {"tipo": "telefone", "valor": contact.phone}
+                        )
+
+                # Endereços do cliente
+                if address:
+                    cliente_data["enderecos"].append(
+                        {
+                            "cep": address.cep,
+                            "rua": address.street,
+                            "numero": address.number,
+                            "bairro": address.neighborhood,
+                            "cidade": address.city.name if address.city else "",
+                        }
+                    )
+
+                # Processar itens da OS
+                itens = []
+                acessorios = []
+
+                for item in order.items.all():
+                    # Determinar se é produto temporário ou produto real
+                    temp_product = item.temporary_product
+                    product = item.product
+
+                    if temp_product:
+                        # Produto temporário
+                        if temp_product.product_type in [
+                            "paleto",
+                            "camisa",
+                            "calca",
+                            "colete",
+                        ]:
+                            # Item de roupa
+                            item_data = {
+                                "tipo": temp_product.product_type,
+                                "cor": temp_product.color or "",
+                                "extras": temp_product.extras
+                                or temp_product.description
+                                or "",
+                                "venda": temp_product.venda or False,
+                                "extensor": False,  # Extensor só para passante
+                            }
+
+                            # Campos específicos por tipo
+                            if temp_product.product_type in ["paleto", "camisa"]:
+                                item_data.update(
+                                    {
+                                        "numero": temp_product.size or "",
+                                        "manga": temp_product.sleeve_length or "",
+                                        "marca": temp_product.brand or "",
+                                        "ajuste": item.adjustment_notes or "",
+                                    }
+                                )
+                            elif temp_product.product_type == "calca":
+                                item_data.update(
+                                    {
+                                        "numero": temp_product.size or "",
+                                        "cintura": temp_product.waist_size or "",
+                                        "perna": temp_product.leg_length or "",
+                                        "marca": temp_product.brand or "",
+                                        "ajuste_cintura": temp_product.ajuste_cintura
+                                        or "",
+                                        "ajuste_comprimento": temp_product.ajuste_comprimento
+                                        or "",
+                                    }
+                                )
+                            elif temp_product.product_type == "colete":
+                                item_data.update({"marca": temp_product.brand or ""})
+
+                            itens.append(item_data)
+                        else:
+                            # Acessório
+                            acessorio_data = {
+                                "tipo": temp_product.product_type,
+                                "cor": temp_product.color or "",
+                                "descricao": temp_product.description or "",
+                                "marca": temp_product.brand or "",
+                                "extensor": temp_product.extensor or False,
+                                "venda": temp_product.venda or False,
+                            }
+                            acessorios.append(acessorio_data)
+
+                    elif product:
+                        # Produto real do estoque
+                        if product.tipo.lower() in [
+                            "paleto",
+                            "camisa",
+                            "calça",
+                            "colete",
+                        ]:
+                            # Item de roupa
+                            item_data = {
+                                "tipo": product.tipo.lower(),
+                                "cor": product.cor or "",
+                                "extras": product.nome_produto or "",
+                                "venda": False,  # Produtos do estoque não são vendidos
+                                "extensor": False,
+                            }
+
+                            # Campos específicos por tipo
+                            if product.tipo.lower() in ["paleto", "camisa"]:
+                                item_data.update(
+                                    {
+                                        "numero": (
+                                            str(product.tamanho)
+                                            if product.tamanho
+                                            else ""
+                                        ),
+                                        "manga": "",
+                                        "marca": product.marca or "",
+                                        "ajuste": item.adjustment_notes or "",
+                                    }
+                                )
+                            elif product.tipo.lower() == "calça":
+                                item_data.update(
+                                    {
+                                        "numero": (
+                                            str(product.tamanho)
+                                            if product.tamanho
+                                            else ""
+                                        ),
+                                        "cintura": "",
+                                        "perna": "",
+                                        "marca": product.marca or "",
+                                        "ajuste_cintura": "",
+                                        "ajuste_comprimento": "",
+                                    }
+                                )
+                            elif product.tipo.lower() == "colete":
+                                item_data.update({"marca": product.marca or ""})
+
+                            itens.append(item_data)
+                        else:
+                            # Acessório
+                            acessorio_data = {
+                                "tipo": product.tipo.lower(),
+                                "cor": product.cor or "",
+                                "descricao": product.nome_produto or "",
+                                "marca": product.marca or "",
+                                "extensor": False,  # Produtos do estoque não têm extensor
+                                "venda": False,
+                            }
+                            acessorios.append(acessorio_data)
+
+                # Dados da ordem de serviço no formato esperado pelo frontend
+                ordem_servico_data = {
+                    "data_pedido": order.order_date,
+                    "data_evento": order.event_date,
+                    "data_retirada": order.retirada_date,
+                    "data_devolucao": order.devolucao_date,
+                    "ocasiao": order.occasion,
+                    "modalidade": order.service_type or "Aluguel",
+                    "itens": itens,
+                    "acessorios": acessorios,
+                    "pagamento": {
+                        "total": float(order.total_value) if order.total_value else 0,
+                        "sinal": (
+                            float(order.advance_payment) if order.advance_payment else 0
+                        ),
+                        "restante": (
+                            float(order.remaining_payment)
+                            if order.remaining_payment
+                            else 0
+                        ),
+                    },
+                }
+
+                # Adicionar dados completos ao response
+                order_data.update(
+                    {"cliente": cliente_data, "ordem_servico": ordem_servico_data}
+                )
 
                 data.append(order_data)
 
