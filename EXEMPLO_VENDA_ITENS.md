@@ -56,6 +56,7 @@ A API agora suporta o campo `venda` para indicar se cada item/acessório foi ven
             },
             {
                 "tipo": "sapato",
+                "numero": "42",
                 "cor": "AZUL ACETINADO",
                 "descricao": "",
                 "marca": "21",

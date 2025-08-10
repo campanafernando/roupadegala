@@ -127,7 +127,10 @@ class FrontendOrderItemSerializer(serializers.Serializer):
         help_text="Tipo do produto (paleto, camisa, calca, etc)"
     )
     numero = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, help_text="Número/tamanho"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Número/tamanho do item",
     )
     cor = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, help_text="Cor do produto"
@@ -179,6 +182,12 @@ class FrontendAccessorySerializer(serializers.Serializer):
     tipo = serializers.CharField(help_text="Tipo do acessório")
     cor = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, help_text="Cor do acessório"
+    )
+    numero = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Número/tamanho do acessório",
     )
     descricao = serializers.CharField(
         required=False,

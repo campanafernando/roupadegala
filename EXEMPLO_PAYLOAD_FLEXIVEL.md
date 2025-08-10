@@ -68,6 +68,7 @@
       },
       {
         "tipo": "sapato",
+        "numero": "41",
         "cor": "Preto",
         "descricao": "Verniz",
         "marca": "Ferracini"

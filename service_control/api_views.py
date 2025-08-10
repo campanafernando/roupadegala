@@ -435,18 +435,33 @@ class ServiceOrderUpdateAPIView(APIView):
                 for item in data["ordem_servico"]["itens"]:
                     # Tratar campos vazios convertendo para None
                     def clean_field(value):
-                        return value if value and value.strip() else None
+                        """Limpa campos vazios convertendo para None"""
+                        if value is None:
+                            return None
+                        if isinstance(value, str):
+                            cleaned = value.strip() if value.strip() else None
+                            return cleaned
+                        return value
 
                     # Criar produto temporário com campos básicos
+                    numero_value = clean_field(item.get("numero"))
+                    print(
+                        f"DEBUG ITEM: Criando produto temporário - tipo: {item['tipo']}, numero: '{item.get('numero')}' -> limpo: '{numero_value}'"
+                    )
+
                     temp_product = TemporaryProduct.objects.create(
                         product_type=item["tipo"],
-                        size=clean_field(item.get("numero")),
+                        size=numero_value,  # ✅ Campo "numero" mapeia para "size" no banco
                         sleeve_length=clean_field(item.get("manga")),
                         color=clean_field(item.get("cor")),
                         brand=clean_field(item.get("marca")),
                         description=clean_field(item.get("extras")),
                         venda=item.get("venda", False),
                         created_by=request.user,
+                    )
+
+                    print(
+                        f"DEBUG ITEM: Produto temporário criado com ID: {temp_product.id}, size salvo: '{temp_product.size}'"
                     )
 
                     # Campos específicos para calça
@@ -475,16 +490,32 @@ class ServiceOrderUpdateAPIView(APIView):
                 for acessorio in data["ordem_servico"]["acessorios"]:
                     # Tratar campos vazios convertendo para None
                     def clean_field(value):
-                        return value if value and value.strip() else None
+                        """Limpa campos vazios convertendo para None"""
+                        if value is None:
+                            return None
+                        if isinstance(value, str):
+                            cleaned = value.strip() if value.strip() else None
+                            return cleaned
+                        return value
+
+                    numero_value = clean_field(acessorio.get("numero"))
+                    print(
+                        f"DEBUG ACESSORIO: Criando produto temporário - tipo: {acessorio['tipo']}, numero: '{acessorio.get('numero')}' -> limpo: '{numero_value}'"
+                    )
 
                     temp_product = TemporaryProduct.objects.create(
                         product_type=acessorio["tipo"],
+                        size=numero_value,  # ✅ Campo "numero" mapeia para "size" no banco
                         color=clean_field(acessorio.get("cor")),
                         brand=clean_field(acessorio.get("marca")),
                         description=clean_field(acessorio.get("descricao")),
                         extensor=acessorio.get("extensor", False),
                         venda=acessorio.get("venda", False),
                         created_by=request.user,
+                    )
+
+                    print(
+                        f"DEBUG ACESSORIO: Produto temporário criado com ID: {temp_product.id}, size salvo: '{temp_product.size}'"
                     )
 
                     # Criar item da OS
@@ -1225,7 +1256,8 @@ class ServiceOrderListByPhaseAPIView(APIView):
                             if temp_product.product_type in ["paleto", "camisa"]:
                                 item_data.update(
                                     {
-                                        "numero": temp_product.size or "",
+                                        "numero": temp_product.size
+                                        or "",  # ✅ Campo "numero" retorna o "size" do banco
                                         "manga": temp_product.sleeve_length or "",
                                         "marca": temp_product.brand or "",
                                         "ajuste": item.adjustment_notes or "",
@@ -1234,7 +1266,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                             elif temp_product.product_type == "calca":
                                 item_data.update(
                                     {
-                                        "numero": temp_product.size or "",
+                                        "numero": temp_product.size,
                                         "cintura": temp_product.waist_size or "",
                                         "perna": temp_product.leg_length or "",
                                         "marca": temp_product.brand or "",
@@ -1247,17 +1279,25 @@ class ServiceOrderListByPhaseAPIView(APIView):
                             elif temp_product.product_type == "colete":
                                 item_data.update({"marca": temp_product.brand or ""})
 
+                            print(
+                                f"DEBUG ITEM: Retornando item - tipo: {item_data['tipo']}, numero: '{item_data.get('numero', '')}'"
+                            )
                             itens.append(item_data)
                         else:
                             # Acessório
                             acessorio_data = {
                                 "tipo": temp_product.product_type,
+                                "numero": temp_product.size
+                                or "",  # ✅ Campo "numero" retorna o "size" do banco
                                 "cor": temp_product.color or "",
                                 "descricao": temp_product.description or "",
                                 "marca": temp_product.brand or "",
                                 "extensor": temp_product.extensor or False,
                                 "venda": temp_product.venda or False,
                             }
+                            print(
+                                f"DEBUG ACESSORIO: Retornando acessório - tipo: {acessorio_data['tipo']}, numero: '{acessorio_data['numero']}'"
+                            )
                             acessorios.append(acessorio_data)
 
                     elif product:
@@ -1285,7 +1325,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                                             str(product.tamanho)
                                             if product.tamanho
                                             else ""
-                                        ),
+                                        ),  # ✅ Campo "numero" retorna o "tamanho" do produto do estoque
                                         "manga": "",
                                         "marca": product.marca or "",
                                         "ajuste": item.adjustment_notes or "",
@@ -1298,7 +1338,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                                             str(product.tamanho)
                                             if product.tamanho
                                             else ""
-                                        ),
+                                        ),  # ✅ Campo "numero" retorna o "tamanho" do produto do estoque
                                         "cintura": "",
                                         "perna": "",
                                         "marca": product.marca or "",
@@ -1314,6 +1354,9 @@ class ServiceOrderListByPhaseAPIView(APIView):
                             # Acessório
                             acessorio_data = {
                                 "tipo": product.tipo.lower(),
+                                "numero": (
+                                    str(product.tamanho) if product.tamanho else ""
+                                ),  # ✅ Campo "numero" retorna o "tamanho" do produto do estoque
                                 "cor": product.cor or "",
                                 "descricao": product.nome_produto or "",
                                 "marca": product.marca or "",

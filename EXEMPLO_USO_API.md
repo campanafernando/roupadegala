@@ -73,6 +73,7 @@ PUT /api/service-orders/{order_id}/update/
       },
       {
         "tipo": "sapato",
+        "numero": "42",
         "cor": "Preto",
         "descricao": "Verniz",
         "marca": "Ferracini"
