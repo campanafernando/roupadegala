@@ -142,6 +142,24 @@ class ProductListAPIView(ListAPIView):
 
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        """Sobrescreve o método list para converter tamanho de float para inteiro"""
+        response = super().list(request, *args, **kwargs)
+
+        # Converter tamanho de float para inteiro em cada produto
+        if response.data and "results" in response.data:
+            for product in response.data["results"]:
+                if "tamanho" in product and product["tamanho"] is not None:
+                    # Converter para inteiro, arredondando se necessário
+                    product["tamanho"] = int(round(float(product["tamanho"])))
+        elif response.data and isinstance(response.data, list):
+            # Se a resposta for uma lista direta (sem paginação)
+            for product in response.data:
+                if "tamanho" in product and product["tamanho"] is not None:
+                    product["tamanho"] = int(round(float(product["tamanho"])))
+
+        return response
+
 
 class ProductUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -170,7 +188,7 @@ class ProductUpdateAPIView(APIView):
 @extend_schema(
     tags=["products"],
     summary="Importar produtos via Excel",
-    description="Importa produtos de um arquivo Excel, criando novos produtos ou atualizando existentes baseado no ID",
+    description="Importa produtos de um arquivo Excel, criando novos produtos ou atualizando existentes baseado no ID. Valida campos obrigatórios para evitar dados inválidos.",
     request={
         "multipart/form-data": {
             "type": "object",
@@ -178,7 +196,7 @@ class ProductUpdateAPIView(APIView):
                 "excel_file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Arquivo Excel (.xlsx, .xls) com dados dos produtos",
+                    "description": "Arquivo Excel (.xlsx, .xls) com dados dos produtos. Deve conter colunas obrigatórias: Tipo, ID, Nome do produto, Marca, Material, Cor, Intensidade de cor, Tamanho",
                 }
             },
         },
@@ -195,7 +213,9 @@ class ProductUpdateAPIView(APIView):
                 "errors": {"type": "array", "items": {"type": "string"}},
             },
         },
-        400: {"description": "Arquivo não fornecido ou formato inválido"},
+        400: {
+            "description": "Arquivo não fornecido, formato inválido ou dados obrigatórios ausentes"
+        },
         500: {"description": "Erro interno do servidor"},
     },
 )
@@ -253,7 +273,6 @@ class ProductStockUpdateAPIView(APIView):
                 "Material",
                 "Cor",
                 "Intensidade de cor",
-                "Padronagem",
                 "Tamanho",
             ]
             missing_columns = [col for col in required_columns if col not in df.columns]
@@ -267,10 +286,9 @@ class ProductStockUpdateAPIView(APIView):
             for index, row in df.iterrows():
                 try:
                     # Verificar se o produto já existe pelo ID
-                    id_produto = str(row.get("ID", "")).strip()
-                    if not id_produto or id_produto == "nan":
-                        errors.append(f"Linha {index + 2}: ID do produto não fornecido")
-                        continue
+                    id_produto = self._validate_required_field(
+                        row.get("ID"), "ID", index
+                    )
 
                     # Verificar se produto já existe
                     existing_product = Product.objects.filter(
@@ -300,18 +318,66 @@ class ProductStockUpdateAPIView(APIView):
         except Exception as e:
             return {"error": f"Erro ao ler arquivo Excel: {str(e)}"}
 
+    def _validate_required_field(self, value, field_name, row_index):
+        """Valida se um campo obrigatório está preenchido e não é 'nan'"""
+        if (
+            pd.isna(value)
+            or str(value).strip() == ""
+            or str(value).strip().lower() == "nan"
+        ):
+            raise ValueError(
+                f"Linha {row_index + 2}: Campo '{field_name}' é obrigatório e não pode estar vazio ou 'nan'"
+            )
+        return str(value).strip()
+
+    def _validate_tamanho_field(self, value, row_index):
+        """Valida se o campo tamanho é um número válido"""
+        if (
+            pd.isna(value)
+            or str(value).strip() == ""
+            or str(value).strip().lower() == "nan"
+        ):
+            raise ValueError(
+                f"Linha {row_index + 2}: Campo 'Tamanho' é obrigatório e não pode estar vazio ou 'nan'"
+            )
+
+        try:
+            tamanho = float(value)
+            if tamanho <= 0:
+                raise ValueError(
+                    f"Linha {row_index + 2}: Campo 'Tamanho' deve ser um número maior que zero"
+                )
+            return tamanho
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"Linha {row_index + 2}: Campo 'Tamanho' deve ser um número válido"
+            )
+
     def _create_product_from_row(self, row, index):
         """Cria um novo produto a partir de uma linha do Excel"""
         try:
-            # Extrair dados da linha
-            tipo = str(row.get("Tipo", "")).strip()
-            id_produto = str(row.get("ID", "")).strip()
-            nome_produto = str(row.get("Nome do produto", "")).strip()
-            marca = str(row.get("Marca", "")).strip()
-            material = str(row.get("Material", "")).strip()
-            cor = str(row.get("Cor", "")).strip()
-            intensidade_cor = str(row.get("Intensidade de cor", "")).strip()
-            padronagem = str(row.get("Padronagem", "")).strip()
+            # Validar e extrair campos obrigatórios
+            tipo = self._validate_required_field(row.get("Tipo"), "Tipo", index)
+            id_produto = self._validate_required_field(row.get("ID"), "ID", index)
+            nome_produto = self._validate_required_field(
+                row.get("Nome do produto"), "Nome do produto", index
+            )
+            marca = self._validate_required_field(row.get("Marca"), "Marca", index)
+            material = self._validate_required_field(
+                row.get("Material"), "Material", index
+            )
+            cor = self._validate_required_field(row.get("Cor"), "Cor", index)
+            intensidade_cor = self._validate_required_field(
+                row.get("Intensidade de cor"), "Intensidade de cor", index
+            )
+            tamanho = self._validate_tamanho_field(row.get("Tamanho"), index)
+
+            # Campos opcionais (podem ser None)
+            padronagem = (
+                str(row.get("Padronagem", "")).strip()
+                if pd.notna(row.get("Padronagem"))
+                else ""
+            )
             botoes = (
                 str(row.get("Botões", "")).strip()
                 if pd.notna(row.get("Botões"))
@@ -322,27 +388,17 @@ class ProductStockUpdateAPIView(APIView):
                 if pd.notna(row.get("Lapela"))
                 else None
             )
-            tamanho = (
-                float(row.get("Tamanho", 0)) if pd.notna(row.get("Tamanho")) else 0.00
-            )
             foto_path = (
                 str(row.get("Foto", "")).strip() if pd.notna(row.get("Foto")) else None
             )
 
-            # Validar dados obrigatórios
-            if not all(
-                [
-                    tipo,
-                    id_produto,
-                    nome_produto,
-                    marca,
-                    material,
-                    cor,
-                    intensidade_cor,
-                    padronagem,
-                ]
-            ):
-                raise ValueError("Dados obrigatórios não fornecidos")
+            # Validar se campos opcionais não são 'nan' quando fornecidos
+            if botoes and botoes.lower() == "nan":
+                botoes = None
+            if lapela and lapela.lower() == "nan":
+                lapela = None
+            if foto_path and foto_path.lower() == "nan":
+                foto_path = None
 
             # Criar produto
             product = Product(
@@ -360,7 +416,7 @@ class ProductStockUpdateAPIView(APIView):
             )
 
             # Processar foto se existir
-            if foto_path and foto_path != "nan":
+            if foto_path:
                 self._process_photo(product, foto_path)
 
             product.save()
@@ -371,33 +427,58 @@ class ProductStockUpdateAPIView(APIView):
     def _update_product_from_row(self, product, row, index):
         """Atualiza um produto existente a partir de uma linha do Excel"""
         try:
-            # Atualizar campos
-            product.tipo = str(row.get("Tipo", "")).strip()
-            product.nome_produto = str(row.get("Nome do produto", "")).strip()
-            product.marca = str(row.get("Marca", "")).strip()
-            product.material = str(row.get("Material", "")).strip()
-            product.cor = str(row.get("Cor", "")).strip()
-            product.intensidade_cor = str(row.get("Intensidade de cor", "")).strip()
-            product.padronagem = str(row.get("Padronagem", "")).strip()
-            product.botoes = (
+            # Validar e atualizar campos obrigatórios
+            product.tipo = self._validate_required_field(row.get("Tipo"), "Tipo", index)
+            product.nome_produto = self._validate_required_field(
+                row.get("Nome do produto"), "Nome do produto", index
+            )
+            product.marca = self._validate_required_field(
+                row.get("Marca"), "Marca", index
+            )
+            product.material = self._validate_required_field(
+                row.get("Material"), "Material", index
+            )
+            product.cor = self._validate_required_field(row.get("Cor"), "Cor", index)
+            product.intensidade_cor = self._validate_required_field(
+                row.get("Intensidade de cor"), "Intensidade de cor", index
+            )
+            product.tamanho = self._validate_tamanho_field(row.get("Tamanho"), index)
+
+            # Campos opcionais
+            product.padronagem = (
+                str(row.get("Padronagem", "")).strip()
+                if pd.notna(row.get("Padronagem"))
+                else ""
+            )
+
+            # Campos opcionais que podem ser None
+            botoes = (
                 str(row.get("Botões", "")).strip()
                 if pd.notna(row.get("Botões"))
                 else None
             )
-            product.lapela = (
+            lapela = (
                 str(row.get("Lapela", "")).strip()
                 if pd.notna(row.get("Lapela"))
                 else None
             )
-            product.tamanho = (
-                float(row.get("Tamanho", 0)) if pd.notna(row.get("Tamanho")) else 0.00
-            )
-
-            # Processar foto se existir
             foto_path = (
                 str(row.get("Foto", "")).strip() if pd.notna(row.get("Foto")) else None
             )
-            if foto_path and foto_path != "nan":
+
+            # Validar se campos opcionais não são 'nan' quando fornecidos
+            if botoes and botoes.lower() == "nan":
+                product.botoes = None
+            else:
+                product.botoes = botoes
+
+            if lapela and lapela.lower() == "nan":
+                product.lapela = None
+            else:
+                product.lapela = lapela
+
+            # Processar foto se existir
+            if foto_path and foto_path.lower() != "nan":
                 self._process_photo(product, foto_path)
 
             product.save()
