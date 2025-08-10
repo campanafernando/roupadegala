@@ -84,7 +84,7 @@ class ServiceOrder(BaseModel):
             self.devolucao_date
             and self.devolucao_date < today
             and self.service_order_phase
-            and self.service_order_phase.name not in ["CONCLUÍDO", "RECUSADA"]
+            and self.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
         )
 
     def is_hoje(self):
@@ -96,7 +96,7 @@ class ServiceOrder(BaseModel):
                 or self.devolucao_date == today
             )
             and self.service_order_phase
-            and self.service_order_phase.name not in ["CONCLUÍDO", "RECUSADA"]
+            and self.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
         )
 
     def is_proximos_10_dias(self):
@@ -105,7 +105,7 @@ class ServiceOrder(BaseModel):
         return (
             (self.devolucao_date and today < self.devolucao_date <= in_10)
             and self.service_order_phase
-            and self.service_order_phase.name not in ["CONCLUÍDO", "RECUSADA"]
+            and self.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
         )
 
     def tipo_evento(self):

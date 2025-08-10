@@ -538,7 +538,7 @@ class ServiceOrderUpdateAPIView(APIView):
                 if current_phase_name not in [
                     "AGUARDANDO_RETIRADA",
                     "AGUARDANDO_DEVOLUCAO",
-                    "CONCLUÍDO",
+                    "FINALIZADO",
                     "RECUSADA",
                 ]:
                     service_order.service_order_phase = aguardando_retirada_phase
@@ -637,17 +637,20 @@ class ServiceOrderDetailAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Marcar ordem de serviço como paga",
-    description="Marca uma ordem de serviço como paga, alterando sua fase",
+    description="Marca uma ordem de serviço como paga, alterando sua fase para FINALIZADO e registrando a data de devolução",
     responses={
         200: {
-            "description": "Ordem de serviço marcada como paga",
+            "description": "Ordem de serviço marcada como paga e finalizada",
             "type": "object",
             "properties": {
                 "success": {"type": "boolean"},
                 "message": {"type": "string"},
+                "data_devolvido": {"type": "string", "format": "date-time"},
             },
         },
         404: {"description": "Ordem de serviço não encontrada"},
+        400: {"description": "OS não pode ser marcada como paga"},
+        500: {"description": "Erro interno do servidor"},
     },
 )
 class ServiceOrderMarkPaidAPIView(APIView):
@@ -655,31 +658,89 @@ class ServiceOrderMarkPaidAPIView(APIView):
     serializer_class = ServiceOrderMarkPaidSerializer
 
     def post(self, request, order_id):
-        """Marcar ordem de serviço como paga"""
+        """Marcar ordem de serviço como paga e concluída"""
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
 
-            # Buscar fase "AGUARDANDO PAGAMENTO"
-            paid_phase = ServiceOrderPhase.objects.filter(
-                name="AGUARDANDO PAGAMENTO"
-            ).first()
-            if paid_phase:
-                service_order.service_order_phase = paid_phase
-                service_order.save()
+            # Verificar se a OS pode ser marcada como paga
+            if not service_order.service_order_phase:
+                return Response(
+                    {"error": "OS não possui fase definida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            return Response({"success": True, "message": "OS marcada como paga"})
+            # Verificar se já está finalizada
+            if service_order.service_order_phase.name == "FINALIZADO":
+                return Response(
+                    {"error": "OS já está finalizada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se está na fase AGUARDANDO_DEVOLUCAO
+            if service_order.service_order_phase.name != "AGUARDANDO_DEVOLUCAO":
+                return Response(
+                    {
+                        "error": "OS deve estar na fase AGUARDANDO_DEVOLUCAO para ser marcada como paga."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Buscar ou criar fase "FINALIZADO"
+            finalizado_phase, created = ServiceOrderPhase.objects.get_or_create(
+                name="FINALIZADO", defaults={"created_by": request.user}
+            )
+
+            # Verificar permissões
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_employee = (
+                user_person
+                and service_order.employee
+                and user_person.id == service_order.employee.id
+            )
+            is_attendant = (
+                user_person
+                and service_order.attendant
+                and user_person.id == service_order.attendant.id
+            )
+
+            if not (is_admin or is_employee or is_attendant):
+                return Response(
+                    {
+                        "error": "Apenas o atendente responsável, recepcionista ou um administrador pode marcar uma OS como paga."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Marcar como paga e finalizada
+            service_order.service_order_phase = finalizado_phase
+            service_order.data_devolvido = timezone.now()
+            service_order.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS marcada como paga e finalizada com sucesso",
+                    "data_devolvido": service_order.data_devolvido,
+                }
+            )
 
         except ServiceOrder.DoesNotExist:
             return Response(
                 {"error": "Ordem de serviço não encontrada"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao marcar OS como paga: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @extend_schema(
     tags=["service-orders"],
     summary="Recusar ordem de serviço",
-    description="Recusa uma ordem de serviço, alterando sua fase para RECUSADA",
+    description="Recusa uma ordem de serviço, alterando sua fase para RECUSADA. Apenas OS nas fases PENDENTE ou AGUARDANDO_RETIRADA, ou OS sem fase definida (recusadas na triagem) podem ser recusadas. Requer justificativa obrigatória.",
     responses={
         200: {
             "description": "Ordem de serviço recusada",
@@ -688,6 +749,12 @@ class ServiceOrderMarkPaidAPIView(APIView):
                 "success": {"type": "boolean"},
                 "message": {"type": "string"},
             },
+        },
+        400: {
+            "description": "OS não pode ser recusada na fase atual ou justificativa não fornecida"
+        },
+        403: {
+            "description": "Permissão negada - apenas atendente responsável, administrador ou usuários de triagem"
         },
         404: {"description": "Ordem de serviço não encontrada"},
     },
@@ -714,7 +781,20 @@ class ServiceOrderRefuseAPIView(APIView):
                 name="RECUSADA", defaults={"created_by": request.user}
             )
 
-            # Permissão: só atendente responsável ou administrador pode recusar OS pendente
+            # Verificar se a OS pode ser recusada
+            current_phase = service_order.service_order_phase
+            allowed_phases = ["PENDENTE", "AGUARDANDO_RETIRADA"]
+
+            # Permitir recusar OS sem fase (caso de OS recusadas na triagem)
+            if current_phase and current_phase.name not in allowed_phases:
+                return Response(
+                    {
+                        "error": f"OS não pode ser recusada na fase atual ({current_phase.name}). Apenas fases {', '.join(allowed_phases)} ou OS sem fase definida podem ser recusadas."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Permissão: só atendente responsável ou administrador pode recusar OS
             user_person = getattr(request.user, "person", None)
             is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
             is_employee = (
@@ -722,14 +802,12 @@ class ServiceOrderRefuseAPIView(APIView):
                 and service_order.employee
                 and user_person.id == service_order.employee.id
             )
-            is_pending = (
-                service_order.service_order_phase
-                and service_order.service_order_phase.name == "PENDENTE"
-            )
-            if is_pending and not (is_admin or is_employee):
+
+            # Permitir recusar se for admin OU se for atendente responsável OU se a OS não tem atendente (caso de triagem)
+            if not (is_admin or is_employee or not service_order.employee):
                 return Response(
                     {
-                        "error": "Apenas o atendente responsável ou um administrador pode recusar uma OS pendente."
+                        "error": "Apenas o atendente responsável, um administrador, ou usuários autorizados para triagem podem recusar uma OS."
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
@@ -877,7 +955,7 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
                     "type": "object",
                     "properties": {
                         "pendentes": {"type": "integer"},
-                        "aguardando_pagamento": {"type": "integer"},
+                        "aguardando_devolucao": {"type": "integer"},
                         "concluidas": {"type": "integer"},
                         "em_atraso": {"type": "integer"},
                         "recusadas": {"type": "integer"},
@@ -911,9 +989,9 @@ class ServiceOrderDashboardAPIView(APIView):
             # Buscar fases
             pending_phase = ServiceOrderPhase.objects.filter(name="PENDENTE").first()
             awaiting_payment_phase = ServiceOrderPhase.objects.filter(
-                name="AGUARDANDO PAGAMENTO"
+                name="AGUARDANDO_DEVOLUCAO"
             ).first()
-            finished_phase = ServiceOrderPhase.objects.filter(name="CONCLUÍDO").first()
+            finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
             overdue_phase = ServiceOrderPhase.objects.filter(name="EM ATRASO").first()
             refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
 
@@ -926,7 +1004,7 @@ class ServiceOrderDashboardAPIView(APIView):
                     if pending_phase
                     else 0
                 ),
-                "aguardando_pagamento": (
+                "aguardando_devolucao": (
                     ServiceOrder.objects.filter(
                         service_order_phase=awaiting_payment_phase
                     ).count()
@@ -977,7 +1055,7 @@ class ServiceOrderDashboardAPIView(APIView):
             for order in today_orders:
                 if (
                     order.service_order_phase
-                    and order.service_order_phase.name not in ["CONCLUÍDO", "RECUSADA"]
+                    and order.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
                 ):
                     tipo = order.tipo_evento()
                     hoje[tipo] = hoje.get(tipo, 0) + 1
@@ -991,7 +1069,7 @@ class ServiceOrderDashboardAPIView(APIView):
             for order in upcoming_orders:
                 if (
                     order.service_order_phase
-                    and order.service_order_phase.name not in ["CONCLUÍDO", "RECUSADA"]
+                    and order.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
                 ):
                     tipo = order.tipo_evento()
                     proximos_10_dias[tipo] = proximos_10_dias.get(tipo, 0) + 1
@@ -1047,7 +1125,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     data_retirado__isnull=True,  # Não foi retirada
                     service_order_phase__name__in=[
                         "PENDENTE",
-                        "AGUARDANDO PAGAMENTO",
+                        "AGUARDANDO_DEVOLUCAO",
                         "FINALIZADO",
                         "AGUARDANDO_RETIRADA",
                     ],
@@ -1191,6 +1269,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "retirada_date": order.retirada_date,
                     "devolucao_date": order.devolucao_date,
                     "client": client_data,
+                    "justification_refusal": order.justification_refusal,
                 }
 
                 # Dados do cliente no formato esperado pelo frontend
