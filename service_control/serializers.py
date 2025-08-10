@@ -114,6 +114,11 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     devolucao_date = serializers.DateField(
         help_text="Data de devolução", allow_null=True
     )
+    justificativa_atraso = serializers.CharField(
+        help_text="Justificativa do atraso (quando aplicável)",
+        allow_null=True,
+        allow_blank=True,
+    )
 
     # Dados do cliente
     client = serializers.DictField(help_text="Dados completos do cliente")

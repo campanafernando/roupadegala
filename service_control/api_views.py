@@ -1150,25 +1150,33 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
             # Filtrar orders baseado na fase
             if phase.name == "ATRASADO":
-                # Fase ATRASADO: OS em AGUARDANDO_DEVOLUCAO cuja data_devolucao já passou
-                # OU OS que passou a data da retirada mas ainda não passou a data do evento
+                # Fase ATRASADO:
+                # 1. OS em AGUARDANDO_DEVOLUCAO cuja data_devolucao já passou mas evento ainda não passou
+                # 2. OS em AGUARDANDO_RETIRADA cuja data_retirada já passou mas evento ainda não passou
+                # 3. OS em AGUARDANDO_DEVOLUCAO que não foram devolvidas e evento já passou
                 aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
                     name="AGUARDANDO_DEVOLUCAO"
+                ).first()
+                aguardando_retirada_phase = ServiceOrderPhase.objects.filter(
+                    name="AGUARDANDO_RETIRADA"
                 ).first()
 
                 orders = (
                     ServiceOrder.objects.filter(
                         models.Q(
                             service_order_phase=aguardando_devolucao_phase,
-                            devolucao_date__lt=today,
+                            devolucao_date__lt=today,  # Passou da data de devolução
+                            event_date__gt=today,  # Evento ainda não passou
                         )
                         | models.Q(
-                            retirada_date__lt=today,
-                            event_date__gt=today,
-                            service_order_phase__name__in=[
-                                "FINALIZADO",
-                                "AGUARDANDO_RETIRADA",
-                            ],
+                            service_order_phase=aguardando_retirada_phase,
+                            retirada_date__lt=today,  # Passou da data de retirada
+                            event_date__gt=today,  # Evento ainda não passou
+                        )
+                        | models.Q(
+                            service_order_phase=aguardando_devolucao_phase,
+                            data_devolvido__isnull=True,  # Não foi devolvida
+                            event_date__lt=today,  # Evento já passou
                         )
                     )
                     .select_related(
@@ -1179,10 +1187,27 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
             elif phase.name == "AGUARDANDO_DEVOLUCAO":
                 # Fase AGUARDANDO_DEVOLUCAO: apenas as que ainda respeitam a data de devolução
+                # E que não estão atrasadas (evento ainda não passou)
                 orders = (
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
                         devolucao_date__gte=today,  # Ainda não passou da data de devolução
+                        event_date__gt=today,  # Evento ainda não passou
+                    )
+                    .select_related(
+                        "renter", "employee", "attendant", "renter__person_type"
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
+                )
+
+            elif phase.name == "AGUARDANDO_RETIRADA":
+                # Fase AGUARDANDO_RETIRADA: apenas as que ainda respeitam a data de retirada
+                # E que não estão atrasadas (evento ainda não passou)
+                orders = (
+                    ServiceOrder.objects.filter(
+                        service_order_phase=phase,
+                        retirada_date__gte=today,  # Ainda não passou da data de retirada
+                        event_date__gt=today,  # Evento ainda não passou
                     )
                     .select_related(
                         "renter", "employee", "attendant", "renter__person_type"
@@ -1271,6 +1296,32 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "client": client_data,
                     "justification_refusal": order.justification_refusal,
                 }
+
+                # Calcular justificativa do atraso para fase ATRASADO
+                if phase.name == "ATRASADO":
+                    # Para fase ATRASADO, determinar a justificativa baseada nas datas
+                    if (
+                        order.devolucao_date
+                        and order.devolucao_date < today
+                        and order.event_date > today
+                    ):
+                        order_data["justificativa_atraso"] = (
+                            "Cliente ainda não devolveu"
+                        )
+                    elif (
+                        order.retirada_date
+                        and order.retirada_date < today
+                        and order.event_date > today
+                    ):
+                        order_data["justificativa_atraso"] = "Cliente não retirou"
+                    elif order.data_devolvido is None and order.event_date < today:
+                        order_data["justificativa_atraso"] = (
+                            "Cliente ainda não devolveu (evento passou)"
+                        )
+                    else:
+                        order_data["justificativa_atraso"] = None
+                else:
+                    order_data["justificativa_atraso"] = None
 
                 # Dados do cliente no formato esperado pelo frontend
                 cliente_data = {
