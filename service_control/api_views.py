@@ -22,6 +22,7 @@ from .models import ServiceOrder, ServiceOrderItem, ServiceOrderPhase
 from .serializers import (
     FrontendServiceOrderUpdateSerializer,
     ServiceOrderClientSerializer,
+    ServiceOrderDashboardResponseSerializer,
     ServiceOrderDetailSerializer,
     ServiceOrderListByPhaseSerializer,
     ServiceOrderMarkPaidSerializer,
@@ -945,33 +946,9 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Dashboard de ordens de serviço",
-    description="Retorna métricas e estatísticas das ordens de serviço",
+    description="Retorna métricas e estatísticas das ordens de serviço com status e resultados financeiros",
     responses={
-        200: {
-            "description": "Métricas das ordens de serviço",
-            "type": "object",
-            "properties": {
-                "metrics": {
-                    "type": "object",
-                    "properties": {
-                        "pendentes": {"type": "integer"},
-                        "aguardando_devolucao": {"type": "integer"},
-                        "concluidas": {"type": "integer"},
-                        "em_atraso": {"type": "integer"},
-                        "recusadas": {"type": "integer"},
-                    },
-                },
-                "em_atraso": {
-                    "type": "object",
-                    "additionalProperties": {"type": "integer"},
-                },
-                "hoje": {"type": "object", "additionalProperties": {"type": "integer"}},
-                "proximos_10_dias": {
-                    "type": "object",
-                    "additionalProperties": {"type": "integer"},
-                },
-            },
-        },
+        200: ServiceOrderDashboardResponseSerializer,
         500: {"description": "Erro interno do servidor"},
     },
 )
@@ -987,101 +964,172 @@ class ServiceOrderDashboardAPIView(APIView):
             advance_service_order_phases()
 
             # Buscar fases
-            pending_phase = ServiceOrderPhase.objects.filter(name="PENDENTE").first()
-            awaiting_payment_phase = ServiceOrderPhase.objects.filter(
-                name="AGUARDANDO_DEVOLUCAO"
-            ).first()
-            finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
-            overdue_phase = ServiceOrderPhase.objects.filter(name="EM ATRASO").first()
             refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
+            # aguardando_retirada_phase = ServiceOrderPhase.objects.filter(
+            #     name="AGUARDANDO_RETIRADA"
+            # ).first()
+            # aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
+            #     name="AGUARDANDO_DEVOLUCAO"
+            # ).first()
+            finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
 
-            # Métricas por fase
-            metrics = {
-                "pendentes": (
-                    ServiceOrder.objects.filter(
-                        service_order_phase=pending_phase
-                    ).count()
-                    if pending_phase
-                    else 0
-                ),
-                "aguardando_devolucao": (
-                    ServiceOrder.objects.filter(
-                        service_order_phase=awaiting_payment_phase
-                    ).count()
-                    if awaiting_payment_phase
-                    else 0
-                ),
-                "concluidas": (
-                    ServiceOrder.objects.filter(
-                        service_order_phase=finished_phase
-                    ).count()
-                    if finished_phase
-                    else 0
-                ),
-                "em_atraso": (
-                    ServiceOrder.objects.filter(
-                        service_order_phase=overdue_phase
-                    ).count()
-                    if overdue_phase
-                    else 0
-                ),
-                "recusadas": (
-                    ServiceOrder.objects.filter(
-                        service_order_phase=refused_phase
-                    ).count()
-                    if refused_phase
-                    else 0
-                ),
+            today = timezone.now().date()
+            in_10_days = today + timedelta(days=10)
+
+            # Status - Contadores por tipo e período
+            status = {
+                "em_atraso": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+                "hoje": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+                "proximos_10_dias": {"provas": 0, "retiradas": 0, "devolucoes": 0},
             }
 
-            # OS em atraso
-            em_atraso = {}
-            if overdue_phase:
-                overdue_orders = ServiceOrder.objects.filter(
-                    service_order_phase=overdue_phase
-                )
-                for order in overdue_orders:
-                    tipo = order.tipo_evento()
-                    em_atraso[tipo] = em_atraso.get(tipo, 0) + 1
+            # OS em atraso (RECUSADA)
+            if refused_phase:
+                status["em_atraso"]["provas"] = ServiceOrder.objects.filter(
+                    service_order_phase=refused_phase, prova_date__isnull=False
+                ).count()
+
+                status["em_atraso"]["retiradas"] = ServiceOrder.objects.filter(
+                    service_order_phase=refused_phase, retirada_date__isnull=False
+                ).count()
+
+                status["em_atraso"]["devolucoes"] = ServiceOrder.objects.filter(
+                    service_order_phase=refused_phase, devolucao_date__isnull=False
+                ).count()
 
             # OS de hoje
-            hoje = {}
-            today = timezone.now().date()
-            today_orders = (
-                ServiceOrder.objects.filter(prova_date=today)
-                | ServiceOrder.objects.filter(retirada_date=today)
-                | ServiceOrder.objects.filter(devolucao_date=today)
-            )
-            for order in today_orders:
-                if (
-                    order.service_order_phase
-                    and order.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
-                ):
-                    tipo = order.tipo_evento()
-                    hoje[tipo] = hoje.get(tipo, 0) + 1
+            status["hoje"]["provas"] = ServiceOrder.objects.filter(
+                prova_date=today,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
+
+            status["hoje"]["retiradas"] = ServiceOrder.objects.filter(
+                retirada_date=today,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
+
+            status["hoje"]["devolucoes"] = ServiceOrder.objects.filter(
+                devolucao_date=today,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
 
             # OS próximos 10 dias
-            proximos_10_dias = {}
-            in_10_days = today + timedelta(days=10)
-            upcoming_orders = ServiceOrder.objects.filter(
-                devolucao_date__gt=today, devolucao_date__lte=in_10_days
-            )
-            for order in upcoming_orders:
-                if (
-                    order.service_order_phase
-                    and order.service_order_phase.name not in ["FINALIZADO", "RECUSADA"]
-                ):
-                    tipo = order.tipo_evento()
-                    proximos_10_dias[tipo] = proximos_10_dias.get(tipo, 0) + 1
+            # Contar provas
+            provas_proximas = ServiceOrder.objects.filter(
+                prova_date__gt=today,
+                prova_date__lte=in_10_days,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
 
-            return Response(
-                {
-                    "metrics": metrics,
-                    "em_atraso": em_atraso,
-                    "hoje": hoje,
-                    "proximos_10_dias": proximos_10_dias,
-                }
-            )
+            # Contar retiradas
+            retiradas_proximas = ServiceOrder.objects.filter(
+                retirada_date__gt=today,
+                retirada_date__lte=in_10_days,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
+
+            # Contar devoluções
+            devolucoes_proximas = ServiceOrder.objects.filter(
+                devolucao_date__gt=today,
+                devolucao_date__lte=in_10_days,
+                service_order_phase__name__in=[
+                    "PENDENTE",
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                ],
+            ).count()
+
+            status["proximos_10_dias"]["provas"] = provas_proximas
+            status["proximos_10_dias"]["retiradas"] = retiradas_proximas
+            status["proximos_10_dias"]["devolucoes"] = devolucoes_proximas
+
+            # Resultados financeiros
+            resultados = {
+                "dia": {
+                    "total_pedidos": 0.00,
+                    "total_recebido": 0.00,
+                    "numero_pedidos": 0,
+                },
+                "semana": {
+                    "total_pedidos": 0.00,
+                    "total_recebido": 0.00,
+                    "numero_pedidos": 0,
+                },
+                "mes": {
+                    "total_pedidos": 0.00,
+                    "total_recebido": 0.00,
+                    "numero_pedidos": 0,
+                },
+            }
+
+            # Calcular totais do dia
+            today_orders = ServiceOrder.objects.filter(
+                models.Q(prova_date=today)
+                | models.Q(retirada_date=today)
+                | models.Q(devolucao_date=today)
+            ).distinct()
+
+            for order in today_orders:
+                if order.total_value:
+                    resultados["dia"]["total_pedidos"] += float(order.total_value)
+                    resultados["dia"]["numero_pedidos"] += 1
+
+                if order.service_order_phase == finished_phase and order.total_value:
+                    resultados["dia"]["total_recebido"] += float(order.total_value)
+
+            # Calcular totais da semana
+            week_start = today - timedelta(days=today.weekday())
+            week_orders = ServiceOrder.objects.filter(
+                models.Q(prova_date__gte=week_start, prova_date__lte=today)
+                | models.Q(retirada_date__gte=week_start, retirada_date__lte=today)
+                | models.Q(devolucao_date__gte=week_start, devolucao_date__lte=today)
+            ).distinct()
+
+            for order in week_orders:
+                if order.total_value:
+                    resultados["semana"]["total_pedidos"] += float(order.total_value)
+                    resultados["semana"]["numero_pedidos"] += 1
+
+                if order.service_order_phase == finished_phase and order.total_value:
+                    resultados["semana"]["total_recebido"] += float(order.total_value)
+
+            # Calcular totais do mês
+            month_start = today.replace(day=1)
+            month_orders = ServiceOrder.objects.filter(
+                models.Q(prova_date__gte=month_start, prova_date__lte=today)
+                | models.Q(retirada_date__gte=month_start, retirada_date__lte=today)
+                | models.Q(devolucao_date__gte=month_start, devolucao_date__lte=today)
+            ).distinct()
+
+            for order in month_orders:
+                if order.total_value:
+                    resultados["mes"]["total_pedidos"] += float(order.total_value)
+                    resultados["mes"]["numero_pedidos"] += 1
+
+                if order.service_order_phase == finished_phase and order.total_value:
+                    resultados["mes"]["total_recebido"] += float(order.total_value)
+
+            return Response({"status": status, "resultados": resultados})
 
         except Exception as e:
             return Response(

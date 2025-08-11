@@ -44,6 +44,23 @@ class ServiceOrderDashboardSerializer(serializers.Serializer):
     proximos_10_dias = serializers.DictField(child=serializers.IntegerField())
 
 
+class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
+    """Serializer para resposta do dashboard com status e resultados financeiros"""
+
+    status = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.IntegerField(),
+            help_text="Contadores de OS por tipo (provas, retiradas, devolucoes)",
+        ),
+        help_text="Status das OS por período",
+    )
+
+    resultados = serializers.DictField(
+        child=serializers.DictField(help_text="Resultados financeiros por período"),
+        help_text="Resultados financeiros por período",
+    )
+
+
 # Serializers adicionais para corrigir erros do Swagger
 
 
