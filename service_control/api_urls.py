@@ -5,6 +5,9 @@ URLs da API para o app service_control
 from django.urls import path
 
 from .api_views import (
+    EventAddParticipantsAPIView,
+    EventCreateAPIView,
+    EventOpenListAPIView,
     ServiceOrderClientAPIView,
     ServiceOrderCreateAPIView,
     ServiceOrderDashboardAPIView,
@@ -19,6 +22,22 @@ from .api_views import (
 )
 
 urlpatterns = [
+    # Eventos
+    path(
+        "events/create/",
+        EventCreateAPIView.as_view(),
+        name="api_event_create",
+    ),
+    path(
+        "events/<int:event_id>/add-participants/",
+        EventAddParticipantsAPIView.as_view(),
+        name="api_event_add_participants",
+    ),
+    path(
+        "events/open/",
+        EventOpenListAPIView.as_view(),
+        name="api_event_open_list",
+    ),
     # Dashboard e métricas
     path(
         "service-orders/dashboard/",

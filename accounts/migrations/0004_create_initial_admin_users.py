@@ -20,6 +20,11 @@ def create_initial_admin_users(apps, schema_editor):
             "name": "MARCO TULIO RODRIGUES",
             "username": "11171552696",
         },
+        {
+            "cpf": "11845444680",
+            "name": "GUILHERME ARANTES",
+            "username": "11845444680",
+        },
     ]
 
     for data in users_data:

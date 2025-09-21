@@ -29,6 +29,13 @@ class ServiceOrder(BaseModel):
     order_date = models.DateField()
     event_date = models.DateField()
     occasion = models.CharField(max_length=255)
+    event = models.ForeignKey(
+        "Event",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_orders",
+    )
     renter_role = models.CharField(max_length=255, null=True)
     total_value = models.DecimalField(
         max_digits=10, decimal_places=2, default=0, null=True
@@ -170,3 +177,34 @@ class ServiceOrderItem(BaseModel):
             raise ValidationError(
                 "Item não pode ter produto e produto temporário simultaneamente"
             )
+
+
+class Event(BaseModel):
+    name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = "events"
+
+    def __str__(self):
+        return f"Evento: {self.name}"
+
+
+class EventParticipant(BaseModel):
+    event = models.ForeignKey(
+        Event, related_name="participants", on_delete=models.CASCADE
+    )
+    person = models.ForeignKey(
+        Person, related_name="event_participations", on_delete=models.CASCADE
+    )
+
+    class Meta:
+        db_table = "event_participants"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "person"], name="unique_event_person"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.person.name} em {self.event.name}"

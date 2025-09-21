@@ -7,7 +7,13 @@ from products.serializers import (
     TemporaryProductSerializer,
 )
 
-from .models import ServiceOrder, ServiceOrderItem, ServiceOrderPhase
+from .models import (
+    Event,
+    EventParticipant,
+    ServiceOrder,
+    ServiceOrderItem,
+    ServiceOrderPhase,
+)
 
 
 class ServiceOrderPhaseSerializer(serializers.ModelSerializer):
@@ -309,3 +315,38 @@ class FrontendServiceOrderUpdateSerializer(serializers.Serializer):
         help_text="Dados da ordem de serviço"
     )
     cliente = FrontendClientSerializer(help_text="Dados do cliente")
+
+
+# --- Eventos ---
+
+
+class EventParticipantSerializer(serializers.ModelSerializer):
+    person = PersonSerializer(read_only=True)
+
+    class Meta:
+        model = EventParticipant
+        fields = "__all__"
+
+
+class EventSerializer(serializers.ModelSerializer):
+    participants = EventParticipantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Event
+        fields = "__all__"
+
+
+class EventCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, help_text="Nome do evento")
+    description = serializers.CharField(
+        required=False, allow_blank=True, help_text="Descrição do evento"
+    )
+    participant_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, help_text="IDs de pessoas"
+    )
+
+
+class EventAddParticipantsSerializer(serializers.Serializer):
+    participant_ids = serializers.ListField(
+        child=serializers.IntegerField(), help_text="IDs de pessoas a adicionar"
+    )

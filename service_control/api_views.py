@@ -2,7 +2,7 @@
 Views API para o app service_control
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db import models
 from django.shortcuts import get_object_or_404
@@ -18,8 +18,17 @@ from rest_framework.views import APIView
 from accounts.models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 from products.models import TemporaryProduct
 
-from .models import ServiceOrder, ServiceOrderItem, ServiceOrderPhase
+from .models import (
+    Event,
+    EventParticipant,
+    ServiceOrder,
+    ServiceOrderItem,
+    ServiceOrderPhase,
+)
 from .serializers import (
+    EventAddParticipantsSerializer,
+    EventCreateSerializer,
+    EventSerializer,
     FrontendServiceOrderUpdateSerializer,
     ServiceOrderClientSerializer,
     ServiceOrderDashboardResponseSerializer,
@@ -237,7 +246,7 @@ class ServiceOrderCreateAPIView(APIView):
                 renter=person,
                 employee=employee,
                 attendant=request.user.person,
-                order_date=timezone.now().date(),
+                order_date=date.today(),
                 event_date=order_data["data_evento"],
                 occasion=order_data["evento"].upper(),
                 renter_role=order_data["papel_evento"].upper(),
@@ -973,7 +982,7 @@ class ServiceOrderDashboardAPIView(APIView):
             # ).first()
             finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
 
-            today = timezone.now().date()
+            today = date.today()
             in_10_days = today + timedelta(days=10)
 
             # Status - Contadores por tipo e período
@@ -986,7 +995,7 @@ class ServiceOrderDashboardAPIView(APIView):
             # OS em atraso (RECUSADA)
             if refused_phase:
                 status["em_atraso"]["provas"] = ServiceOrder.objects.filter(
-                    service_order_phase=refused_phase, prova_date__isnull=False
+                    service_order_phase=refused_phase, order_date__isnull=False
                 ).count()
 
                 status["em_atraso"]["retiradas"] = ServiceOrder.objects.filter(
@@ -999,7 +1008,7 @@ class ServiceOrderDashboardAPIView(APIView):
 
             # OS de hoje
             status["hoje"]["provas"] = ServiceOrder.objects.filter(
-                prova_date=today,
+                order_date=today,
                 service_order_phase__name__in=[
                     "PENDENTE",
                     "AGUARDANDO_RETIRADA",
@@ -1028,8 +1037,8 @@ class ServiceOrderDashboardAPIView(APIView):
             # OS próximos 10 dias
             # Contar provas
             provas_proximas = ServiceOrder.objects.filter(
-                prova_date__gt=today,
-                prova_date__lte=in_10_days,
+                order_date__gt=today,
+                order_date__lte=in_10_days,
                 service_order_phase__name__in=[
                     "PENDENTE",
                     "AGUARDANDO_RETIRADA",
@@ -1039,8 +1048,8 @@ class ServiceOrderDashboardAPIView(APIView):
 
             # Contar retiradas
             retiradas_proximas = ServiceOrder.objects.filter(
-                retirada_date__gt=today,
-                retirada_date__lte=in_10_days,
+                order_date__gt=today,
+                order_date__lte=in_10_days,
                 service_order_phase__name__in=[
                     "PENDENTE",
                     "AGUARDANDO_RETIRADA",
@@ -1084,7 +1093,7 @@ class ServiceOrderDashboardAPIView(APIView):
 
             # Calcular totais do dia
             today_orders = ServiceOrder.objects.filter(
-                models.Q(prova_date=today)
+                models.Q(order_date=today)
                 | models.Q(retirada_date=today)
                 | models.Q(devolucao_date=today)
             ).distinct()
@@ -1094,13 +1103,16 @@ class ServiceOrderDashboardAPIView(APIView):
                     resultados["dia"]["total_pedidos"] += float(order.total_value)
                     resultados["dia"]["numero_pedidos"] += 1
 
+                resultados["dia"]["total_recebido"] += float(order.advance_payment)
+
                 if order.service_order_phase == finished_phase and order.total_value:
+                    resultados["dia"]["total_recebido"] += float(order.advance_payment)
                     resultados["dia"]["total_recebido"] += float(order.total_value)
 
             # Calcular totais da semana
             week_start = today - timedelta(days=today.weekday())
             week_orders = ServiceOrder.objects.filter(
-                models.Q(prova_date__gte=week_start, prova_date__lte=today)
+                models.Q(order_date__gte=week_start, order_date__lte=today)
                 | models.Q(retirada_date__gte=week_start, retirada_date__lte=today)
                 | models.Q(devolucao_date__gte=week_start, devolucao_date__lte=today)
             ).distinct()
@@ -1110,13 +1122,15 @@ class ServiceOrderDashboardAPIView(APIView):
                     resultados["semana"]["total_pedidos"] += float(order.total_value)
                     resultados["semana"]["numero_pedidos"] += 1
 
+                resultados["dia"]["total_recebido"] += float(order.advance_payment)
+
                 if order.service_order_phase == finished_phase and order.total_value:
                     resultados["semana"]["total_recebido"] += float(order.total_value)
 
             # Calcular totais do mês
             month_start = today.replace(day=1)
             month_orders = ServiceOrder.objects.filter(
-                models.Q(prova_date__gte=month_start, prova_date__lte=today)
+                models.Q(order_date__gte=month_start, order_date__lte=today)
                 | models.Q(retirada_date__gte=month_start, retirada_date__lte=today)
                 | models.Q(devolucao_date__gte=month_start, devolucao_date__lte=today)
             ).distinct()
@@ -1125,6 +1139,8 @@ class ServiceOrderDashboardAPIView(APIView):
                 if order.total_value:
                     resultados["mes"]["total_pedidos"] += float(order.total_value)
                     resultados["mes"]["numero_pedidos"] += 1
+
+                resultados["mes"]["total_recebido"] += float(order.advance_payment)
 
                 if order.service_order_phase == finished_phase and order.total_value:
                     resultados["mes"]["total_recebido"] += float(order.total_value)
@@ -1155,8 +1171,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
     def get(self, request, phase_name):
         """Listar ordens de serviço por fase com dados completos do cliente"""
         try:
-            from datetime import date
-
             today = date.today()
 
             # Função para mover automaticamente para RECUSADA quem passou da data do evento
@@ -1820,7 +1834,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                 renter=person,
                 employee=atendente,
                 attendant=request.user.person,
-                order_date=timezone.now().date(),
+                order_date=date.today(),
                 event_date=data.get("data_evento"),
                 occasion=data.get("evento", "").upper(),
                 renter_role=data.get("papel_evento", "").upper(),
@@ -1842,3 +1856,86 @@ class ServiceOrderPreTriageAPIView(APIView):
                 {"error": f"Erro ao criar pré-OS: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class EventCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Criar evento com participantes",
+        request=EventCreateSerializer,
+        responses={201: EventSerializer},
+    )
+    def post(self, request):
+        serializer = EventCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        name = serializer.validated_data["name"].upper()
+        description = serializer.validated_data.get("description", "")
+        participant_ids = serializer.validated_data.get("participant_ids", [])
+
+        event = Event.objects.create(name=name, description=description)
+
+        if participant_ids:
+            people = Person.objects.filter(id__in=participant_ids)
+            EventParticipant.objects.bulk_create(
+                [EventParticipant(event=event, person=p) for p in people]
+            )
+
+        return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
+
+
+class EventAddParticipantsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Adicionar pessoas a um evento",
+        request=EventAddParticipantsSerializer,
+        responses={200: EventSerializer},
+    )
+    def post(self, request, event_id: int):
+        event = get_object_or_404(Event, id=event_id)
+        serializer = EventAddParticipantsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        participant_ids = serializer.validated_data["participant_ids"]
+
+        existing_person_ids = set(
+            EventParticipant.objects.filter(event=event).values_list(
+                "person_id", flat=True
+            )
+        )
+
+        people = Person.objects.filter(id__in=participant_ids).exclude(
+            id__in=existing_person_ids
+        )
+        EventParticipant.objects.bulk_create(
+            [EventParticipant(event=event, person=p) for p in people]
+        )
+
+        event.refresh_from_db()
+        return Response(EventSerializer(event).data, status=status.HTTP_200_OK)
+
+
+class EventOpenListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Listar eventos com OS em andamento",
+        responses={200: EventSerializer(many=True)},
+    )
+    def get(self, request):
+        finalizadas = ["FINALIZADO", "RECUSADA"]
+        eventos_ids = (
+            ServiceOrder.objects.filter(
+                event__isnull=False,
+                service_order_phase__isnull=False,
+                date_canceled__isnull=True,
+            )
+            .exclude(service_order_phase__name__in=finalizadas)
+            .values_list("event_id", flat=True)
+            .distinct()
+        )
+        eventos = Event.objects.filter(id__in=eventos_ids)
+        return Response(EventSerializer(eventos, many=True).data)
