@@ -28,7 +28,9 @@ from .models import (
 from .serializers import (
     EventAddParticipantsSerializer,
     EventCreateSerializer,
+    EventLinkServiceOrderSerializer,
     EventSerializer,
+    EventStatusSerializer,
     FrontendServiceOrderUpdateSerializer,
     ServiceOrderClientSerializer,
     ServiceOrderDashboardResponseSerializer,
@@ -1863,7 +1865,8 @@ class EventCreateAPIView(APIView):
 
     @extend_schema(
         tags=["events"],
-        summary="Criar evento com participantes",
+        summary="Criar evento",
+        description="Cria um novo evento com nome, descrição opcional e data",
         request=EventCreateSerializer,
         responses={201: EventSerializer},
     )
@@ -1872,15 +1875,14 @@ class EventCreateAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         name = serializer.validated_data["name"].upper()
         description = serializer.validated_data.get("description", "")
-        participant_ids = serializer.validated_data.get("participant_ids", [])
+        event_date = serializer.validated_data.get("event_date")
 
-        event = Event.objects.create(name=name, description=description)
-
-        if participant_ids:
-            people = Person.objects.filter(id__in=participant_ids)
-            EventParticipant.objects.bulk_create(
-                [EventParticipant(event=event, person=p) for p in people]
-            )
+        event = Event.objects.create(
+            name=name,
+            description=description,
+            event_date=event_date,
+            created_by=request.user,
+        )
 
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
@@ -1939,3 +1941,154 @@ class EventOpenListAPIView(APIView):
         )
         eventos = Event.objects.filter(id__in=eventos_ids)
         return Response(EventSerializer(eventos, many=True).data)
+
+
+class EventLinkServiceOrderAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Vincular ordem de serviço a evento",
+        description="Vincula uma ordem de serviço existente a um evento através dos IDs",
+        request=EventLinkServiceOrderSerializer,
+        responses={
+            200: {
+                "description": "Ordem de serviço vinculada com sucesso",
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "message": {"type": "string"},
+                    "service_order_id": {"type": "integer"},
+                    "event_id": {"type": "integer"},
+                },
+            },
+            404: {"description": "Ordem de serviço ou evento não encontrado"},
+            400: {"description": "Dados inválidos"},
+        },
+    )
+    def post(self, request):
+        """Vincular ordem de serviço a um evento"""
+        try:
+            serializer = EventLinkServiceOrderSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            service_order_id = serializer.validated_data["service_order_id"]
+            event_id = serializer.validated_data["event_id"]
+
+            # Verificar se a ordem de serviço existe
+            service_order = get_object_or_404(ServiceOrder, id=service_order_id)
+
+            # Verificar se o evento existe
+            event = get_object_or_404(Event, id=event_id)
+
+            # Vincular a ordem de serviço ao evento
+            service_order.event = event
+            service_order.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": f"OS {service_order_id} vinculada ao evento '{event.name}' com sucesso",
+                    "service_order_id": service_order_id,
+                    "event_id": event_id,
+                }
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao vincular OS ao evento: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class EventListWithStatusAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Listar eventos com status",
+        description="Lista todos os eventos com contagem de ordens de serviço e status calculado",
+        responses={200: EventStatusSerializer(many=True)},
+    )
+    def get(self, request):
+        """Listar eventos com contagem de OS e status"""
+        try:
+            from datetime import date
+
+            today = date.today()
+
+            # Buscar todos os eventos
+            events = Event.objects.all().order_by("-date_created")
+
+            result_data = []
+
+            for event in events:
+                # Contar ordens de serviço vinculadas ao evento
+                service_orders = ServiceOrder.objects.filter(event=event)
+                service_orders_count = service_orders.count()
+
+                # Calcular status do evento
+                status_evento = self._calculate_event_status(
+                    event, service_orders, today
+                )
+
+                event_data = {
+                    "id": event.id,
+                    "name": event.name,
+                    "description": event.description or "",
+                    "event_date": event.event_date,
+                    "service_orders_count": service_orders_count,
+                    "status": status_evento,
+                    "date_created": event.date_created,
+                    "date_updated": event.date_updated,
+                }
+
+                result_data.append(event_data)
+
+            return Response(result_data)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao listar eventos: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _calculate_event_status(self, event, service_orders, today):
+        """Calcula o status do evento baseado nas ordens de serviço"""
+
+        # Se não tem data do evento definida, não podemos calcular status
+        if not event.event_date:
+            return "SEM DATA"
+
+        # Se o evento ainda não passou da data
+        if event.event_date >= today:
+            return "AGENDADO"
+
+        # Evento já passou da data
+        if service_orders.count() == 0:
+            # Evento passou da data e não possui nenhuma OS vinculada
+            return "CANCELADO"
+
+        # Verificar status das OS vinculadas
+        os_finalizadas = service_orders.filter(
+            service_order_phase__name="FINALIZADO"
+        ).count()
+
+        os_em_andamento = service_orders.filter(
+            service_order_phase__name__in=[
+                "PENDENTE",
+                "AGUARDANDO_RETIRADA",
+                "AGUARDANDO_DEVOLUCAO",
+            ]
+        ).count()
+
+        # Se todas as OS foram finalizadas
+        if os_finalizadas == service_orders.count():
+            return "FINALIZADO"
+
+        # Se ainda há OS em andamento após a data do evento
+        if os_em_andamento > 0:
+            return "POSSUI PENDÊNCIAS"
+
+        # Caso geral - evento passou e tem OS mas não finalizadas corretamente
+        return "CANCELADO"

@@ -341,8 +341,8 @@ class EventCreateSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, allow_blank=True, help_text="Descrição do evento"
     )
-    participant_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False, help_text="IDs de pessoas"
+    event_date = serializers.DateField(
+        required=False, allow_null=True, help_text="Data do evento (YYYY-MM-DD)"
     )
 
 
@@ -350,3 +350,27 @@ class EventAddParticipantsSerializer(serializers.Serializer):
     participant_ids = serializers.ListField(
         child=serializers.IntegerField(), help_text="IDs de pessoas a adicionar"
     )
+
+
+class EventLinkServiceOrderSerializer(serializers.Serializer):
+    """Serializer para vincular ordem de serviço a um evento"""
+
+    service_order_id = serializers.IntegerField(help_text="ID da ordem de serviço")
+    event_id = serializers.IntegerField(help_text="ID do evento")
+
+
+class EventStatusSerializer(serializers.Serializer):
+    """Serializer para listagem de eventos com status"""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    event_date = serializers.DateField()
+    service_orders_count = serializers.IntegerField(
+        help_text="Número de ordens de serviço vinculadas"
+    )
+    status = serializers.CharField(
+        help_text="Status do evento: FINALIZADO, CANCELADO, POSSUI PENDÊNCIAS"
+    )
+    date_created = serializers.DateTimeField()
+    date_updated = serializers.DateTimeField()

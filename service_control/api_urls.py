@@ -7,6 +7,8 @@ from django.urls import path
 from .api_views import (
     EventAddParticipantsAPIView,
     EventCreateAPIView,
+    EventLinkServiceOrderAPIView,
+    EventListWithStatusAPIView,
     EventOpenListAPIView,
     ServiceOrderClientAPIView,
     ServiceOrderCreateAPIView,
@@ -37,6 +39,16 @@ urlpatterns = [
         "events/open/",
         EventOpenListAPIView.as_view(),
         name="api_event_open_list",
+    ),
+    path(
+        "events/link-service-order/",
+        EventLinkServiceOrderAPIView.as_view(),
+        name="api_event_link_service_order",
+    ),
+    path(
+        "events/list-with-status/",
+        EventListWithStatusAPIView.as_view(),
+        name="api_event_list_with_status",
     ),
     # Dashboard e métricas
     path(

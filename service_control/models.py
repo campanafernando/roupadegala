@@ -182,12 +182,13 @@ class ServiceOrderItem(BaseModel):
 class Event(BaseModel):
     name = models.CharField(max_length=255, db_index=True)
     description = models.TextField(null=True, blank=True)
+    event_date = models.DateField(null=True, blank=True, help_text="Data do evento")
 
     class Meta:
         db_table = "events"
 
     def __str__(self):
-        return f"Evento: {self.name}"
+        return f"Evento: {self.name} - {self.event_date}"
 
 
 class EventParticipant(BaseModel):
