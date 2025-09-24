@@ -10,6 +10,7 @@ from .api_views import (
     EventLinkServiceOrderAPIView,
     EventListWithStatusAPIView,
     EventOpenListAPIView,
+    ServiceOrderAttendantMetricsAPIView,
     ServiceOrderClientAPIView,
     ServiceOrderCreateAPIView,
     ServiceOrderDashboardAPIView,
@@ -55,6 +56,11 @@ urlpatterns = [
         "service-orders/dashboard/",
         ServiceOrderDashboardAPIView.as_view(),
         name="api_service_order_dashboard",
+    ),
+    path(
+        "service-orders/attendant-metrics/",
+        ServiceOrderAttendantMetricsAPIView.as_view(),
+        name="api_service_order_attendant_metrics",
     ),
     # Ordens de serviço
     path(

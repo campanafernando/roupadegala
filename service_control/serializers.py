@@ -51,19 +51,39 @@ class ServiceOrderDashboardSerializer(serializers.Serializer):
 
 
 class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
-    """Serializer para resposta do dashboard com status e resultados financeiros"""
+    """Serializer para resposta completa do dashboard analítico"""
 
     status = serializers.DictField(
         child=serializers.DictField(
             child=serializers.IntegerField(),
             help_text="Contadores de OS por tipo (provas, retiradas, devolucoes)",
         ),
-        help_text="Status das OS por período",
+        help_text="Status das OS por período (em_atraso, hoje, proximos_10_dias)",
     )
 
     resultados = serializers.DictField(
         child=serializers.DictField(help_text="Resultados financeiros por período"),
-        help_text="Resultados financeiros por período",
+        help_text="Resultados financeiros por período (dia, semana, mes)",
+    )
+
+    vendas = serializers.DictField(
+        child=serializers.DictField(help_text="Métricas de vendas por período"),
+        help_text="Total vendido e número de itens vendidos (dia, semana, mes)",
+    )
+
+    atendimentos = serializers.DictField(
+        child=serializers.DictField(help_text="Métricas de atendimento por período"),
+        help_text="Total, finalizados, cancelados e em andamento (dia, semana, mes)",
+    )
+
+    conversao = serializers.DictField(
+        child=serializers.DictField(help_text="Taxa de conversão por período"),
+        help_text="Taxa de conversão, iniciados e concluídos com sucesso (dia, semana, mes)",
+    )
+
+    canais = serializers.DictField(
+        child=serializers.DictField(help_text="Canais de aquisição por período"),
+        help_text="Distribuição por canal de origem (Instagram, Facebook, etc.)",
     )
 
 
