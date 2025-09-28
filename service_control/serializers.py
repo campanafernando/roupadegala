@@ -393,6 +393,9 @@ class FrontendClientSerializer(serializers.Serializer):
 
     nome = serializers.CharField(help_text="Nome do cliente")
     cpf = serializers.CharField(help_text="CPF do cliente")
+    email = serializers.EmailField(
+        help_text="Email do cliente", required=False, allow_blank=True
+    )
     contatos = FrontendContactSerializer(
         many=True, required=False, help_text="Lista de contatos"
     )

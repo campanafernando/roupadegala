@@ -490,7 +490,7 @@ class EmployeeListAPIView(APIView):
         data = []
         for emp in employees:
             # Buscar contato mais recente baseado em date_created
-            contact = emp.contacts.order_by("-date_created").first()
+            contact = emp.contacts.order_by("-date_created", "-id").first()
             data.append(
                 {
                     "id": emp.id,
@@ -631,7 +631,7 @@ class EmployeeUpdateAPIView(APIView):
 
             # Atualizar contatos
             # Buscar contato mais recente baseado em date_created
-            contact = person.contacts.order_by("-date_created").first()
+            contact = person.contacts.order_by("-date_created", "-id").first()
             if contact:
                 if serializer.validated_data.get("email"):
                     contact.email = serializer.validated_data["email"]
@@ -770,7 +770,7 @@ class UserSelfUpdateAPIView(APIView):
 
             # Atualizar contatos
             # Buscar contato mais recente baseado em date_created
-            contact = user_person.contacts.order_by("-date_created").first()
+            contact = user_person.contacts.order_by("-date_created", "-id").first()
             if contact:
                 if serializer.validated_data.get("email"):
                     contact.email = serializer.validated_data["email"]
@@ -979,37 +979,13 @@ class ClientRegisterAPIView(APIView):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                # Verificar se o cliente já tem este email ou telefone
-                should_create_contact = True
-
-                # Verificar se já existe um contato com este email para o mesmo cliente
-                if email:
-                    existing_email_contact = PersonsContacts.objects.filter(
-                        person=person, email=email
-                    ).first()
-
-                    if existing_email_contact:
-                        # Email já existe para este cliente, não criar novo
-                        should_create_contact = False
-
-                # Verificar se já existe um contato com este telefone para o mesmo cliente
-                if telefone:
-                    existing_phone_contact = PersonsContacts.objects.filter(
-                        person=person, phone=telefone
-                    ).first()
-
-                    if existing_phone_contact:
-                        # Telefone já existe para este cliente, não criar novo
-                        should_create_contact = False
-
-                # Só criar novo contato se não existir duplicata e for necessário
-                if should_create_contact:
-                    PersonsContacts.objects.create(
-                        email=email,
-                        phone=telefone,
-                        person=person,
-                        created_by=request.user,
-                    )
+                # Sempre criar novo contato para garantir que os dados mais recentes sejam considerados
+                PersonsContacts.objects.create(
+                    email=email,
+                    phone=telefone,
+                    person=person,
+                    created_by=request.user,
+                )
 
             # Criar novo endereço se dados fornecidos
             address_data = {
@@ -1018,12 +994,20 @@ class ClientRegisterAPIView(APIView):
                 "number": validated_data.get("numero", ""),
                 "neighborhood": validated_data.get("bairro", ""),
                 "city_name": validated_data.get("cidade", ""),
+                "complemento": validated_data.get("complemento", ""),
             }
 
             # Verificar se há dados de endereço para salvar
             has_address_data = any(
                 address_data[key]
-                for key in ["cep", "street", "number", "neighborhood", "city_name"]
+                for key in [
+                    "cep",
+                    "street",
+                    "number",
+                    "neighborhood",
+                    "city_name",
+                    "complemento",
+                ]
             )
 
             if has_address_data:
@@ -1042,13 +1026,29 @@ class ClientRegisterAPIView(APIView):
                     number=address_data["number"],
                     cep=address_data["cep"],
                     neighborhood=address_data["neighborhood"],
+                    complemento=address_data["complemento"],
                     city=city_obj,
                     created_by=request.user,
                 )
 
             # Buscar dados mais recentes para retorno
-            contact = person.contacts.order_by("-date_created").first()
-            address = person.personsadresses_set.order_by("-date_created").first()
+            contact = (
+                person.contacts.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not contact:
+                # Se não houver contato com date_created, buscar o mais recente por ID
+                contact = person.contacts.order_by("-id").first()
+
+            address = (
+                person.personsadresses_set.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not address:
+                # Se não houver endereço com date_created, buscar o mais recente por ID
+                address = person.personsadresses_set.order_by("-id").first()
 
             response_data = {
                 "id": person.id,
@@ -1063,6 +1063,7 @@ class ClientRegisterAPIView(APIView):
                         "neighborhood": address.neighborhood if address else "",
                         "city": address.city.name if address and address.city else "",
                         "cep": address.cep if address else "",
+                        "complemento": address.complemento if address else "",
                     }
                     if address
                     else None
@@ -1103,10 +1104,24 @@ class ClientSearchAPIView(APIView):
             person = Person.objects.get(cpf=cpf)
 
             # Buscar contato mais recente baseado em date_created
-            contact = person.contacts.order_by("-date_created").first()
+            contact = (
+                person.contacts.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not contact:
+                # Se não houver contato com date_created, buscar o mais recente por ID
+                contact = person.contacts.order_by("-id").first()
 
             # Buscar endereço mais recente baseado em date_created
-            address = person.personsadresses_set.order_by("-date_created").first()
+            address = (
+                person.personsadresses_set.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not address:
+                # Se não houver endereço com date_created, buscar o mais recente por ID
+                address = person.personsadresses_set.order_by("-id").first()
 
             data = {
                 "id": person.id,
@@ -1121,6 +1136,7 @@ class ClientSearchAPIView(APIView):
                         "neighborhood": address.neighborhood if address else "",
                         "city": address.city.name if address else "",
                         "cep": address.cep if address else "",
+                        "complemento": address.complemento if address else "",
                     }
                     if address
                     else None
@@ -1181,10 +1197,24 @@ class ClientListAPIView(APIView):
             data = []
             for client in clients:
                 # Buscar contato mais recente baseado em date_created
-                contact = client.contacts.order_by("-date_created").first()
+                contact = (
+                    client.contacts.filter(date_created__isnull=False)
+                    .order_by("-date_created", "-id")
+                    .first()
+                )
+                if not contact:
+                    # Se não houver contato com date_created, buscar o mais recente por ID
+                    contact = client.contacts.order_by("-id").first()
 
                 # Buscar endereço mais recente baseado em date_created
-                address = client.personsadresses_set.order_by("-date_created").first()
+                address = (
+                    client.personsadresses_set.filter(date_created__isnull=False)
+                    .order_by("-date_created", "-id")
+                    .first()
+                )
+                if not address:
+                    # Se não houver endereço com date_created, buscar o mais recente por ID
+                    address = client.personsadresses_set.order_by("-id").first()
 
                 client_data = {
                     "id": client.id,
@@ -1419,7 +1449,7 @@ class GetUserMeAPIView(APIView):
                         }
 
                     # Contatos da pessoa (apenas o mais recente)
-                    contact = person.contacts.order_by("-date_created").first()
+                    contact = person.contacts.order_by("-date_created", "-id").first()
                     contacts_data = []
                     if contact:
                         contacts_data.append(

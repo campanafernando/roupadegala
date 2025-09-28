@@ -145,6 +145,12 @@ class ClientRegisterSerializer(serializers.Serializer):
     cidade = serializers.CharField(
         max_length=255, help_text="Nome da cidade", required=False, allow_blank=True
     )
+    complemento = serializers.CharField(
+        max_length=255,
+        help_text="Complemento do endereço",
+        required=False,
+        allow_blank=True,
+    )
 
 
 class ClientSearchSerializer(serializers.Serializer):

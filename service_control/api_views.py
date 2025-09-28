@@ -246,7 +246,22 @@ class ServiceOrderCreateAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            event_obj = Event.objects.get(id=order_data["event_id"])
+            # Validar e buscar evento se event_id fornecido
+            event_obj = None
+            event_id = order_data.get("event_id")
+            if event_id:
+                try:
+                    event_obj = Event.objects.get(id=event_id)
+                except Event.DoesNotExist:
+                    return Response(
+                        {"error": f"Evento com ID {event_id} não encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                except ValueError:
+                    return Response(
+                        {"error": "ID do evento inválido."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             # Buscar fase pendente
             service_order_phase = ServiceOrderPhase.objects.filter(
@@ -373,31 +388,37 @@ class ServiceOrderUpdateAPIView(APIView):
 
                 service_order.renter = person
 
-                # Processar contatos
+                # Processar email e telefone do cliente
+                email_cliente = cliente_data.get("email", "").strip()
+                telefone_cliente = ""
+
+                # Pegar telefone dos contatos
                 if "contatos" in cliente_data:
                     contatos = cliente_data["contatos"]
                     if contatos:
-                        # Pegar apenas o último contato da lista
-                        contato = contatos[-1]
+                        for contato in contatos:
+                            if contato.get("tipo") == "telefone":
+                                telefone_cliente = contato.get("valor", "").strip()
+                                break
 
-                        if contato["tipo"] == "telefone":
-                            # Verificar se contato já existe
-                            existing_contact = PersonsContacts.objects.filter(
-                                phone=contato["valor"],
-                                person=person,
-                            ).first()
+                # Verificar se já existe contato com os mesmos dados
+                existing_contact = PersonsContacts.objects.filter(
+                    person=person,
+                    email=email_cliente or None,
+                    phone=telefone_cliente or None,
+                ).first()
 
-                            # Só criar se não existir
-                            if not existing_contact:
-                                # Remover contatos antigos do cliente
-                                PersonsContacts.objects.filter(person=person).delete()
+                # Só criar novo contato se não existir um com os mesmos dados
+                if not existing_contact and (email_cliente or telefone_cliente):
+                    # Tratar email vazio como None para evitar constraint unique
+                    email_final = email_cliente if email_cliente else None
 
-                                # Criar novo contato
-                                PersonsContacts.objects.create(
-                                    phone=contato["valor"],
-                                    person=person,
-                                    created_by=request.user,
-                                )
+                    PersonsContacts.objects.create(
+                        email=email_final,
+                        phone=telefone_cliente,
+                        person=person,
+                        created_by=request.user,
+                    )
 
                 # Processar endereços
                 if "enderecos" in cliente_data:
@@ -417,22 +438,20 @@ class ServiceOrderUpdateAPIView(APIView):
                             },
                         )
 
-                        # Verificar se endereço já existe
+                        # Verificar se endereço já existe (incluindo complemento)
                         existing_address = PersonsAdresses.objects.filter(
                             person=person,
                             street=endereco["rua"],
                             number=endereco["numero"],
                             cep=endereco["cep"],
                             neighborhood=endereco["bairro"],
+                            complemento=endereco.get("complemento", ""),
                             city=city,
                         ).first()
 
-                        # Só criar se não existir
+                        # Só criar se não existir um endereço idêntico
                         if not existing_address:
-                            # Remover endereços antigos do cliente
-                            PersonsAdresses.objects.filter(person=person).delete()
-
-                            # Criar novo endereço
+                            # Criar novo endereço (mantém histórico)
                             PersonsAdresses.objects.create(
                                 person=person,
                                 street=endereco["rua"],
@@ -663,7 +682,15 @@ class ServiceOrderDetailAPIView(APIView):
             }
 
             # Contatos do cliente (apenas o mais recente)
-            contact = order.renter.contacts.order_by("-date_created").first()
+            contact = (
+                order.renter.contacts.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not contact:
+                # Se não houver contato com date_created, buscar o mais recente por ID
+                contact = order.renter.contacts.order_by("-id").first()
+
             client_data["contacts"] = []
             if contact:
                 client_data["contacts"].append(
@@ -675,7 +702,14 @@ class ServiceOrderDetailAPIView(APIView):
                 )
 
             # Endereços do cliente (apenas o mais recente)
-            address = order.renter.personsadresses_set.order_by("-date_created").first()
+            address = (
+                order.renter.personsadresses_set.filter(date_created__isnull=False)
+                .order_by("-date_created", "-id")
+                .first()
+            )
+            if not address:
+                # Se não houver endereço com date_created, buscar o mais recente por ID
+                address = order.renter.personsadresses_set.order_by("-id").first()
             client_data["addresses"] = []
             if address:
                 city_data = None
@@ -2268,6 +2302,10 @@ class ServiceOrderClientAPIView(APIView):
                         },
                     },
                 },
+                "event_id": {
+                    "type": "integer",
+                    "description": "ID do evento para vincular à OS (opcional)",
+                },
             },
             "required": [
                 "cliente_nome",
@@ -2402,6 +2440,23 @@ class ServiceOrderPreTriageAPIView(APIView):
                     {"error": "Atendente não encontrado."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            # Validar e buscar evento se event_id fornecido
+            event_obj = None
+            event_id = data.get("event_id")
+            if event_id:
+                try:
+                    event_obj = Event.objects.get(id=event_id)
+                except Event.DoesNotExist:
+                    return Response(
+                        {"error": f"Evento com ID {event_id} não encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                except ValueError:
+                    return Response(
+                        {"error": "ID do evento inválido."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
             # Buscar fase pendente
             service_order_phase = ServiceOrderPhase.objects.filter(
                 name="PENDENTE"
@@ -2416,6 +2471,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                 purchase=True if data.get("tipo_servico") == "Compra" else False,
                 came_from=data.get("origem", "").upper(),
                 service_order_phase=service_order_phase,
+                event=event_obj,  # Vincular evento à OS se fornecido
             )
             return Response(
                 {
