@@ -38,10 +38,24 @@ class ServiceOrderSerializer(serializers.ModelSerializer):
     attendant = PersonSerializer(read_only=True)
     items = ServiceOrderItemSerializer(many=True, read_only=True)
     service_order_phase = ServiceOrderPhaseSerializer(read_only=True)
+    event_date = serializers.SerializerMethodField(help_text="Data do evento vinculado")
+    event_name = serializers.SerializerMethodField(help_text="Nome do evento vinculado")
 
     class Meta:
         model = ServiceOrder
         fields = "__all__"
+
+    def get_event_date(self, obj):
+        """Retorna a data do evento vinculado"""
+        if obj.event and obj.event.event_date:
+            if hasattr(obj.event.event_date, "date"):
+                return obj.event.event_date.date()
+            return obj.event.event_date
+        return None
+
+    def get_event_name(self, obj):
+        """Retorna o nome do evento vinculado"""
+        return obj.event.name if obj.event else None
 
 
 class ServiceOrderDashboardSerializer(serializers.Serializer):
@@ -50,52 +64,103 @@ class ServiceOrderDashboardSerializer(serializers.Serializer):
     proximos_10_dias = serializers.DictField(child=serializers.IntegerField())
 
 
+class StatusMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas de status"""
+
+    provas = serializers.IntegerField(help_text="Número de provas")
+    retiradas = serializers.IntegerField(help_text="Número de retiradas")
+    devolucoes = serializers.IntegerField(help_text="Número de devoluções")
+
+
+class FinancialMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas financeiras"""
+
+    total_pedidos = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total dos pedidos"
+    )
+    total_recebido = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total recebido"
+    )
+    numero_pedidos = serializers.IntegerField(help_text="Número de pedidos")
+
+
+class SalesMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas de vendas"""
+
+    total_vendido = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total vendido"
+    )
+    numero_itens = serializers.IntegerField(help_text="Número de itens vendidos")
+
+
+class ServiceMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas de atendimento"""
+
+    total_atendimentos = serializers.IntegerField(help_text="Total de atendimentos")
+    atendimentos_finalizados = serializers.IntegerField(
+        help_text="Atendimentos finalizados"
+    )
+    atendimentos_cancelados = serializers.IntegerField(
+        help_text="Atendimentos cancelados"
+    )
+    em_andamento = serializers.IntegerField(help_text="Atendimentos em andamento")
+
+
+class ConversionMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas de conversão"""
+
+    taxa_conversao = serializers.FloatField(help_text="Taxa de conversão em percentual")
+    atendimentos_iniciados = serializers.IntegerField(
+        help_text="Atendimentos iniciados"
+    )
+    concluidos_sucesso = serializers.IntegerField(help_text="Concluídos com sucesso")
+
+
+class ChannelMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas de canal"""
+
+    total = serializers.IntegerField(help_text="Total de pedidos do canal")
+    percentual = serializers.FloatField(help_text="Percentual do canal")
+
+
 class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
     """Serializer para resposta completa do dashboard analítico"""
 
     status = serializers.DictField(
-        child=serializers.DictField(
-            child=serializers.IntegerField(),
-            help_text="Contadores de OS por tipo (provas, retiradas, devolucoes)",
-        ),
+        child=StatusMetricsSerializer(),
         help_text="Status das OS por período (em_atraso, hoje, proximos_10_dias)",
     )
 
     resultados = serializers.DictField(
-        child=serializers.DictField(help_text="Resultados financeiros por período"),
+        child=FinancialMetricsSerializer(),
         help_text="Resultados financeiros por período (dia, semana, mes)",
     )
 
     vendas = serializers.DictField(
-        child=serializers.DictField(help_text="Métricas de vendas por período"),
-        help_text="Total vendido e número de itens vendidos (dia, semana, mes)",
+        child=SalesMetricsSerializer(),
+        help_text="Métricas de vendas por período (dia, semana, mes)",
     )
 
     atendimentos = serializers.DictField(
-        child=serializers.DictField(help_text="Métricas de atendimento por período"),
-        help_text="Total, finalizados, cancelados e em andamento (dia, semana, mes)",
+        child=ServiceMetricsSerializer(),
+        help_text="Métricas de atendimento por período (dia, semana, mes)",
     )
 
     conversao = serializers.DictField(
-        child=serializers.DictField(help_text="Taxa de conversão por período"),
-        help_text="Taxa de conversão, iniciados e concluídos com sucesso (dia, semana, mes)",
+        child=ConversionMetricsSerializer(),
+        help_text="Métricas de conversão por período (dia, semana, mes)",
     )
 
     canais = serializers.DictField(
-        child=serializers.DictField(help_text="Canais de aquisição por período"),
-        help_text="Distribuição por canal de origem (Instagram, Facebook, etc.)",
+        child=serializers.DictField(
+            child=ChannelMetricsSerializer(),
+            help_text="Métricas por canal de aquisição",
+        ),
+        help_text="Distribuição por canal de origem (Instagram, Facebook, etc.) por período",
     )
 
 
 # Serializers adicionais para corrigir erros do Swagger
-
-
-class ServiceOrderDetailSerializer(serializers.ModelSerializer):
-    """Serializer para detalhes de ordem de serviço"""
-
-    class Meta:
-        model = ServiceOrder
-        fields = "__all__"
 
 
 class ServiceOrderClientSerializer(serializers.Serializer):
@@ -138,8 +203,6 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
 
     # Dados da OS
     id = serializers.IntegerField(help_text="ID da ordem de serviço")
-    event_date = serializers.DateField(help_text="Data do evento")
-    occasion = serializers.CharField(help_text="Tipo de evento")
     total_value = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor total"
     )
@@ -161,6 +224,14 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
         help_text="Justificativa do atraso (quando aplicável)",
         allow_null=True,
         allow_blank=True,
+    )
+
+    # Dados do evento vinculado
+    event_date = serializers.DateField(
+        help_text="Data do evento vinculado", allow_null=True
+    )
+    event_name = serializers.CharField(
+        help_text="Nome do evento vinculado", allow_null=True
     )
 
     # Dados do cliente
@@ -280,7 +351,6 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
     data_devolucao = serializers.DateField(
         required=False, help_text="Data de devolução"
     )
-    ocasiao = serializers.CharField(help_text="Tipo de ocasião")
     modalidade = serializers.ChoiceField(
         choices=[
             ("Aluguel", "Aluguel"),
@@ -313,6 +383,9 @@ class FrontendAddressSerializer(serializers.Serializer):
     numero = serializers.CharField(help_text="Número")
     bairro = serializers.CharField(help_text="Bairro")
     cidade = serializers.CharField(help_text="Cidade")
+    complemento = serializers.CharField(
+        help_text="Complemento do endereço", allow_blank=True, required=False
+    )
 
 
 class FrontendClientSerializer(serializers.Serializer):
@@ -366,6 +439,18 @@ class EventCreateSerializer(serializers.Serializer):
     )
 
 
+class EventUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(
+        max_length=255, required=False, help_text="Nome do evento"
+    )
+    description = serializers.CharField(
+        required=False, allow_blank=True, help_text="Descrição do evento"
+    )
+    event_date = serializers.DateField(
+        required=False, allow_null=True, help_text="Data do evento (YYYY-MM-DD)"
+    )
+
+
 class EventAddParticipantsSerializer(serializers.Serializer):
     participant_ids = serializers.ListField(
         child=serializers.IntegerField(), help_text="IDs de pessoas a adicionar"
@@ -394,3 +479,42 @@ class EventStatusSerializer(serializers.Serializer):
     )
     date_created = serializers.DateTimeField()
     date_updated = serializers.DateTimeField()
+
+
+class EventServiceOrderSerializer(serializers.Serializer):
+    """Serializer para dados das OS vinculadas ao evento"""
+
+    id = serializers.IntegerField(help_text="ID da ordem de serviço")
+    date_created = serializers.DateTimeField(help_text="Data e hora de criação da OS")
+    phase = serializers.CharField(
+        allow_null=True,
+        help_text="Fase atual da OS (PENDENTE, AGUARDANDO_RETIRADA, etc.)",
+    )
+    total_value = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total da OS"
+    )
+    client_name = serializers.CharField(
+        allow_null=True, help_text="Nome do cliente da ordem de serviço"
+    )
+
+
+class EventDetailSerializer(serializers.Serializer):
+    """Serializer para detalhamento completo de um evento"""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    event_date = serializers.DateField()
+    service_orders_count = serializers.IntegerField(
+        help_text="Número de ordens de serviço vinculadas"
+    )
+    status = serializers.CharField(
+        help_text="Status do evento: AGENDADO, FINALIZADO, CANCELADO, POSSUI PENDÊNCIAS, SEM DATA"
+    )
+    date_created = serializers.DateTimeField()
+    date_updated = serializers.DateTimeField(
+        help_text="Data de atualização mais recente (considerando evento e OS vinculadas)"
+    )
+    service_orders = EventServiceOrderSerializer(
+        many=True, help_text="Lista das ordens de serviço vinculadas ao evento"
+    )

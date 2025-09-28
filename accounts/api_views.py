@@ -891,6 +891,7 @@ class UserSelfUpdateAPIView(APIView):
                                 "neighborhood": {"type": "string"},
                                 "city": {"type": "string"},
                                 "cep": {"type": "string"},
+                                "complemento": {"type": "string"},
                             },
                         },
                     },
@@ -1158,6 +1159,7 @@ class ClientSearchAPIView(APIView):
                             "neighborhood": {"type": "string"},
                             "city": {"type": "string"},
                             "cep": {"type": "string"},
+                            "complemento": {"type": "string"},
                         },
                     },
                 },
@@ -1197,6 +1199,7 @@ class ClientListAPIView(APIView):
                             "neighborhood": address.neighborhood if address else "",
                             "city": address.city.name if address else "",
                             "cep": address.cep if address else "",
+                            "complemento": address.complemento if address else "",
                         }
                         if address
                         else None
@@ -1310,6 +1313,7 @@ class PasswordResetAPIView(APIView):
                                             "rua": {"type": "string"},
                                             "numero": {"type": "string"},
                                             "bairro": {"type": "string"},
+                                            "complemento": {"type": "string"},
                                             "cidade": {
                                                 "type": "object",
                                                 "properties": {
@@ -1447,6 +1451,7 @@ class GetUserMeAPIView(APIView):
                                 "rua": address.street,
                                 "numero": address.number,
                                 "bairro": address.neighborhood,
+                                "complemento": address.complemento or "",
                                 "cidade": city_data,
                             }
                         )

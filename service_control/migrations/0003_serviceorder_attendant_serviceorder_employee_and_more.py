@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 def create_initial_phases(apps, schema_editor):
     ServiceOrderPhase = apps.get_model("service_control", "ServiceOrderPhase")
-    phase_names = ["PENDENTE", "FINALIZADO", "ATRASADO", "CONCLUÍDO"]
+    phase_names = ["PENDENTE", "FINALIZADO", "ATRASADO", "CONCLUÍDO", "RECUSADA"]
     for name in phase_names:
         ServiceOrderPhase.objects.create(name=name)
 

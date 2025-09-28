@@ -27,8 +27,6 @@ class ServiceOrder(BaseModel):
         null=True,
     )
     order_date = models.DateField()
-    event_date = models.DateField()
-    occasion = models.CharField(max_length=255)
     event = models.ForeignKey(
         "Event",
         on_delete=models.SET_NULL,

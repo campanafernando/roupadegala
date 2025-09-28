@@ -28,13 +28,14 @@ from .models import (
 from .serializers import (
     EventAddParticipantsSerializer,
     EventCreateSerializer,
+    EventDetailSerializer,
     EventLinkServiceOrderSerializer,
     EventSerializer,
     EventStatusSerializer,
+    EventUpdateSerializer,
     FrontendServiceOrderUpdateSerializer,
     ServiceOrderClientSerializer,
     ServiceOrderDashboardResponseSerializer,
-    ServiceOrderDetailSerializer,
     ServiceOrderListByPhaseSerializer,
     ServiceOrderMarkPaidSerializer,
     ServiceOrderMarkRetrievedSerializer,
@@ -70,7 +71,6 @@ from .serializers import (
                     "type": "string",
                     "description": "Tipo de serviço (Aluguel/Compra)",
                 },
-                "evento": {"type": "string", "description": "Tipo de evento"},
                 "papel_evento": {"type": "string", "description": "Papel no evento"},
                 "endereco": {
                     "type": "object",
@@ -80,7 +80,15 @@ from .serializers import (
                         "numero": {"type": "string"},
                         "bairro": {"type": "string"},
                         "cidade": {"type": "string"},
+                        "complemento": {
+                            "type": "string",
+                            "description": "Complemento do endereço (opcional)",
+                        },
                     },
+                },
+                "event_id": {
+                    "type": "integer",
+                    "description": "ID do evento para vincular à OS (opcional)",
                 },
             },
             "required": [
@@ -91,7 +99,6 @@ from .serializers import (
                 "origem",
                 "data_evento",
                 "tipo_servico",
-                "evento",
                 "papel_evento",
             ],
         }
@@ -127,14 +134,15 @@ class ServiceOrderCreateAPIView(APIView):
                 "origem": request.data.get("origem"),
                 "data_evento": request.data.get("data_evento"),
                 "tipo_servico": request.data.get("tipo_servico"),
-                "evento": request.data.get("evento"),
                 "papel_evento": request.data.get("papel_evento"),
+                "event_id": request.data.get("event_id"),
                 "endereco": {
                     "cep": request.data.get("endereco", {}).get("cep"),
                     "rua": request.data.get("endereco", {}).get("rua"),
                     "numero": request.data.get("endereco", {}).get("numero"),
                     "bairro": request.data.get("endereco", {}).get("bairro"),
                     "cidade": request.data.get("endereco", {}).get("cidade"),
+                    "complemento": request.data.get("endereco", {}).get("complemento"),
                 },
             }
 
@@ -238,6 +246,8 @@ class ServiceOrderCreateAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            event_obj = Event.objects.get(id=order_data["event_id"])
+
             # Buscar fase pendente
             service_order_phase = ServiceOrderPhase.objects.filter(
                 name="PENDENTE"
@@ -249,12 +259,11 @@ class ServiceOrderCreateAPIView(APIView):
                 employee=employee,
                 attendant=request.user.person,
                 order_date=date.today(),
-                event_date=order_data["data_evento"],
-                occasion=order_data["evento"].upper(),
                 renter_role=order_data["papel_evento"].upper(),
                 purchase=True if order_data["tipo_servico"] == "Compra" else False,
                 came_from=order_data["origem"].upper(),
                 service_order_phase=service_order_phase,
+                event=event_obj,  # Vincular evento à OS se fornecido
             )
 
             return Response(
@@ -311,17 +320,12 @@ class ServiceOrderUpdateAPIView(APIView):
             if "ordem_servico" in data:
                 os_data = data["ordem_servico"]
 
-                # Atualizar datas
-                if "data_evento" in os_data:
-                    service_order.event_date = os_data["data_evento"]
                 if "data_retirada" in os_data:
                     service_order.retirada_date = os_data["data_retirada"]
                 if "data_devolucao" in os_data:
                     service_order.devolucao_date = os_data["data_devolucao"]
 
                 # Atualizar informações básicas
-                if "ocasiao" in os_data:
-                    service_order.occasion = os_data["ocasiao"].upper()
                 if "modalidade" in os_data:
                     modalidade = os_data["modalidade"]
                     if modalidade == "Compra":
@@ -435,6 +439,7 @@ class ServiceOrderUpdateAPIView(APIView):
                                 number=endereco["numero"],
                                 cep=endereco["cep"],
                                 neighborhood=endereco["bairro"],
+                                complemento=endereco.get("complemento", ""),
                                 city=city,
                                 created_by=request.user,
                             )
@@ -602,7 +607,7 @@ class ServiceOrderListAPIView(ListAPIView):
 
     def get_queryset(self):
         queryset = ServiceOrder.objects.select_related(
-            "renter", "employee", "attendant", "service_order_phase"
+            "renter", "employee", "attendant", "service_order_phase", "event"
         ).prefetch_related("items")
 
         # Filtros
@@ -616,28 +621,263 @@ class ServiceOrderListAPIView(ListAPIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Detalhes da ordem de serviço",
-    description="Retorna os detalhes completos de uma ordem de serviço",
+    description="Retorna os detalhes completos de uma ordem de serviço com a mesma estrutura da listagem por fase",
     responses={
-        200: ServiceOrderSerializer,
+        200: ServiceOrderListByPhaseSerializer,
         404: {"description": "Ordem de serviço não encontrada"},
     },
 )
 class ServiceOrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ServiceOrderDetailSerializer
+    serializer_class = ServiceOrderListByPhaseSerializer
 
     def get(self, request, order_id):
-        """Detalhes de uma ordem de serviço"""
+        """Detalhes de uma ordem de serviço com estrutura normalizada"""
         try:
-            service_order = (
+            # Buscar a ordem de serviço específica
+            order = (
                 ServiceOrder.objects.select_related(
-                    "renter", "employee", "attendant", "service_order_phase"
+                    "renter",
+                    "employee",
+                    "attendant",
+                    "renter__person_type",
+                    "event",
                 )
-                .prefetch_related("items")
+                .prefetch_related("items__temporary_product", "items__product")
                 .get(id=order_id)
             )
 
-            return Response(ServiceOrderSerializer(service_order).data)
+            # Dados do cliente
+            client_data = {
+                "id": order.renter.id,
+                "name": order.renter.name,
+                "cpf": order.renter.cpf,
+                "person_type": (
+                    {
+                        "id": order.renter.person_type.id,
+                        "type": order.renter.person_type.type,
+                    }
+                    if order.renter.person_type
+                    else None
+                ),
+            }
+
+            # Contatos do cliente (apenas o mais recente)
+            contact = order.renter.contacts.order_by("-date_created").first()
+            client_data["contacts"] = []
+            if contact:
+                client_data["contacts"].append(
+                    {
+                        "id": contact.id,
+                        "email": contact.email,
+                        "phone": contact.phone,
+                    }
+                )
+
+            # Endereços do cliente (apenas o mais recente)
+            address = order.renter.personsadresses_set.order_by("-date_created").first()
+            client_data["addresses"] = []
+            if address:
+                city_data = None
+                if address.city:
+                    city_data = {
+                        "id": address.city.id,
+                        "name": address.city.name,
+                        "uf": address.city.uf,
+                    }
+
+                client_data["addresses"].append(
+                    {
+                        "id": address.id,
+                        "cep": address.cep,
+                        "rua": address.street,
+                        "numero": address.number,
+                        "bairro": address.neighborhood,
+                        "complemento": address.complemento or "",
+                        "cidade": city_data,
+                    }
+                )
+
+            # Dados da OS
+            order_data = {
+                "id": order.id,
+                "total_value": order.total_value,
+                "advance_payment": order.advance_payment,
+                "remaining_payment": order.remaining_payment,
+                "employee_name": order.employee.name if order.employee else "",
+                "attendant_name": order.attendant.name if order.attendant else "",
+                "order_date": order.order_date,
+                "prova_date": order.prova_date,
+                "retirada_date": order.retirada_date,
+                "devolucao_date": order.devolucao_date,
+                "client": client_data,
+                "justification_refusal": order.justification_refusal,
+                "event_date": (
+                    order.event.event_date.date()
+                    if order.event
+                    and order.event.event_date
+                    and hasattr(order.event.event_date, "date")
+                    else order.event.event_date if order.event else None
+                ),
+                "event_name": order.event.name if order.event else None,
+            }
+
+            # Processar itens da OS (mesma lógica do ServiceOrderListByPhaseAPIView)
+            itens = []
+            acessorios = []
+
+            for item in order.items.all():
+                # Determinar se é produto temporário ou produto real
+                temp_product = item.temporary_product
+                product = item.product
+
+                if temp_product:
+                    # Produto temporário
+                    if temp_product.product_type in [
+                        "paleto",
+                        "camisa",
+                        "calca",
+                        "colete",
+                    ]:
+                        # Item de roupa
+                        item_data = {
+                            "tipo": temp_product.product_type,
+                            "cor": temp_product.color or "",
+                            "extras": temp_product.extras
+                            or temp_product.description
+                            or "",
+                            "venda": temp_product.venda or False,
+                            "extensor": False,  # Extensor só para passante
+                        }
+
+                        # Campos específicos por tipo
+                        if temp_product.product_type in ["paleto", "camisa"]:
+                            item_data.update(
+                                {
+                                    "numero": temp_product.size or "",
+                                    "manga": temp_product.sleeve_length or "",
+                                    "marca": temp_product.brand or "",
+                                    "ajuste": item.adjustment_notes or "",
+                                }
+                            )
+                        elif temp_product.product_type == "calca":
+                            item_data.update(
+                                {
+                                    "numero": temp_product.size,
+                                    "cintura": temp_product.waist_size or "",
+                                    "perna": temp_product.leg_length or "",
+                                    "marca": temp_product.brand or "",
+                                    "ajuste_cintura": temp_product.ajuste_cintura or "",
+                                    "ajuste_comprimento": temp_product.ajuste_comprimento
+                                    or "",
+                                }
+                            )
+                        elif temp_product.product_type == "colete":
+                            item_data.update({"marca": temp_product.brand or ""})
+
+                        itens.append(item_data)
+                    else:
+                        # Acessório
+                        acessorio_data = {
+                            "tipo": temp_product.product_type,
+                            "numero": temp_product.size or "",
+                            "cor": temp_product.color or "",
+                            "descricao": temp_product.description or "",
+                            "marca": temp_product.brand or "",
+                            "extensor": temp_product.extensor or False,
+                            "venda": temp_product.venda or False,
+                        }
+                        acessorios.append(acessorio_data)
+
+                elif product:
+                    # Produto real do estoque
+                    if product.tipo.lower() in [
+                        "paleto",
+                        "camisa",
+                        "calça",
+                        "colete",
+                    ]:
+                        # Item de roupa
+                        item_data = {
+                            "tipo": product.tipo.lower(),
+                            "cor": product.cor or "",
+                            "extras": product.nome_produto or "",
+                            "venda": False,  # Produtos do estoque não são vendidos
+                            "extensor": False,
+                        }
+
+                        # Campos específicos por tipo
+                        if product.tipo.lower() in ["paleto", "camisa"]:
+                            item_data.update(
+                                {
+                                    "numero": (
+                                        str(product.tamanho) if product.tamanho else ""
+                                    ),
+                                    "manga": "",
+                                    "marca": product.marca or "",
+                                    "ajuste": item.adjustment_notes or "",
+                                }
+                            )
+                        elif product.tipo.lower() == "calça":
+                            item_data.update(
+                                {
+                                    "numero": (
+                                        str(product.tamanho) if product.tamanho else ""
+                                    ),
+                                    "cintura": "",
+                                    "perna": "",
+                                    "marca": product.marca or "",
+                                    "ajuste_cintura": "",
+                                    "ajuste_comprimento": "",
+                                }
+                            )
+                        elif product.tipo.lower() == "colete":
+                            item_data.update({"marca": product.marca or ""})
+
+                        itens.append(item_data)
+                    else:
+                        # Acessório
+                        acessorio_data = {
+                            "tipo": product.tipo.lower(),
+                            "numero": (str(product.tamanho) if product.tamanho else ""),
+                            "cor": product.cor or "",
+                            "descricao": product.nome_produto or "",
+                            "marca": product.marca or "",
+                            "extensor": False,  # Produtos do estoque não têm extensor
+                            "venda": False,
+                        }
+                        acessorios.append(acessorio_data)
+
+            # Dados da ordem de serviço no formato esperado pelo frontend
+            ordem_servico_data = {
+                "data_pedido": order.order_date,
+                "data_evento": (
+                    order.event.event_date.date()
+                    if order.event
+                    and order.event.event_date
+                    and hasattr(order.event.event_date, "date")
+                    else order.event.event_date if order.event else None
+                ),
+                "data_retirada": order.retirada_date,
+                "data_devolucao": order.devolucao_date,
+                "modalidade": order.service_type or "Aluguel",
+                "itens": itens,
+                "acessorios": acessorios,
+                "pagamento": {
+                    "total": float(order.total_value) if order.total_value else 0,
+                    "sinal": (
+                        float(order.advance_payment) if order.advance_payment else 0
+                    ),
+                    "restante": (
+                        float(order.remaining_payment) if order.remaining_payment else 0
+                    ),
+                },
+            }
+
+            # Adicionar dados completos ao response
+            order_data.update({"ordem_servico": ordem_servico_data})
+
+            return Response(order_data)
 
         except ServiceOrder.DoesNotExist:
             return Response(
@@ -1501,7 +1741,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
                 # Buscar OS que passaram da data do evento e não foram retiradas
                 overdue_orders = ServiceOrder.objects.filter(
-                    event_date__lt=today,
+                    event__event_date__lt=today,
                     data_retirado__isnull=True,  # Não foi retirada
                     service_order_phase__name__in=[
                         "PENDENTE",
@@ -1509,6 +1749,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         "FINALIZADO",
                         "AGUARDANDO_RETIRADA",
                     ],
+                    event__isnull=False,  # Só OS com evento vinculado
                 ).exclude(service_order_phase__name="RECUSADA")
 
                 for order in overdue_orders:
@@ -1546,21 +1787,28 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         models.Q(
                             service_order_phase=aguardando_devolucao_phase,
                             devolucao_date__lt=today,  # Passou da data de devolução
-                            event_date__gt=today,  # Evento ainda não passou
+                            event__event_date__gt=today,  # Evento ainda não passou
+                            event__isnull=False,  # Só OS com evento vinculado
                         )
                         | models.Q(
                             service_order_phase=aguardando_retirada_phase,
                             retirada_date__lt=today,  # Passou da data de retirada
-                            event_date__gt=today,  # Evento ainda não passou
+                            event__event_date__gt=today,  # Evento ainda não passou
+                            event__isnull=False,  # Só OS com evento vinculado
                         )
                         | models.Q(
                             service_order_phase=aguardando_devolucao_phase,
                             data_devolvido__isnull=True,  # Não foi devolvida
-                            event_date__lt=today,  # Evento já passou
+                            event__event_date__lt=today,  # Evento já passou
+                            event__isnull=False,  # Só OS com evento vinculado
                         )
                     )
                     .select_related(
-                        "renter", "employee", "attendant", "renter__person_type"
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1572,10 +1820,15 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
                         devolucao_date__gte=today,  # Ainda não passou da data de devolução
-                        event_date__gt=today,  # Evento ainda não passou
+                        event__event_date__gt=today,  # Evento ainda não passou
+                        event__isnull=False,  # Só OS com evento vinculado
                     )
                     .select_related(
-                        "renter", "employee", "attendant", "renter__person_type"
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1587,10 +1840,15 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
                         retirada_date__gte=today,  # Ainda não passou da data de retirada
-                        event_date__gt=today,  # Evento ainda não passou
+                        event__event_date__gt=today,  # Evento ainda não passou
+                        event__isnull=False,  # Só OS com evento vinculado
                     )
                     .select_related(
-                        "renter", "employee", "attendant", "renter__person_type"
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1600,7 +1858,11 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 orders = (
                     ServiceOrder.objects.filter(service_order_phase=phase)
                     .select_related(
-                        "renter", "employee", "attendant", "renter__person_type"
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1655,6 +1917,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                             "rua": address.street,
                             "numero": address.number,
                             "bairro": address.neighborhood,
+                            "complemento": address.complemento or "",
                             "cidade": city_data,
                         }
                     )
@@ -1662,8 +1925,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 # Dados da OS
                 order_data = {
                     "id": order.id,
-                    "event_date": order.event_date,
-                    "occasion": order.occasion,
                     "total_value": order.total_value,
                     "advance_payment": order.advance_payment,
                     "remaining_payment": order.remaining_payment,
@@ -1675,15 +1936,32 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "devolucao_date": order.devolucao_date,
                     "client": client_data,
                     "justification_refusal": order.justification_refusal,
+                    "event_date": (
+                        order.event.event_date.date()
+                        if order.event
+                        and order.event.event_date
+                        and hasattr(order.event.event_date, "date")
+                        else order.event.event_date if order.event else None
+                    ),
+                    "event_name": order.event.name if order.event else None,
                 }
 
                 # Calcular justificativa do atraso para fase ATRASADO
                 if phase.name == "ATRASADO":
                     # Para fase ATRASADO, determinar a justificativa baseada nas datas
+                    event_date = None
+                    if order.event and order.event.event_date:
+                        # Garantir que event_date seja datetime.date para comparação
+                        if hasattr(order.event.event_date, "date"):
+                            event_date = order.event.event_date.date()
+                        else:
+                            event_date = order.event.event_date
+
                     if (
                         order.devolucao_date
                         and order.devolucao_date < today
-                        and order.event_date > today
+                        and event_date
+                        and event_date > today
                     ):
                         order_data["justificativa_atraso"] = (
                             "Cliente ainda não devolveu"
@@ -1691,10 +1969,15 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     elif (
                         order.retirada_date
                         and order.retirada_date < today
-                        and order.event_date > today
+                        and event_date
+                        and event_date > today
                     ):
                         order_data["justificativa_atraso"] = "Cliente não retirou"
-                    elif order.data_devolvido is None and order.event_date < today:
+                    elif (
+                        order.data_devolvido is None
+                        and event_date
+                        and event_date < today
+                    ):
                         order_data["justificativa_atraso"] = (
                             "Cliente ainda não devolveu (evento passou)"
                         )
@@ -1702,37 +1985,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         order_data["justificativa_atraso"] = None
                 else:
                     order_data["justificativa_atraso"] = None
-
-                # Dados do cliente no formato esperado pelo frontend
-                cliente_data = {
-                    "nome": order.renter.name,
-                    "cpf": order.renter.cpf,
-                    "contatos": [],
-                    "enderecos": [],
-                }
-
-                # Contatos do cliente
-                if contact:
-                    if contact.email:
-                        cliente_data["contatos"].append(
-                            {"tipo": "email", "valor": contact.email}
-                        )
-                    if contact.phone:
-                        cliente_data["contatos"].append(
-                            {"tipo": "telefone", "valor": contact.phone}
-                        )
-
-                # Endereços do cliente
-                if address:
-                    cliente_data["enderecos"].append(
-                        {
-                            "cep": address.cep,
-                            "rua": address.street,
-                            "numero": address.number,
-                            "bairro": address.neighborhood,
-                            "cidade": address.city.name if address.city else "",
-                        }
-                    )
 
                 # Processar itens da OS
                 itens = []
@@ -1878,10 +2130,15 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 # Dados da ordem de serviço no formato esperado pelo frontend
                 ordem_servico_data = {
                     "data_pedido": order.order_date,
-                    "data_evento": order.event_date,
+                    "data_evento": (
+                        order.event.event_date.date()
+                        if order.event
+                        and order.event.event_date
+                        and hasattr(order.event.event_date, "date")
+                        else order.event.event_date if order.event else None
+                    ),
                     "data_retirada": order.retirada_date,
                     "data_devolucao": order.devolucao_date,
-                    "ocasiao": order.occasion,
                     "modalidade": order.service_type or "Aluguel",
                     "itens": itens,
                     "acessorios": acessorios,
@@ -1899,9 +2156,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 }
 
                 # Adicionar dados completos ao response
-                order_data.update(
-                    {"cliente": cliente_data, "ordem_servico": ordem_servico_data}
-                )
+                order_data.update({"ordem_servico": ordem_servico_data})
 
                 data.append(order_data)
 
@@ -1952,6 +2207,7 @@ class ServiceOrderClientAPIView(APIView):
                         "neighborhood": address.neighborhood if address else "",
                         "city": address.city.name if address else "",
                         "cep": address.cep if address else "",
+                        "complemento": address.complemento if address else "",
                     }
                     if address
                     else None
@@ -1997,7 +2253,6 @@ class ServiceOrderClientAPIView(APIView):
                     "type": "string",
                     "description": "Tipo de serviço (Aluguel/Compra)",
                 },
-                "evento": {"type": "string", "description": "Tipo de evento"},
                 "papel_evento": {"type": "string", "description": "Papel no evento"},
                 "endereco": {
                     "type": "object",
@@ -2007,6 +2262,10 @@ class ServiceOrderClientAPIView(APIView):
                         "numero": {"type": "string"},
                         "bairro": {"type": "string"},
                         "cidade": {"type": "string"},
+                        "complemento": {
+                            "type": "string",
+                            "description": "Complemento do endereço (opcional)",
+                        },
                     },
                 },
             },
@@ -2018,7 +2277,6 @@ class ServiceOrderClientAPIView(APIView):
                 "origem",
                 "data_evento",
                 "tipo_servico",
-                "evento",
                 "papel_evento",
             ],
         }
@@ -2129,6 +2387,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                         street=endereco.get("rua"),
                         number=endereco.get("numero"),
                         cep=endereco.get("cep"),
+                        complemento=endereco.get("complemento"),
                         neighborhood=endereco.get("bairro"),
                         city=city_obj,
                         defaults={"created_by": request.user},
@@ -2153,8 +2412,6 @@ class ServiceOrderPreTriageAPIView(APIView):
                 employee=atendente,
                 attendant=request.user.person,
                 order_date=date.today(),
-                event_date=data.get("data_evento"),
-                occasion=data.get("evento", "").upper(),
                 renter_role=data.get("papel_evento", "").upper(),
                 purchase=True if data.get("tipo_servico") == "Compra" else False,
                 came_from=data.get("origem", "").upper(),
@@ -2201,6 +2458,62 @@ class EventCreateAPIView(APIView):
         )
 
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
+
+
+class EventUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Atualizar evento",
+        description="Atualiza um evento existente (nome, descrição e/ou data). Atualiza automaticamente o campo date_updated.",
+        request=EventUpdateSerializer,
+        responses={
+            200: EventSerializer,
+            404: {"description": "Evento não encontrado"},
+            400: {"description": "Dados inválidos"},
+        },
+    )
+    def put(self, request, event_id):
+        """Atualizar evento existente"""
+        try:
+            event = get_object_or_404(Event, id=event_id)
+
+            serializer = EventUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            # Atualizar apenas os campos fornecidos
+            updated = False
+
+            if "name" in serializer.validated_data:
+                event.name = serializer.validated_data["name"].upper()
+                updated = True
+
+            if "description" in serializer.validated_data:
+                event.description = serializer.validated_data["description"]
+                updated = True
+
+            if "event_date" in serializer.validated_data:
+                event.event_date = serializer.validated_data["event_date"]
+                updated = True
+
+            # Atualizar date_updated se algum campo foi modificado
+            if updated:
+                event.date_updated = timezone.now()
+                event.save()
+
+            return Response(EventSerializer(event).data, status=status.HTTP_200_OK)
+
+        except Event.DoesNotExist:
+            return Response(
+                {"error": "Evento não encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao atualizar evento: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class EventAddParticipantsAPIView(APIView):
@@ -2352,7 +2665,11 @@ class EventListWithStatusAPIView(APIView):
                     "id": event.id,
                     "name": event.name,
                     "description": event.description or "",
-                    "event_date": event.event_date,
+                    "event_date": (
+                        event.event_date.date()
+                        if event.event_date and hasattr(event.event_date, "date")
+                        else event.event_date
+                    ),
                     "service_orders_count": service_orders_count,
                     "status": status_evento,
                     "date_created": event.date_created,
@@ -2376,8 +2693,13 @@ class EventListWithStatusAPIView(APIView):
         if not event.event_date:
             return "SEM DATA"
 
+        # Garantir que event_date seja datetime.date para comparação
+        event_date = event.event_date
+        if hasattr(event.event_date, "date"):
+            event_date = event.event_date.date()
+
         # Se o evento ainda não passou da data
-        if event.event_date >= today:
+        if event_date >= today:
             return "AGENDADO"
 
         # Evento já passou da data
@@ -2408,3 +2730,226 @@ class EventListWithStatusAPIView(APIView):
 
         # Caso geral - evento passou e tem OS mas não finalizadas corretamente
         return "CANCELADO"
+
+    def _get_most_recent_update_date(self, event, service_orders):
+        """Calcula a data de atualização mais recente entre evento e suas OS"""
+        from datetime import datetime, time
+
+        from django.utils import timezone as django_timezone
+
+        dates_to_compare = []
+
+        # Função auxiliar para normalizar datas para timezone-aware
+        def normalize_date(date_value):
+            if date_value is None:
+                return None
+
+            # Se é um datetime já timezone-aware, usar como está
+            if hasattr(date_value, "tzinfo") and date_value.tzinfo is not None:
+                return date_value
+
+            # Se é um datetime naive, converter para timezone-aware
+            if hasattr(date_value, "date") and hasattr(date_value, "time"):
+                return django_timezone.make_aware(date_value)
+
+            # Se é um date, converter para datetime timezone-aware
+            if hasattr(date_value, "year") and not hasattr(date_value, "time"):
+                naive_datetime = datetime.combine(date_value, time.min)
+                return django_timezone.make_aware(naive_datetime)
+
+            return date_value
+
+        # Adicionar date_updated do evento se existir, senão date_created
+        if event.date_updated:
+            dates_to_compare.append(normalize_date(event.date_updated))
+        else:
+            dates_to_compare.append(normalize_date(event.date_created))
+
+        # Adicionar date_updated de cada OS se existir, senão date_created (order_date)
+        for order in service_orders:
+            if hasattr(order, "date_updated") and order.date_updated:
+                dates_to_compare.append(normalize_date(order.date_updated))
+            else:
+                # Se não tem date_updated, usar date_created (data e hora de criação da OS)
+                dates_to_compare.append(normalize_date(order.date_created))
+
+        # Filtrar valores None
+        dates_to_compare = [d for d in dates_to_compare if d is not None]
+
+        # Retornar a data mais recente, ou date_created do evento se não houver nada
+        if dates_to_compare:
+            return max(dates_to_compare)
+        else:
+            return normalize_date(event.date_created)
+
+
+class EventDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["events"],
+        summary="Detalhar evento por ID",
+        description="Retorna os detalhes completos de um evento específico com dados das OS vinculadas, contagem, status, etc.",
+        responses={
+            200: EventDetailSerializer,
+            404: {"description": "Evento não encontrado"},
+            500: {"description": "Erro interno do servidor"},
+        },
+    )
+    def get(self, request, event_id):
+        """Detalhar evento específico com contagem de OS, status e dados das OS vinculadas"""
+        try:
+            from datetime import date
+
+            today = date.today()
+
+            # Buscar o evento específico
+            event = get_object_or_404(Event, id=event_id)
+
+            # Buscar ordens de serviço vinculadas ao evento com dados relacionados
+            service_orders = (
+                ServiceOrder.objects.filter(event=event)
+                .select_related("service_order_phase", "renter")
+                .order_by("-order_date")
+            )
+            service_orders_count = service_orders.count()
+
+            # Calcular status do evento usando o mesmo método da listagem
+            status_evento = self._calculate_event_status(event, service_orders, today)
+
+            # Preparar dados das ordens de serviço
+            service_orders_data = []
+            for order in service_orders:
+                order_data = {
+                    "id": order.id,
+                    "date_created": order.date_created,  # date_created com hora completa (datetime)
+                    "phase": (
+                        order.service_order_phase.name
+                        if order.service_order_phase
+                        else None
+                    ),
+                    "total_value": (
+                        float(order.total_value) if order.total_value else 0.0
+                    ),
+                    "client_name": order.renter.name if order.renter else None,
+                }
+                service_orders_data.append(order_data)
+
+            # Calcular date_updated mais recente
+            most_recent_date = self._get_most_recent_update_date(event, service_orders)
+
+            event_data = {
+                "id": event.id,
+                "name": event.name,
+                "description": event.description or "",
+                "event_date": event.event_date,
+                "service_orders_count": service_orders_count,
+                "status": status_evento,
+                "date_created": event.date_created,
+                "date_updated": most_recent_date,
+                "service_orders": service_orders_data,
+            }
+
+            return Response(event_data)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao buscar evento: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _calculate_event_status(self, event, service_orders, today):
+        """Calcula o status do evento baseado nas ordens de serviço"""
+
+        # Se não tem data do evento definida, não podemos calcular status
+        if not event.event_date:
+            return "SEM DATA"
+
+        # Garantir que event_date seja datetime.date para comparação
+        event_date = event.event_date
+        if hasattr(event.event_date, "date"):
+            event_date = event.event_date.date()
+
+        # Se o evento ainda não passou da data
+        if event_date >= today:
+            return "AGENDADO"
+
+        # Evento já passou da data
+        if service_orders.count() == 0:
+            # Evento passou da data e não possui nenhuma OS vinculada
+            return "CANCELADO"
+
+        # Verificar status das OS vinculadas
+        os_finalizadas = service_orders.filter(
+            service_order_phase__name="FINALIZADO"
+        ).count()
+
+        os_em_andamento = service_orders.filter(
+            service_order_phase__name__in=[
+                "PENDENTE",
+                "AGUARDANDO_RETIRADA",
+                "AGUARDANDO_DEVOLUCAO",
+            ]
+        ).count()
+
+        # Se todas as OS foram finalizadas
+        if os_finalizadas == service_orders.count():
+            return "FINALIZADO"
+
+        # Se ainda há OS em andamento após a data do evento
+        if os_em_andamento > 0:
+            return "POSSUI PENDÊNCIAS"
+
+        # Caso geral - evento passou e tem OS mas não finalizadas corretamente
+        return "CANCELADO"
+
+    def _get_most_recent_update_date(self, event, service_orders):
+        """Calcula a data de atualização mais recente entre evento e suas OS"""
+        from datetime import datetime, time
+
+        from django.utils import timezone as django_timezone
+
+        dates_to_compare = []
+
+        # Função auxiliar para normalizar datas para timezone-aware
+        def normalize_date(date_value):
+            if date_value is None:
+                return None
+
+            # Se é um datetime já timezone-aware, usar como está
+            if hasattr(date_value, "tzinfo") and date_value.tzinfo is not None:
+                return date_value
+
+            # Se é um datetime naive, converter para timezone-aware
+            if hasattr(date_value, "date") and hasattr(date_value, "time"):
+                return django_timezone.make_aware(date_value)
+
+            # Se é um date, converter para datetime timezone-aware
+            if hasattr(date_value, "year") and not hasattr(date_value, "time"):
+                naive_datetime = datetime.combine(date_value, time.min)
+                return django_timezone.make_aware(naive_datetime)
+
+            return date_value
+
+        # Adicionar date_updated do evento se existir, senão date_created
+        if event.date_updated:
+            dates_to_compare.append(normalize_date(event.date_updated))
+        else:
+            dates_to_compare.append(normalize_date(event.date_created))
+
+        # Adicionar date_updated de cada OS se existir, senão date_created (order_date)
+        for order in service_orders:
+            if hasattr(order, "date_updated") and order.date_updated:
+                dates_to_compare.append(normalize_date(order.date_updated))
+            else:
+                # Se não tem date_updated, usar date_created (data e hora de criação da OS)
+                dates_to_compare.append(normalize_date(order.date_created))
+
+        # Filtrar valores None
+        dates_to_compare = [d for d in dates_to_compare if d is not None]
+
+        # Retornar a data mais recente, ou date_created do evento se não houver nada
+        if dates_to_compare:
+            return max(dates_to_compare)
+        else:
+            return normalize_date(event.date_created)

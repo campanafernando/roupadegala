@@ -101,6 +101,7 @@ class PersonsAdresses(BaseModel):
     number = models.CharField(max_length=255, null=True, blank=True)
     cep = models.CharField(max_length=255)
     neighborhood = models.CharField(max_length=255)
+    complemento = models.CharField(max_length=255, null=True, blank=True)
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     person = models.ForeignKey(Person, on_delete=models.CASCADE)
 
