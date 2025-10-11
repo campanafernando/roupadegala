@@ -10,6 +10,7 @@ from products.serializers import (
 from .models import (
     Event,
     EventParticipant,
+    RefusalReason,
     ServiceOrder,
     ServiceOrderItem,
     ServiceOrderPhase,
@@ -20,6 +21,14 @@ class ServiceOrderPhaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceOrderPhase
         fields = "__all__"
+
+
+class RefusalReasonSerializer(serializers.ModelSerializer):
+    """Serializer para motivos de recusa/cancelamento"""
+
+    class Meta:
+        model = RefusalReason
+        fields = ["id", "name"]
 
 
 class ServiceOrderItemSerializer(serializers.ModelSerializer):
@@ -188,7 +197,12 @@ class ServiceOrderRefuseSerializer(serializers.Serializer):
     """Serializer para recusar ordem de serviço"""
 
     justification_refusal = serializers.CharField(
-        required=True, help_text="Justificativa da recusa"
+        required=False,
+        allow_blank=True,
+        help_text="Justificativa detalhada da recusa (opcional)",
+    )
+    justification_reason_id = serializers.IntegerField(
+        required=True, help_text="ID do motivo de recusa"
     )
 
 
@@ -226,6 +240,18 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
         allow_blank=True,
     )
 
+    # Dados de recusa/cancelamento
+    justification_refusal = serializers.CharField(
+        help_text="Justificativa detalhada da recusa (texto livre)",
+        allow_null=True,
+        allow_blank=True,
+    )
+    justification_reason = serializers.CharField(
+        help_text="Motivo estruturado da recusa",
+        allow_null=True,
+        allow_blank=True,
+    )
+
     # Dados do evento vinculado
     event_date = serializers.DateField(
         help_text="Data do evento vinculado", allow_null=True
@@ -236,6 +262,12 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
 
     # Dados do cliente
     client = serializers.DictField(help_text="Dados completos do cliente")
+
+    # Dados da ordem de serviço formatados para o frontend
+    ordem_servico = serializers.DictField(
+        help_text="Dados completos da OS no formato do frontend",
+        allow_null=True,
+    )
 
 
 # Serializer para o payload do frontend

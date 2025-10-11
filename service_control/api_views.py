@@ -401,12 +401,12 @@ class ServiceOrderUpdateAPIView(APIView):
                                 telefone_cliente = contato.get("valor", "").strip()
                                 break
 
-                            # Verificar se já existe contato com os mesmos dados
-                            existing_contact = PersonsContacts.objects.filter(
-                                person=person,
-                                email=email_cliente or None,
-                                phone=telefone_cliente or None,
-                            ).first()
+                # Verificar se já existe contato com os mesmos dados
+                existing_contact = PersonsContacts.objects.filter(
+                    person=person,
+                    email=email_cliente or None,
+                    phone=telefone_cliente or None,
+                ).first()
 
                 # Só criar novo contato se não existir um com os mesmos dados
                 if not existing_contact and (email_cliente or telefone_cliente):
@@ -1051,13 +1051,29 @@ class ServiceOrderRefuseAPIView(APIView):
     def post(self, request, order_id):
         """Recusar ordem de serviço"""
         try:
-            service_order = get_object_or_404(ServiceOrder, id=order_id)
-            justification = request.data.get("justification_refusal", "").strip()
+            from .models import RefusalReason
 
-            # Justificativa obrigatória
-            if not justification:
+            service_order = get_object_or_404(ServiceOrder, id=order_id)
+
+            # Justificativa detalhada é opcional
+            justification_raw = request.data.get("justification_refusal")
+            justification = justification_raw.strip() if justification_raw else None
+
+            reason_id = request.data.get("justification_reason_id")
+
+            # Motivo de recusa obrigatório
+            if not reason_id:
                 return Response(
-                    {"error": "Justificativa é obrigatória para recusa."},
+                    {"error": "Motivo de recusa é obrigatório."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validar se o motivo existe
+            try:
+                refusal_reason = RefusalReason.objects.get(id=reason_id)
+            except RefusalReason.DoesNotExist:
+                return Response(
+                    {"error": "Motivo de recusa inválido."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -1100,9 +1116,16 @@ class ServiceOrderRefuseAPIView(APIView):
             # Recusar OS
             service_order.service_order_phase = refused_phase
             service_order.justification_refusal = justification
+            service_order.justification_reason = refusal_reason
             service_order.cancel(request.user)  # Atualiza date_canceled e canceled_by
 
-            return Response({"success": True, "message": "OS recusada"})
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS recusada",
+                    "reason": refusal_reason.name,
+                }
+            )
 
         except ServiceOrder.DoesNotExist:
             return Response(
@@ -1112,6 +1135,45 @@ class ServiceOrderRefuseAPIView(APIView):
         except Exception as e:
             return Response(
                 {"error": f"Erro ao recusar OS: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
+    summary="Listar motivos de recusa",
+    description="Retorna a lista de motivos de recusa/cancelamento disponíveis",
+    responses={
+        200: {
+            "description": "Lista de motivos de recusa",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "ID do motivo"},
+                    "name": {"type": "string", "description": "Nome do motivo"},
+                },
+            },
+        }
+    },
+)
+class RefusalReasonsListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Lista todos os motivos de recusa/cancelamento"""
+        try:
+            from .models import RefusalReason
+            from .serializers import RefusalReasonSerializer
+
+            reasons = RefusalReason.objects.all().order_by("name")
+            serializer = RefusalReasonSerializer(reasons, many=True)
+
+            return Response(serializer.data)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao listar motivos de recusa: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -1260,32 +1322,43 @@ class ServiceOrderDashboardAPIView(APIView):
                 today, week_start, month_start
             )
 
-            # ========== MÉTRICAS DE VENDAS ==========
-            vendas = self._calculate_sales_metrics(today, week_start, month_start)
-
-            # ========== MÉTRICAS DE ATENDIMENTO ==========
-            atendimentos = self._calculate_service_metrics(
-                today, week_start, month_start
-            )
-
-            # ========== TAXA DE CONVERSÃO ==========
-            conversao = self._calculate_conversion_metrics(
-                today, week_start, month_start
-            )
-
-            # ========== CANAIS DE AQUISIÇÃO ==========
-            canais = self._calculate_acquisition_channels(
-                today, week_start, month_start
-            )
+            # ========== ANALYTICS COMPLETOS ==========
+            analytics = {
+                "vendas_por_tipo": self._calculate_sales_by_type(
+                    today, week_start, month_start
+                ),
+                "clientes_atendidos": self._calculate_client_analytics(
+                    today, week_start, month_start
+                ),
+                "conversao": self._calculate_conversion_analytics(
+                    today, week_start, month_start
+                ),
+                "ticket_medio": self._calculate_ticket_medio(
+                    today, week_start, month_start
+                ),
+                "vendas_por_canal": self._calculate_acquisition_channels_analytics(
+                    today, week_start, month_start
+                ),
+                "tipo_cliente": self._calculate_client_types_analytics(
+                    today, week_start, month_start
+                ),
+                "motivos_recusa": self._calculate_refusal_reasons_analytics(
+                    today, week_start, month_start
+                ),
+                "resumo": self._calculate_summary_metrics(
+                    today, week_start, month_start
+                ),
+            }
 
             return Response(
                 {
-                    "status": status,
-                    "resultados": resultados,
-                    "vendas": vendas,
-                    "atendimentos": atendimentos,
-                    "conversao": conversao,
-                    "canais": canais,
+                    "status": 200,
+                    "message": "Dados analíticos recuperados com sucesso",
+                    "data": {
+                        "status": status,
+                        "resultados": resultados,
+                        "analytics": analytics,
+                    },
                 }
             )
 
@@ -1349,8 +1422,15 @@ class ServiceOrderDashboardAPIView(APIView):
         return status
 
     def _calculate_financial_metrics(self, today, week_start, month_start):
-        """Calcula métricas financeiras (corrigido)"""
+        """Calcula métricas financeiras - apenas OS confirmadas (AGUARDANDO_RETIRADA em diante)"""
         finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
+
+        # Fases consideradas como confirmadas
+        confirmed_phases = [
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
 
         resultados = {
             "dia": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
@@ -1362,8 +1442,11 @@ class ServiceOrderDashboardAPIView(APIView):
             "mes": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
         }
 
-        # Dia
-        today_orders = ServiceOrder.objects.filter(order_date=today)
+        # Dia - apenas OS confirmadas
+        today_orders = ServiceOrder.objects.filter(
+            order_date=today,
+            service_order_phase__name__in=confirmed_phases,
+        )
         for order in today_orders:
             if order.total_value:
                 resultados["dia"]["total_pedidos"] += float(order.total_value)
@@ -1373,9 +1456,11 @@ class ServiceOrderDashboardAPIView(APIView):
             if order.service_order_phase == finished_phase and order.remaining_payment:
                 resultados["dia"]["total_recebido"] += float(order.remaining_payment)
 
-        # Semana
+        # Semana - apenas OS confirmadas
         week_orders = ServiceOrder.objects.filter(
-            order_date__gte=week_start, order_date__lte=today
+            order_date__gte=week_start,
+            order_date__lte=today,
+            service_order_phase__name__in=confirmed_phases,
         )
         for order in week_orders:
             if order.total_value:
@@ -1386,9 +1471,11 @@ class ServiceOrderDashboardAPIView(APIView):
             if order.service_order_phase == finished_phase and order.remaining_payment:
                 resultados["semana"]["total_recebido"] += float(order.remaining_payment)
 
-        # Mês
+        # Mês - apenas OS confirmadas
         month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start, order_date__lte=today
+            order_date__gte=month_start,
+            order_date__lte=today,
+            service_order_phase__name__in=confirmed_phases,
         )
         for order in month_orders:
             if order.total_value:
@@ -1402,26 +1489,30 @@ class ServiceOrderDashboardAPIView(APIView):
         return resultados
 
     def _calculate_sales_metrics(self, today, week_start, month_start):
-        """Calcula métricas de vendas (itens marcados como venda)"""
+        """Calcula métricas de vendas (itens marcados como venda) - excluindo OS recusadas"""
         vendas = {
             "dia": {"total_vendido": 0.00, "numero_itens": 0},
             "semana": {"total_vendido": 0.00, "numero_itens": 0},
             "mes": {"total_vendido": 0.00, "numero_itens": 0},
         }
 
-        # Buscar itens marcados como venda por período
+        # Buscar itens marcados como venda por período (excluindo OS recusadas)
         for periodo, data_inicio in [
             ("dia", today),
             ("semana", week_start),
             ("mes", month_start),
         ]:
-            # Items de produtos temporários marcados como venda
-            temp_items = ServiceOrderItem.objects.filter(
-                service_order__order_date__gte=data_inicio,
-                service_order__order_date__lte=today,
-                temporary_product__isnull=False,
-                temporary_product__venda=True,
-            ).select_related("temporary_product", "service_order")
+            # Items de produtos temporários marcados como venda (excluindo OS recusadas)
+            temp_items = (
+                ServiceOrderItem.objects.filter(
+                    service_order__order_date__gte=data_inicio,
+                    service_order__order_date__lte=today,
+                    temporary_product__isnull=False,
+                    temporary_product__venda=True,
+                )
+                .exclude(service_order__service_order_phase__name="RECUSADA")
+                .select_related("temporary_product", "service_order")
+            )
 
             for item in temp_items:
                 vendas[periodo]["numero_itens"] += 1
@@ -1517,9 +1608,14 @@ class ServiceOrderDashboardAPIView(APIView):
             )
 
             iniciados = orders.count()
-            # Consideramos "sucesso" OS finalizadas ou aguardando devolução (já foram retiradas)
+            # Consideramos "sucesso" OS finalizadas, aguardando devolução (já foram retiradas)
+            # ou aguardando retirada (confirmadas)
             sucesso = orders.filter(
-                service_order_phase__name__in=["FINALIZADO", "AGUARDANDO_DEVOLUCAO"]
+                service_order_phase__name__in=[
+                    "FINALIZADO",
+                    "AGUARDANDO_DEVOLUCAO",
+                    "AGUARDANDO_RETIRADA",
+                ]
             ).count()
 
             conversao[periodo]["atendimentos_iniciados"] = iniciados
@@ -1565,6 +1661,537 @@ class ServiceOrderDashboardAPIView(APIView):
                 canais[periodo][canal] = {"total": total, "percentual": percentual}
 
         return canais
+
+    def _calculate_sales_by_type(self, today, week_start, month_start):
+        """Calcula vendas por tipo (locação vs venda) - excluindo OS recusadas"""
+        # Buscar apenas OS do mês que têm service_type definido e não foram recusadas
+        month_orders = (
+            ServiceOrder.objects.filter(
+                order_date__gte=month_start,
+                order_date__lte=today,
+                service_type__isnull=False,
+            )
+            .exclude(service_type="")
+            .exclude(service_order_phase__name="RECUSADA")
+        )
+
+        locacao_count = 0
+        venda_count = 0
+
+        for order in month_orders:
+            service_type = order.service_type.upper() if order.service_type else ""
+
+            # Verificar se tem termos de locação
+            has_locacao = (
+                "ALUGUEL" in service_type
+                or "LOCAÇÃO" in service_type
+                or "LOCACAO" in service_type
+            )
+
+            # Verificar se tem termos de venda
+            has_venda = "COMPRA" in service_type or "VENDA" in service_type
+
+            # Se tem ambos (ex: "Aluguel + Venda"), conta nos dois
+            if has_locacao and has_venda:
+                locacao_count += 1
+                venda_count += 1
+            # Se tem apenas locação
+            elif has_locacao:
+                locacao_count += 1
+            # Se tem apenas venda
+            elif has_venda:
+                venda_count += 1
+            # Se não tem nenhum termo claro, verificar itens marcados como venda
+            else:
+                has_sale_items = order.items.filter(
+                    temporary_product__isnull=False, temporary_product__venda=True
+                ).exists()
+
+                if has_sale_items:
+                    venda_count += 1
+                else:
+                    locacao_count += 1
+
+        # Nota: total_vendas pode ser maior que o número de OS se houver casos mistos
+        total_vendas = locacao_count + venda_count
+        percentual_locacao = round(
+            (locacao_count / total_vendas * 100) if total_vendas > 0 else 0, 1
+        )
+        percentual_venda = round(
+            (venda_count / total_vendas * 100) if total_vendas > 0 else 0, 1
+        )
+
+        return {
+            "locacao": locacao_count,
+            "venda": venda_count,
+            "total_vendas": total_vendas,
+            "percentual_locacao": percentual_locacao,
+            "percentual_venda": percentual_venda,
+        }
+
+    def _calculate_client_analytics(self, today, week_start, month_start):
+        """Calcula analytics de clientes (novos, recorrentes, por período)"""
+        # Clientes únicos do mês
+        month_clients = (
+            ServiceOrder.objects.filter(
+                order_date__gte=month_start, order_date__lte=today
+            )
+            .values_list("renter_id", flat=True)
+            .distinct()
+        )
+
+        total_clients = len(month_clients)
+
+        # Clientes novos (primeira OS no mês)
+        new_clients = 0
+        for client_id in month_clients:
+            first_order = (
+                ServiceOrder.objects.filter(renter_id=client_id)
+                .order_by("order_date")
+                .first()
+            )
+
+            if first_order and first_order.order_date >= month_start:
+                new_clients += 1
+
+        recurring_clients = total_clients - new_clients
+
+        # Clientes por semana do mês
+        clients_by_week = []
+        current_week = week_start
+        week_num = 1
+
+        while current_week <= today:
+            week_end = min(current_week + timedelta(days=6), today)
+
+            week_clients = (
+                ServiceOrder.objects.filter(
+                    order_date__gte=current_week, order_date__lte=week_end
+                )
+                .values_list("renter_id", flat=True)
+                .distinct()
+                .count()
+            )
+
+            clients_by_week.append(
+                {"periodo": f"Semana {week_num}", "clientes": week_clients}
+            )
+
+            current_week += timedelta(days=7)
+            week_num += 1
+
+        return {
+            "total": total_clients,
+            "novos": new_clients,
+            "recorrentes": recurring_clients,
+            "por_periodo": clients_by_week,
+        }
+
+    def _calculate_conversion_analytics(self, today, week_start, month_start):
+        """Calcula analytics de conversão com dados por atendente"""
+        # Conversão geral do mês
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start, order_date__lte=today
+        )
+
+        total_orders = month_orders.count()
+        # Considera sucesso: OS confirmadas (AGUARDANDO_RETIRADA), retiradas ou finalizadas
+        successful_orders = month_orders.filter(
+            service_order_phase__name__in=[
+                "FINALIZADO",
+                "AGUARDANDO_DEVOLUCAO",
+                "AGUARDANDO_RETIRADA",
+            ]
+        ).count()
+
+        general_conversion = round(
+            (successful_orders / total_orders * 100) if total_orders > 0 else 0, 1
+        )
+
+        # Conversão por atendente
+        from accounts.models import Person, PersonType
+
+        attendant_type = PersonType.objects.filter(type="ATENDENTE").first()
+        attendants = (
+            Person.objects.filter(person_type=attendant_type) if attendant_type else []
+        )
+
+        attendant_conversions = []
+        for attendant in attendants:
+            attendant_orders = month_orders.filter(employee=attendant)
+            attendant_total = attendant_orders.count()
+            attendant_success = attendant_orders.filter(
+                service_order_phase__name__in=[
+                    "FINALIZADO",
+                    "AGUARDANDO_DEVOLUCAO",
+                    "AGUARDANDO_RETIRADA",
+                ]
+            ).count()
+
+            conversion_rate = round(
+                (
+                    (attendant_success / attendant_total * 100)
+                    if attendant_total > 0
+                    else 0
+                ),
+                1,
+            )
+
+            attendant_conversions.append(
+                {
+                    "id": attendant.id,
+                    "nome": attendant.name,
+                    "atendimentos": attendant_total,
+                    "conversoes": attendant_success,
+                    "taxa": conversion_rate,
+                }
+            )
+
+        # Ordenar por taxa de conversão
+        attendant_conversions.sort(key=lambda x: x["taxa"], reverse=True)
+
+        return {
+            "geral": general_conversion,
+            "loja": general_conversion,  # Mesmo valor para loja
+            "atendentes": attendant_conversions,
+        }
+
+    def _calculate_ticket_medio(self, today, week_start, month_start):
+        """Calcula ticket médio e evolução"""
+        # Ticket médio geral do mês - apenas OS confirmadas (AGUARDANDO_RETIRADA em diante)
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start,
+            order_date__lte=today,
+            total_value__isnull=False,
+            service_order_phase__name__in=[
+                "AGUARDANDO_RETIRADA",
+                "AGUARDANDO_DEVOLUCAO",
+                "FINALIZADO",
+            ],
+        )
+
+        total_value = sum(
+            float(order.total_value) for order in month_orders if order.total_value
+        )
+        total_orders = month_orders.count()
+        general_ticket = round(total_value / total_orders, 2) if total_orders > 0 else 0
+
+        # Ticket médio por tipo - baseado no service_type
+        locacao_orders = []
+        venda_orders = []
+
+        for order in month_orders:
+            if not order.total_value or not order.service_type:
+                continue
+
+            service_type = order.service_type.upper()
+
+            # Verificar se tem termos de locação
+            has_locacao = (
+                "ALUGUEL" in service_type
+                or "LOCAÇÃO" in service_type
+                or "LOCACAO" in service_type
+            )
+
+            # Verificar se tem termos de venda
+            has_venda = "COMPRA" in service_type or "VENDA" in service_type
+
+            # Se tem ambos (ex: "Aluguel + Venda"), adiciona em ambos
+            if has_locacao and has_venda:
+                locacao_orders.append(float(order.total_value))
+                venda_orders.append(float(order.total_value))
+            # Se tem apenas locação
+            elif has_locacao:
+                locacao_orders.append(float(order.total_value))
+            # Se tem apenas venda
+            elif has_venda:
+                venda_orders.append(float(order.total_value))
+            # Fallback: verificar itens marcados como venda
+            else:
+                has_sale_items = order.items.filter(
+                    temporary_product__isnull=False, temporary_product__venda=True
+                ).exists()
+
+                if has_sale_items:
+                    venda_orders.append(float(order.total_value))
+                else:
+                    locacao_orders.append(float(order.total_value))
+
+        locacao_ticket = (
+            round(sum(locacao_orders) / len(locacao_orders), 2) if locacao_orders else 0
+        )
+        venda_ticket = (
+            round(sum(venda_orders) / len(venda_orders), 2) if venda_orders else 0
+        )
+
+        # Evolução por semana - apenas OS confirmadas
+        evolution = []
+        current_week = week_start
+        week_num = 1
+
+        while current_week <= today:
+            week_end = min(current_week + timedelta(days=6), today)
+
+            week_orders = ServiceOrder.objects.filter(
+                order_date__gte=current_week,
+                order_date__lte=week_end,
+                total_value__isnull=False,
+                service_order_phase__name__in=[
+                    "AGUARDANDO_RETIRADA",
+                    "AGUARDANDO_DEVOLUCAO",
+                    "FINALIZADO",
+                ],
+            )
+
+            week_value = sum(
+                float(order.total_value) for order in week_orders if order.total_value
+            )
+            week_count = week_orders.count()
+            week_ticket = round(week_value / week_count, 2) if week_count > 0 else 0
+
+            evolution.append({"periodo": f"Semana {week_num}", "valor": week_ticket})
+
+            current_week += timedelta(days=7)
+            week_num += 1
+
+        return {
+            "geral": general_ticket,
+            "locacao": locacao_ticket,
+            "venda": venda_ticket,
+            "evolucao": evolution,
+        }
+
+    def _calculate_acquisition_channels_analytics(self, today, week_start, month_start):
+        """Calcula canais de aquisição no formato do exemplo (excluindo OS recusadas)"""
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start, order_date__lte=today
+        ).exclude(service_order_phase__name="RECUSADA")
+
+        # Mapear canais conhecidos
+        channel_mapping = {
+            "instagram": {"id": "instagram", "label": "Instagram"},
+            "google": {"id": "google", "label": "Google"},
+            "facebook": {"id": "facebook", "label": "Facebook"},
+            "indicacao": {"id": "indicacao", "label": "Indicação"},
+            "site": {"id": "site", "label": "Site Próprio"},
+        }
+
+        # Contar por canal
+        channel_counts = {}
+        for order in month_orders:
+            if order.came_from:
+                channel = order.came_from.lower()
+                channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+        total_orders = month_orders.count()
+
+        # Formatar resultado
+        channels = []
+        for channel_key, count in channel_counts.items():
+            if channel_key in channel_mapping:
+                channel_info = channel_mapping[channel_key]
+            else:
+                channel_info = {"id": channel_key, "label": channel_key.title()}
+
+            percentual = round(
+                (count / total_orders * 100) if total_orders > 0 else 0, 1
+            )
+
+            channels.append(
+                {
+                    "id": channel_info["id"],
+                    "label": channel_info["label"],
+                    "value": count,
+                    "percentual": percentual,
+                }
+            )
+
+        # Ordenar por quantidade
+        channels.sort(key=lambda x: x["value"], reverse=True)
+
+        return channels
+
+    def _calculate_client_types_analytics(self, today, week_start, month_start):
+        """Calcula analytics por tipo de cliente (excluindo OS recusadas)"""
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start,
+            order_date__lte=today,
+            renter_role__isnull=False,
+        ).exclude(service_order_phase__name="RECUSADA")
+
+        # Mapear todos os tipos de cliente possíveis
+        type_mapping = {
+            "noivo": {"id": "noivo", "label": "Noivo"},
+            "padrinho": {"id": "padrinho", "label": "Padrinho"},
+            "pai": {"id": "pai", "label": "Pai"},
+            "convidado": {"id": "convidado", "label": "Convidado"},
+            "pajem": {"id": "pajem", "label": "Pajem"},
+            "familia": {"id": "familia", "label": "Família"},
+            "outro": {"id": "outro", "label": "Outro"},
+            "outros": {"id": "outro", "label": "Outro"},  # Alias
+        }
+
+        # Contar por tipo - agrupando corretamente
+        type_counts = {}
+        for order in month_orders:
+            role = order.renter_role.lower() if order.renter_role else "outro"
+
+            # Normalizar "outro" e "outros" para o mesmo ID
+            if role in type_mapping:
+                mapped_id = type_mapping[role]["id"]
+            else:
+                mapped_id = "outro"
+
+            type_counts[mapped_id] = type_counts.get(mapped_id, 0) + 1
+
+        total_orders = month_orders.count()
+
+        # Formatar resultado (sem duplicação)
+        client_types = []
+        for type_id, count in type_counts.items():
+            # Buscar label correto
+            label = next(
+                (v["label"] for k, v in type_mapping.items() if v["id"] == type_id),
+                "Outro",
+            )
+
+            percentual = round(
+                (count / total_orders * 100) if total_orders > 0 else 0, 1
+            )
+
+            client_types.append(
+                {
+                    "id": type_id,
+                    "label": label,
+                    "value": count,
+                    "percentual": percentual,
+                }
+            )
+
+        # Ordenar por quantidade
+        client_types.sort(key=lambda x: x["value"], reverse=True)
+
+        return client_types
+
+    def _calculate_refusal_reasons_analytics(self, today, week_start, month_start):
+        """Calcula motivos de recusa usando os motivos estruturados"""
+
+        # Buscar OS recusadas no período
+        refused_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start,
+            order_date__lte=today,
+            service_order_phase__name="RECUSADA",
+        ).select_related("justification_reason")
+
+        total_refused = refused_orders.count()
+
+        # Se não houver recusas, retornar lista vazia
+        if total_refused == 0:
+            return []
+
+        # Contar por motivo estruturado
+        reason_counts = {}
+
+        for order in refused_orders:
+            if order.justification_reason:
+                # Usar motivo estruturado
+                reason_name = order.justification_reason.name
+            elif order.justification_refusal:
+                # Fallback para OS antigas com texto livre (antes da implementação)
+                reason_name = "Outros (texto livre)"
+            else:
+                # Sem motivo informado
+                reason_name = "Não informado"
+
+            reason_counts[reason_name] = reason_counts.get(reason_name, 0) + 1
+
+        # Formatar resultado com ID para facilitar visualização em gráficos
+        reasons = []
+        for reason, count in reason_counts.items():
+            percentual = round((count / total_refused * 100), 1)
+
+            # Criar ID amigável (slug) a partir do motivo
+            reason_id = (
+                reason.lower()
+                .replace(" ", "_")
+                .replace("ç", "c")
+                .replace("ã", "a")
+                .replace("õ", "o")
+                .replace("é", "e")
+                .replace("ê", "e")
+                .replace("í", "i")
+                .replace("ó", "o")
+                .replace("ú", "u")
+                .replace("(", "")
+                .replace(")", "")
+            )
+
+            reasons.append(
+                {
+                    "id": reason_id,
+                    "motivo": reason,
+                    "quantidade": count,
+                    "percentual": percentual,
+                }
+            )
+
+        # Ordenar por quantidade (maior primeiro)
+        reasons.sort(key=lambda x: x["quantidade"], reverse=True)
+
+        return reasons
+
+    def _calculate_summary_metrics(self, today, week_start, month_start):
+        """Calcula métricas de resumo"""
+        # Buscar apenas OS confirmadas para métricas financeiras
+        month_orders_confirmed = ServiceOrder.objects.filter(
+            order_date__gte=month_start,
+            order_date__lte=today,
+            service_order_phase__name__in=[
+                "AGUARDANDO_RETIRADA",
+                "AGUARDANDO_DEVOLUCAO",
+                "FINALIZADO",
+            ],
+        )
+
+        # Ticket médio - apenas OS confirmadas
+        total_value = sum(
+            float(order.total_value)
+            for order in month_orders_confirmed
+            if order.total_value
+        )
+        total_orders = month_orders_confirmed.count()
+        ticket_medio = round(total_value / total_orders, 2) if total_orders > 0 else 0
+
+        # Buscar todas as OS para cálculo de conversão
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start, order_date__lte=today
+        )
+
+        # Taxa de conversão
+        # Considera sucesso: OS confirmadas (AGUARDANDO_RETIRADA), retiradas ou finalizadas
+        successful_orders = month_orders.filter(
+            service_order_phase__name__in=[
+                "FINALIZADO",
+                "AGUARDANDO_DEVOLUCAO",
+                "AGUARDANDO_RETIRADA",
+            ]
+        ).count()
+        conversao_geral = round(
+            (successful_orders / total_orders * 100) if total_orders > 0 else 0, 1
+        )
+
+        # Satisfação (simulado - não temos dados reais)
+        satisfacao_cliente = 4.6
+
+        # NPS (simulado - não temos dados reais)
+        nps = 72
+
+        return {
+            "ticket_medio": ticket_medio,
+            "conversao_geral": conversao_geral,
+            "satisfacao_cliente": satisfacao_cliente,
+            "nps": nps,
+        }
 
 
 class ServiceOrderAttendantMetricsAPIView(APIView):
@@ -1651,10 +2278,13 @@ class ServiceOrderAttendantMetricsAPIView(APIView):
                     ).count()
 
                     # Taxa de conversão
+                    # Considera sucesso: OS que foram retiradas (AGUARDANDO_DEVOLUCAO),
+                    # aguardando retirada (confirmadas) ou finalizadas
                     sucesso = orders.filter(
                         service_order_phase__name__in=[
                             "FINALIZADO",
                             "AGUARDANDO_DEVOLUCAO",
+                            "AGUARDANDO_RETIRADA",
                         ]
                     ).count()
                     taxa_conversao = round(
@@ -1842,6 +2472,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         "attendant",
                         "renter__person_type",
                         "event",
+                        "justification_reason",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1862,6 +2493,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         "attendant",
                         "renter__person_type",
                         "event",
+                        "justification_reason",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1882,6 +2514,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         "attendant",
                         "renter__person_type",
                         "event",
+                        "justification_reason",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1896,6 +2529,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         "attendant",
                         "renter__person_type",
                         "event",
+                        "justification_reason",
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
@@ -1969,6 +2603,11 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "devolucao_date": order.devolucao_date,
                     "client": client_data,
                     "justification_refusal": order.justification_refusal,
+                    "justification_reason": (
+                        order.justification_reason.name
+                        if order.justification_reason
+                        else None
+                    ),
                     "event_date": (
                         order.event.event_date.date()
                         if order.event

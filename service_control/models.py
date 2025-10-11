@@ -10,6 +10,22 @@ class ServiceOrderPhase(BaseModel):
     name = models.CharField(max_length=20)
 
 
+class RefusalReason(BaseModel):
+    """Motivos de recusa/cancelamento de ordens de serviço"""
+
+    name = models.CharField(
+        max_length=100, unique=True, help_text="Nome do motivo de recusa"
+    )
+
+    class Meta:
+        db_table = "refusal_reasons"
+        verbose_name = "Motivo de Recusa"
+        verbose_name_plural = "Motivos de Recusa"
+
+    def __str__(self):
+        return self.name
+
+
 class ServiceOrder(BaseModel):
     renter = models.ForeignKey(
         Person, on_delete=models.CASCADE, related_name="service_orders"
@@ -60,6 +76,14 @@ class ServiceOrder(BaseModel):
         ServiceOrderPhase, on_delete=models.SET_NULL, null=True
     )
     justification_refusal = models.TextField(null=True, blank=True, default=None)
+    justification_reason = models.ForeignKey(
+        RefusalReason,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_orders",
+        help_text="Motivo de recusa/cancelamento",
+    )
     prova_date = models.DateField(null=True, blank=True)
     retirada_date = models.DateField(null=True, blank=True)
     devolucao_date = models.DateField(null=True, blank=True)
