@@ -1242,7 +1242,6 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
                 )
             )
 
-            # Verificar permissões
             user_person = getattr(request.user, "person", None)
             is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
             is_employee = (
@@ -3230,20 +3229,6 @@ class ServiceOrderPreTriageAPIView(APIView):
     def post(self, request):
         """Criação de pré-ordem de serviço pela recepção ou administrador"""
         try:
-            # Verifica se o usuário é do tipo RECEPÇÃO ou ADMINISTRADOR
-            if not hasattr(
-                request.user, "person"
-            ) or request.user.person.person_type.type not in [
-                "RECEPÇÃO",
-                "ADMINISTRADOR",
-            ]:
-                return Response(
-                    {
-                        "error": "Apenas usuários do tipo RECEPÇÃO ou ADMINISTRADOR podem criar pré-OS."
-                    },
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
             data = request.data
             cpf = data.get("cpf", "").replace(".", "").replace("-", "")
             if len(cpf) != 11:
@@ -3251,7 +3236,6 @@ class ServiceOrderPreTriageAPIView(APIView):
                     {"error": "CPF inválido."}, status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Buscar ou criar cliente
             pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
             person, _ = Person.objects.get_or_create(
                 cpf=cpf,
@@ -3261,15 +3245,12 @@ class ServiceOrderPreTriageAPIView(APIView):
                     "created_by": request.user,
                 },
             )
-            # Criar contato se não existir (verificando duplicatas)
             email = data.get("email", "").strip()
             telefone = data.get("telefone")
 
-            # Tratar email vazio como None para evitar constraint unique
             if not email:
                 email = None
 
-            # Verificar se já existe outro cliente com o mesmo email
             if email:
                 existing_contact_with_email = (
                     PersonsContacts.objects.filter(email=email)
@@ -3283,7 +3264,6 @@ class ServiceOrderPreTriageAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Verificar se já existe outro cliente com o mesmo telefone
             if telefone:
                 existing_contact_with_phone = (
                     PersonsContacts.objects.filter(phone=telefone)
@@ -3297,13 +3277,11 @@ class ServiceOrderPreTriageAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Se não existe duplicata, criar contato
             PersonsContacts.objects.get_or_create(
                 phone=telefone,
                 person=person,
                 defaults={"email": email, "created_by": request.user},
             )
-            # Criar endereço se cidade for informada
             endereco = data.get("endereco", {})
             cidade_nome = endereco.get("cidade")
             if cidade_nome:
@@ -3319,17 +3297,13 @@ class ServiceOrderPreTriageAPIView(APIView):
                         city=city_obj,
                         defaults={"created_by": request.user},
                     )
-            # Buscar atendente
             atendente_id = data.get("atendente_id")
-            atendente = Person.objects.filter(
-                id=atendente_id, person_type__type="ATENDENTE"
-            ).first()
+            atendente = Person.objects.filter(id=atendente_id).first()
             if not atendente:
                 return Response(
                     {"error": "Atendente não encontrado."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            # Validar e buscar evento se event_id fornecido
             event_obj = None
             event_id = data.get("event_id")
             if event_id:
@@ -3346,11 +3320,10 @@ class ServiceOrderPreTriageAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            # Buscar fase pendente
             service_order_phase = ServiceOrderPhase.objects.filter(
                 name="PENDENTE"
             ).first()
-            # Criar pré-ordem de serviço
+
             service_order = ServiceOrder.objects.create(
                 renter=person,
                 employee=atendente,
@@ -3360,7 +3333,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                 purchase=True if data.get("tipo_servico") == "Compra" else False,
                 came_from=data.get("origem", "").upper(),
                 service_order_phase=service_order_phase,
-                event=event_obj,  # Vincular evento à OS se fornecido
+                event=event_obj,
             )
             return Response(
                 {
@@ -3372,6 +3345,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                 status=status.HTTP_201_CREATED,
             )
         except Exception as e:
+            print(e.args[0])
             return Response(
                 {"error": f"Erro ao criar pré-OS: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
