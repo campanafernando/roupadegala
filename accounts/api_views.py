@@ -484,7 +484,7 @@ class EmployeeListAPIView(APIView):
     def get(self, request):
         """Lista de funcionários"""
         employees = Person.objects.filter(
-            person_type__type__in=["ATENDENTE", "RECEPÇÃO"]
+            person_type__type__in=["ATENDENTE", "RECEPÇÃO", "ADMINISTRADOR"]
         ).select_related("user", "person_type")
 
         data = []
