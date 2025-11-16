@@ -575,26 +575,36 @@ class ServiceOrderUpdateAPIView(APIView):
 
             service_order.save()
 
-            # Mover automaticamente para EM_PRODUCAO após atualização
-            em_producao_phase = ServiceOrderPhase.objects.filter(
-                name="EM_PRODUCAO"
-            ).first()
+            # Mover para EM_PRODUCAO apenas se for atualização COMPLETA
+            # Considera completa se tem itens ou acessórios (não é apenas employee_id ou datas)
+            is_full_update = False
+            if "ordem_servico" in data:
+                os_data = data["ordem_servico"]
+                # Verifica se tem itens ou acessórios (atualização completa)
+                if "itens" in os_data or "acessorios" in os_data:
+                    is_full_update = True
 
-            if em_producao_phase and service_order.service_order_phase:
-                # Só mover se não estiver já em EM_PRODUCAO, AGUARDANDO_RETIRADA ou fases posteriores
-                current_phase_name = service_order.service_order_phase.name
-                if current_phase_name not in [
-                    "EM_PRODUCAO",
-                    "AGUARDANDO_RETIRADA",
-                    "AGUARDANDO_DEVOLUCAO",
-                    "FINALIZADO",
-                    "RECUSADA",
-                ]:
-                    service_order.service_order_phase = em_producao_phase
-                    service_order.save()
-                    print(
-                        f"OS {service_order.id} movida automaticamente para EM_PRODUCAO após atualização"
-                    )
+            if is_full_update:
+                # Atualização completa - mover para EM_PRODUCAO
+                em_producao_phase = ServiceOrderPhase.objects.filter(
+                    name="EM_PRODUCAO"
+                ).first()
+
+                if em_producao_phase and service_order.service_order_phase:
+                    # Só mover se não estiver já em EM_PRODUCAO, AGUARDANDO_RETIRADA ou fases posteriores
+                    current_phase_name = service_order.service_order_phase.name
+                    if current_phase_name not in [
+                        "EM_PRODUCAO",
+                        "AGUARDANDO_RETIRADA",
+                        "AGUARDANDO_DEVOLUCAO",
+                        "FINALIZADO",
+                        "RECUSADA",
+                    ]:
+                        service_order.service_order_phase = em_producao_phase
+                        service_order.save()
+                        print(
+                            f"OS {service_order.id} movida automaticamente para EM_PRODUCAO após atualização completa"
+                        )
 
             service_order.update(request.user)
 
