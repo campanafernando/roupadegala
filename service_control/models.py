@@ -93,6 +93,10 @@ class ServiceOrder(BaseModel):
     data_retirado = models.DateTimeField(
         null=True, blank=True, help_text="Data e hora em que foi retirado"
     )
+    esta_atrasada = models.BooleanField(
+        default=False,
+        help_text="Flag indicando se a OS está atrasada (retirada ou devolução)",
+    )
 
     class Meta:
         db_table = "service_orders"

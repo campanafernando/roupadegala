@@ -223,6 +223,9 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     advance_payment = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor pago"
     )
+    esta_atrasada = serializers.BooleanField(
+        help_text="Flag indicando se a OS está atrasada (retirada ou devolução)"
+    )
     remaining_payment = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor restante"
     )

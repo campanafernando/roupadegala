@@ -2570,15 +2570,10 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
             # Filtrar orders baseado na fase
             if phase.name == "ATRASADO":
-                # Fase ATRASADO:
-                # 1. OS em AGUARDANDO_DEVOLUCAO cuja data_devolucao já passou mas evento ainda não passou
-                # 2. OS em AGUARDANDO_RETIRADA cuja data_retirada já passou mas evento ainda não passou
-                # 3. OS em AGUARDANDO_DEVOLUCAO que não foram devolvidas e evento já passou
+                # Fase ATRASADO: SOMENTE OS em AGUARDANDO_DEVOLUCAO que estão atrasadas na devolução
+                # OS atrasadas em retirada ficam em AGUARDANDO_RETIRADA com flag esta_atrasada=True
                 aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
                     name="AGUARDANDO_DEVOLUCAO"
-                ).first()
-                aguardando_retirada_phase = ServiceOrderPhase.objects.filter(
-                    name="AGUARDANDO_RETIRADA"
                 ).first()
 
                 orders = (
@@ -2586,12 +2581,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
                         models.Q(
                             service_order_phase=aguardando_devolucao_phase,
                             devolucao_date__lt=today,  # Passou da data de devolução
-                            event__event_date__gt=today,  # Evento ainda não passou
-                            event__isnull=False,  # Só OS com evento vinculado
-                        )
-                        | models.Q(
-                            service_order_phase=aguardando_retirada_phase,
-                            retirada_date__lt=today,  # Passou da data de retirada
                             event__event_date__gt=today,  # Evento ainda não passou
                             event__isnull=False,  # Só OS com evento vinculado
                         )
@@ -2649,6 +2638,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
             elif phase.name == "AGUARDANDO_RETIRADA":
                 # Fase AGUARDANDO_RETIRADA: todas as OS nesta fase
+                # Marcar com flag esta_atrasada=True as que estão atrasadas
                 orders = (
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
@@ -2663,6 +2653,28 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
+
+                # Atualizar flag de atraso para cada OS
+                for order in orders:
+                    esta_atrasada = False
+
+                    # Verifica se passou da data de retirada
+                    if order.retirada_date and order.retirada_date < today:
+                        esta_atrasada = True
+
+                    # Verifica se o evento já passou e ainda não foi retirada
+                    if (
+                        order.event
+                        and order.event.event_date
+                        and order.event.event_date < today
+                        and not order.data_retirado
+                    ):
+                        esta_atrasada = True
+
+                    # Atualiza a flag se mudou
+                    if order.esta_atrasada != esta_atrasada:
+                        order.esta_atrasada = esta_atrasada
+                        order.save()
 
             else:
                 # Outras fases: comportamento normal
@@ -2740,6 +2752,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "total_value": order.total_value,
                     "advance_payment": order.advance_payment,
                     "remaining_payment": order.remaining_payment,
+                    "esta_atrasada": order.esta_atrasada,
                     "employee_name": order.employee.name if order.employee else "",
                     "attendant_name": order.attendant.name if order.attendant else "",
                     "order_date": order.order_date,
