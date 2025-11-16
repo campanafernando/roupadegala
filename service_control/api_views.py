@@ -562,24 +562,25 @@ class ServiceOrderUpdateAPIView(APIView):
 
             service_order.save()
 
-            # Mover automaticamente para AGUARDANDO_RETIRADA após atualização
-            aguardando_retirada_phase = ServiceOrderPhase.objects.filter(
-                name="AGUARDANDO_RETIRADA"
+            # Mover automaticamente para EM_PRODUCAO após atualização
+            em_producao_phase = ServiceOrderPhase.objects.filter(
+                name="EM_PRODUCAO"
             ).first()
 
-            if aguardando_retirada_phase and service_order.service_order_phase:
-                # Só mover se não estiver já em AGUARDANDO_RETIRADA ou fases finais
+            if em_producao_phase and service_order.service_order_phase:
+                # Só mover se não estiver já em EM_PRODUCAO, AGUARDANDO_RETIRADA ou fases posteriores
                 current_phase_name = service_order.service_order_phase.name
                 if current_phase_name not in [
+                    "EM_PRODUCAO",
                     "AGUARDANDO_RETIRADA",
                     "AGUARDANDO_DEVOLUCAO",
                     "FINALIZADO",
                     "RECUSADA",
                 ]:
-                    service_order.service_order_phase = aguardando_retirada_phase
+                    service_order.service_order_phase = em_producao_phase
                     service_order.save()
                     print(
-                        f"OS {service_order.id} movida automaticamente para AGUARDANDO_RETIRADA após atualização"
+                        f"OS {service_order.id} movida automaticamente para EM_PRODUCAO após atualização"
                     )
 
             service_order.update(request.user)
@@ -1084,7 +1085,7 @@ class ServiceOrderRefuseAPIView(APIView):
 
             # Verificar se a OS pode ser recusada
             current_phase = service_order.service_order_phase
-            allowed_phases = ["PENDENTE", "AGUARDANDO_RETIRADA"]
+            allowed_phases = ["PENDENTE", "EM_PRODUCAO", "AGUARDANDO_RETIRADA"]
 
             # Permitir recusar OS sem fase (caso de OS recusadas na triagem)
             if current_phase and current_phase.name not in allowed_phases:
@@ -1226,11 +1227,14 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Verificar se está na fase AGUARDANDO_RETIRADA
-            if service_order.service_order_phase.name != "AGUARDANDO_RETIRADA":
+            # Verificar se está na fase EM_PRODUCAO ou AGUARDANDO_RETIRADA
+            if service_order.service_order_phase.name not in [
+                "EM_PRODUCAO",
+                "AGUARDANDO_RETIRADA",
+            ]:
                 return Response(
                     {
-                        "error": "OS deve estar na fase AGUARDANDO_RETIRADA para ser marcada como retirada."
+                        "error": "OS deve estar na fase EM_PRODUCAO ou AGUARDANDO_RETIRADA para ser marcada como retirada."
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -1284,6 +1288,99 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
         except Exception as e:
             return Response(
                 {"error": f"Erro ao marcar OS como retirada: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
+    summary="Marcar ordem de serviço como pronta para retirada",
+    description="Marca uma ordem de serviço como pronta, movendo da fase EM_PRODUCAO para AGUARDANDO_RETIRADA",
+    responses={
+        200: {
+            "description": "Ordem de serviço marcada como pronta",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+        400: {"description": "OS não pode ser marcada como pronta"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class ServiceOrderMarkReadyAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        """Marcar ordem de serviço como pronta para retirada"""
+        try:
+            service_order = get_object_or_404(ServiceOrder, id=order_id)
+
+            # Verificar se a OS pode ser marcada como pronta
+            if not service_order.service_order_phase:
+                return Response(
+                    {"error": "OS não possui fase definida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se está na fase EM_PRODUCAO
+            if service_order.service_order_phase.name != "EM_PRODUCAO":
+                return Response(
+                    {
+                        "error": "OS deve estar na fase EM_PRODUCAO para ser marcada como pronta."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Buscar ou criar fase "AGUARDANDO_RETIRADA"
+            aguardando_retirada_phase, created = (
+                ServiceOrderPhase.objects.get_or_create(
+                    name="AGUARDANDO_RETIRADA", defaults={"created_by": request.user}
+                )
+            )
+
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_employee = (
+                user_person
+                and service_order.employee
+                and user_person.id == service_order.employee.id
+            )
+            is_attendant = (
+                user_person
+                and service_order.attendant
+                and user_person.id == service_order.attendant.id
+            )
+
+            if not (is_admin or is_employee or is_attendant):
+                return Response(
+                    {
+                        "error": "Apenas o atendente responsável, recepcionista ou um administrador pode marcar uma OS como pronta."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Marcar como pronta (mover para AGUARDANDO_RETIRADA)
+            service_order.service_order_phase = aguardando_retirada_phase
+            service_order.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS marcada como pronta para retirada com sucesso",
+                }
+            )
+
+        except ServiceOrder.DoesNotExist:
+            return Response(
+                {"error": "Ordem de serviço não encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao marcar OS como pronta: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -1390,7 +1487,12 @@ class ServiceOrderDashboardAPIView(APIView):
             ).count()
 
         # OS de hoje
-        active_phases = ["PENDENTE", "AGUARDANDO_RETIRADA", "AGUARDANDO_DEVOLUCAO"]
+        active_phases = [
+            "PENDENTE",
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+        ]
         status["hoje"]["provas"] = ServiceOrder.objects.filter(
             order_date=today, service_order_phase__name__in=active_phases
         ).count()
@@ -1421,11 +1523,12 @@ class ServiceOrderDashboardAPIView(APIView):
         return status
 
     def _calculate_financial_metrics(self, today, week_start, month_start):
-        """Calcula métricas financeiras - apenas OS confirmadas (AGUARDANDO_RETIRADA em diante)"""
+        """Calcula métricas financeiras - apenas OS confirmadas (EM_PRODUCAO em diante)"""
         finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
 
         # Fases consideradas como confirmadas
         confirmed_phases = [
+            "EM_PRODUCAO",
             "AGUARDANDO_RETIRADA",
             "AGUARDANDO_DEVOLUCAO",
             "FINALIZADO",
@@ -1570,6 +1673,7 @@ class ServiceOrderDashboardAPIView(APIView):
             atendimentos[periodo]["em_andamento"] = orders.filter(
                 service_order_phase__name__in=[
                     "PENDENTE",
+                    "EM_PRODUCAO",
                     "AGUARDANDO_RETIRADA",
                     "AGUARDANDO_DEVOLUCAO",
                 ]
@@ -1608,12 +1712,13 @@ class ServiceOrderDashboardAPIView(APIView):
 
             iniciados = orders.count()
             # Consideramos "sucesso" OS finalizadas, aguardando devolução (já foram retiradas)
-            # ou aguardando retirada (confirmadas)
+            # ou aguardando retirada (confirmadas) ou em produção
             sucesso = orders.filter(
                 service_order_phase__name__in=[
                     "FINALIZADO",
                     "AGUARDANDO_DEVOLUCAO",
                     "AGUARDANDO_RETIRADA",
+                    "EM_PRODUCAO",
                 ]
             ).count()
 
@@ -1794,12 +1899,13 @@ class ServiceOrderDashboardAPIView(APIView):
         )
 
         total_orders = month_orders.count()
-        # Considera sucesso: OS confirmadas (AGUARDANDO_RETIRADA), retiradas ou finalizadas
+        # Considera sucesso: OS confirmadas (EM_PRODUCAO, AGUARDANDO_RETIRADA), retiradas ou finalizadas
         successful_orders = month_orders.filter(
             service_order_phase__name__in=[
                 "FINALIZADO",
                 "AGUARDANDO_DEVOLUCAO",
                 "AGUARDANDO_RETIRADA",
+                "EM_PRODUCAO",
             ]
         ).count()
 
@@ -1824,6 +1930,7 @@ class ServiceOrderDashboardAPIView(APIView):
                     "FINALIZADO",
                     "AGUARDANDO_DEVOLUCAO",
                     "AGUARDANDO_RETIRADA",
+                    "EM_PRODUCAO",
                 ]
             ).count()
 
@@ -1863,6 +1970,7 @@ class ServiceOrderDashboardAPIView(APIView):
             order_date__lte=today,
             total_value__isnull=False,
             service_order_phase__name__in=[
+                "EM_PRODUCAO",
                 "AGUARDANDO_RETIRADA",
                 "AGUARDANDO_DEVOLUCAO",
                 "FINALIZADO",
@@ -1936,6 +2044,7 @@ class ServiceOrderDashboardAPIView(APIView):
                 order_date__lte=week_end,
                 total_value__isnull=False,
                 service_order_phase__name__in=[
+                    "EM_PRODUCAO",
                     "AGUARDANDO_RETIRADA",
                     "AGUARDANDO_DEVOLUCAO",
                     "FINALIZADO",
@@ -2146,6 +2255,7 @@ class ServiceOrderDashboardAPIView(APIView):
             order_date__gte=month_start,
             order_date__lte=today,
             service_order_phase__name__in=[
+                "EM_PRODUCAO",
                 "AGUARDANDO_RETIRADA",
                 "AGUARDANDO_DEVOLUCAO",
                 "FINALIZADO",
@@ -2167,12 +2277,13 @@ class ServiceOrderDashboardAPIView(APIView):
         )
 
         # Taxa de conversão
-        # Considera sucesso: OS confirmadas (AGUARDANDO_RETIRADA), retiradas ou finalizadas
+        # Considera sucesso: OS confirmadas (EM_PRODUCAO, AGUARDANDO_RETIRADA), retiradas ou finalizadas
         successful_orders = month_orders.filter(
             service_order_phase__name__in=[
                 "FINALIZADO",
                 "AGUARDANDO_DEVOLUCAO",
                 "AGUARDANDO_RETIRADA",
+                "EM_PRODUCAO",
             ]
         ).count()
         conversao_geral = round(
@@ -2271,6 +2382,7 @@ class ServiceOrderAttendantMetricsAPIView(APIView):
                     em_andamento = orders.filter(
                         service_order_phase__name__in=[
                             "PENDENTE",
+                            "EM_PRODUCAO",
                             "AGUARDANDO_RETIRADA",
                             "AGUARDANDO_DEVOLUCAO",
                         ]
@@ -2278,12 +2390,13 @@ class ServiceOrderAttendantMetricsAPIView(APIView):
 
                     # Taxa de conversão
                     # Considera sucesso: OS que foram retiradas (AGUARDANDO_DEVOLUCAO),
-                    # aguardando retirada (confirmadas) ou finalizadas
+                    # aguardando retirada (confirmadas), em produção ou finalizadas
                     sucesso = orders.filter(
                         service_order_phase__name__in=[
                             "FINALIZADO",
                             "AGUARDANDO_DEVOLUCAO",
                             "AGUARDANDO_RETIRADA",
+                            "EM_PRODUCAO",
                         ]
                     ).count()
                     taxa_conversao = round(
@@ -2407,6 +2520,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     data_retirado__isnull=True,  # Não foi retirada
                     service_order_phase__name__in=[
                         "PENDENTE",
+                        "EM_PRODUCAO",
                         "AGUARDANDO_DEVOLUCAO",
                         "FINALIZADO",
                         "AGUARDANDO_RETIRADA",
@@ -3643,6 +3757,7 @@ class EventListWithStatusAPIView(APIView):
         os_em_andamento = service_orders.filter(
             service_order_phase__name__in=[
                 "PENDENTE",
+                "EM_PRODUCAO",
                 "AGUARDANDO_RETIRADA",
                 "AGUARDANDO_DEVOLUCAO",
             ]
@@ -3815,6 +3930,7 @@ class EventDetailAPIView(APIView):
         os_em_andamento = service_orders.filter(
             service_order_phase__name__in=[
                 "PENDENTE",
+                "EM_PRODUCAO",
                 "AGUARDANDO_RETIRADA",
                 "AGUARDANDO_DEVOLUCAO",
             ]

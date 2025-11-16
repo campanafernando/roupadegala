@@ -523,7 +523,7 @@ class EventServiceOrderSerializer(serializers.Serializer):
     date_created = serializers.DateTimeField(help_text="Data e hora de criação da OS")
     phase = serializers.CharField(
         allow_null=True,
-        help_text="Fase atual da OS (PENDENTE, AGUARDANDO_RETIRADA, etc.)",
+        help_text="Fase atual da OS (PENDENTE, EM_PRODUCAO, AGUARDANDO_RETIRADA, etc.)",
     )
     total_value = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor total da OS"
