@@ -3249,13 +3249,11 @@ class ServiceOrderPreTriageAPIView(APIView):
             )
 
             # Processar contatos apenas se fornecidos
-            email = data.get("email", "").strip()
-            telefone = data.get("telefone", "").strip()
+            email = data.get("email") or ""
+            telefone = data.get("telefone") or ""
 
-            if not email:
-                email = None
-            if not telefone:
-                telefone = None
+            email = email.strip() if email else None
+            telefone = telefone.strip() if telefone else None
 
             # Validar duplicatas apenas se fornecidos
             if email:
