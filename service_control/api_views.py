@@ -3154,7 +3154,10 @@ class ServiceOrderClientAPIView(APIView):
             "type": "object",
             "properties": {
                 "cliente_nome": {"type": "string", "description": "Nome do cliente"},
-                "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "telefone": {
+                    "type": "string",
+                    "description": "Telefone do cliente (opcional)",
+                },
                 "email": {
                     "type": "string",
                     "format": "email",
@@ -3197,7 +3200,6 @@ class ServiceOrderClientAPIView(APIView):
             },
             "required": [
                 "cliente_nome",
-                "telefone",
                 "cpf",
                 "atendente_id",
                 "origem",
@@ -3245,12 +3247,17 @@ class ServiceOrderPreTriageAPIView(APIView):
                     "created_by": request.user,
                 },
             )
+
+            # Processar contatos apenas se fornecidos
             email = data.get("email", "").strip()
-            telefone = data.get("telefone")
+            telefone = data.get("telefone", "").strip()
 
             if not email:
                 email = None
+            if not telefone:
+                telefone = None
 
+            # Validar duplicatas apenas se fornecidos
             if email:
                 existing_contact_with_email = (
                     PersonsContacts.objects.filter(email=email)
@@ -3277,11 +3284,13 @@ class ServiceOrderPreTriageAPIView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            PersonsContacts.objects.get_or_create(
-                phone=telefone,
-                person=person,
-                defaults={"email": email, "created_by": request.user},
-            )
+            # Criar contato apenas se pelo menos um (email ou telefone) foi fornecido
+            if email or telefone:
+                PersonsContacts.objects.get_or_create(
+                    phone=telefone,
+                    person=person,
+                    defaults={"email": email, "created_by": request.user},
+                )
             endereco = data.get("endereco", {})
             cidade_nome = endereco.get("cidade")
             if cidade_nome:
@@ -3487,7 +3496,9 @@ class EventOpenListAPIView(APIView):
             .values_list("event_id", flat=True)
             .distinct()
         )
-        eventos = Event.objects.filter(id__in=eventos_ids)
+        eventos = Event.objects.filter(id__in=eventos_ids).exclude(
+            event_date__isnull=True
+        )
         return Response(EventSerializer(eventos, many=True).data)
 
 
@@ -3565,8 +3576,10 @@ class EventListWithStatusAPIView(APIView):
 
             today = date.today()
 
-            # Buscar todos os eventos
-            events = Event.objects.all().order_by("-date_created")
+            # Buscar todos os eventos (excluindo os sem data)
+            events = Event.objects.exclude(event_date__isnull=True).order_by(
+                "-date_created"
+            )
 
             result_data = []
 
