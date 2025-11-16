@@ -364,13 +364,13 @@ class FrontendPaymentSerializer(serializers.Serializer):
     """Serializer para dados de pagamento do payload do frontend"""
 
     total = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor total"
+        max_digits=10, decimal_places=2, required=False, help_text="Valor total"
     )
     sinal = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor do sinal"
+        max_digits=10, decimal_places=2, required=False, help_text="Valor do sinal"
     )
     restante = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor restante"
+        max_digits=10, decimal_places=2, required=False, help_text="Valor restante"
     )
 
 
@@ -378,7 +378,7 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
     """Serializer para dados da ordem de serviço do payload do frontend"""
 
     data_pedido = serializers.DateField(required=False, help_text="Data do pedido")
-    data_evento = serializers.DateField(help_text="Data do evento")
+    data_evento = serializers.DateField(required=False, help_text="Data do evento")
     data_retirada = serializers.DateField(required=False, help_text="Data de retirada")
     data_devolucao = serializers.DateField(
         required=False, help_text="Data de devolução"
@@ -389,6 +389,7 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
             ("Compra", "Compra"),
             ("Aluguel + Venda", "Aluguel + Venda"),
         ],
+        required=False,
         help_text="Modalidade do serviço",
     )
     employee_id = serializers.IntegerField(
@@ -402,7 +403,9 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
     acessorios = FrontendAccessorySerializer(
         many=True, required=False, help_text="Lista de acessórios"
     )
-    pagamento = FrontendPaymentSerializer(help_text="Dados de pagamento")
+    pagamento = FrontendPaymentSerializer(
+        required=False, help_text="Dados de pagamento"
+    )
 
 
 class FrontendContactSerializer(serializers.Serializer):
@@ -428,8 +431,8 @@ class FrontendAddressSerializer(serializers.Serializer):
 class FrontendClientSerializer(serializers.Serializer):
     """Serializer para dados do cliente do payload do frontend"""
 
-    nome = serializers.CharField(help_text="Nome do cliente")
-    cpf = serializers.CharField(help_text="CPF do cliente")
+    nome = serializers.CharField(required=False, help_text="Nome do cliente")
+    cpf = serializers.CharField(required=False, help_text="CPF do cliente")
     email = serializers.EmailField(
         help_text="Email do cliente", required=False, allow_blank=True
     )
@@ -442,12 +445,12 @@ class FrontendClientSerializer(serializers.Serializer):
 
 
 class FrontendServiceOrderUpdateSerializer(serializers.Serializer):
-    """Serializer completo para o payload do frontend"""
+    """Serializer completo para o payload do frontend - todos os campos opcionais para permitir atualizações parciais"""
 
     ordem_servico = FrontendOrderServiceSerializer(
-        help_text="Dados da ordem de serviço"
+        required=False, help_text="Dados da ordem de serviço"
     )
-    cliente = FrontendClientSerializer(help_text="Dados do cliente")
+    cliente = FrontendClientSerializer(required=False, help_text="Dados do cliente")
 
 
 # --- Eventos ---
