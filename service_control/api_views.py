@@ -3496,9 +3496,7 @@ class EventOpenListAPIView(APIView):
             .values_list("event_id", flat=True)
             .distinct()
         )
-        eventos = Event.objects.filter(id__in=eventos_ids).exclude(
-            event_date__isnull=True
-        )
+        eventos = Event.objects.filter(id__in=eventos_ids)
         return Response(EventSerializer(eventos, many=True).data)
 
 
@@ -3576,10 +3574,8 @@ class EventListWithStatusAPIView(APIView):
 
             today = date.today()
 
-            # Buscar todos os eventos (excluindo os sem data)
-            events = Event.objects.exclude(event_date__isnull=True).order_by(
-                "-date_created"
-            )
+            # Buscar todos os eventos
+            events = Event.objects.all().order_by("-date_created")
 
             result_data = []
 
