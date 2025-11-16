@@ -3166,7 +3166,7 @@ class ServiceOrderClientAPIView(APIView):
                 "cpf": {"type": "string", "description": "CPF do cliente"},
                 "atendente_id": {
                     "type": "integer",
-                    "description": "ID do atendente responsável",
+                    "description": "ID do atendente responsável (opcional)",
                 },
                 "origem": {"type": "string", "description": "Origem do pedido"},
                 "data_evento": {
@@ -3201,7 +3201,6 @@ class ServiceOrderClientAPIView(APIView):
             "required": [
                 "cliente_nome",
                 "cpf",
-                "atendente_id",
                 "origem",
                 "data_evento",
                 "tipo_servico",
@@ -3304,13 +3303,16 @@ class ServiceOrderPreTriageAPIView(APIView):
                         city=city_obj,
                         defaults={"created_by": request.user},
                     )
+            # Atendente é opcional - será vinculado depois na criação da OS
             atendente_id = data.get("atendente_id")
-            atendente = Person.objects.filter(id=atendente_id).first()
-            if not atendente:
-                return Response(
-                    {"error": "Atendente não encontrado."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            atendente = None
+            if atendente_id:
+                atendente = Person.objects.filter(id=atendente_id).first()
+                if not atendente:
+                    return Response(
+                        {"error": "Atendente não encontrado."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             event_obj = None
             event_id = data.get("event_id")
             if event_id:
