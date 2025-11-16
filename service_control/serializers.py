@@ -391,6 +391,11 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
         ],
         help_text="Modalidade do serviço",
     )
+    employee_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="ID do atendente/recepcionista responsável",
+    )
     itens = FrontendOrderItemSerializer(
         many=True, required=False, help_text="Lista de itens"
     )

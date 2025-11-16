@@ -353,6 +353,19 @@ class ServiceOrderUpdateAPIView(APIView):
                     # Salvar modalidade no campo específico
                     service_order.service_type = modalidade
 
+                # Atualizar atendente/recepcionista responsável
+                if "employee_id" in os_data and os_data["employee_id"]:
+                    try:
+                        employee = Person.objects.get(id=os_data["employee_id"])
+                        service_order.employee = employee
+                    except Person.DoesNotExist:
+                        return Response(
+                            {
+                                "error": f"Atendente com ID {os_data['employee_id']} não encontrado"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
                 # Atualizar pagamento
                 if "pagamento" in os_data:
                     pagamento = os_data["pagamento"]
