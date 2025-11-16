@@ -3619,7 +3619,7 @@ class EventListWithStatusAPIView(APIView):
 
         # Se não tem data do evento definida, não podemos calcular status
         if not event.event_date:
-            return "SEM DATA"
+            return "N/A"
 
         # Garantir que event_date seja datetime.date para comparação
         event_date = event.event_date
@@ -3791,7 +3791,7 @@ class EventDetailAPIView(APIView):
 
         # Se não tem data do evento definida, não podemos calcular status
         if not event.event_date:
-            return "SEM DATA"
+            return "N/A"
 
         # Garantir que event_date seja datetime.date para comparação
         event_date = event.event_date

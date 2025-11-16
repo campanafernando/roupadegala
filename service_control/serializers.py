@@ -505,7 +505,7 @@ class EventStatusSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     description = serializers.CharField()
-    event_date = serializers.DateField()
+    event_date = serializers.DateField(allow_null=True)
     service_orders_count = serializers.IntegerField(
         help_text="Número de ordens de serviço vinculadas"
     )
@@ -513,7 +513,7 @@ class EventStatusSerializer(serializers.Serializer):
         help_text="Status do evento: FINALIZADO, CANCELADO, POSSUI PENDÊNCIAS"
     )
     date_created = serializers.DateTimeField()
-    date_updated = serializers.DateTimeField()
+    date_updated = serializers.DateTimeField(allow_null=True)
 
 
 class EventServiceOrderSerializer(serializers.Serializer):
@@ -539,16 +539,17 @@ class EventDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     description = serializers.CharField()
-    event_date = serializers.DateField()
+    event_date = serializers.DateField(allow_null=True)
     service_orders_count = serializers.IntegerField(
         help_text="Número de ordens de serviço vinculadas"
     )
     status = serializers.CharField(
-        help_text="Status do evento: AGENDADO, FINALIZADO, CANCELADO, POSSUI PENDÊNCIAS, SEM DATA"
+        help_text="Status do evento: AGENDADO, FINALIZADO, CANCELADO, POSSUI PENDÊNCIAS, N/A"
     )
     date_created = serializers.DateTimeField()
     date_updated = serializers.DateTimeField(
-        help_text="Data de atualização mais recente (considerando evento e OS vinculadas)"
+        allow_null=True,
+        help_text="Data de atualização mais recente (considerando evento e OS vinculadas)",
     )
     service_orders = EventServiceOrderSerializer(
         many=True, help_text="Lista das ordens de serviço vinculadas ao evento"
