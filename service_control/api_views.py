@@ -2604,14 +2604,27 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 )
 
             elif phase.name == "AGUARDANDO_DEVOLUCAO":
-                # Fase AGUARDANDO_DEVOLUCAO: apenas as que ainda respeitam a data de devolução
-                # E que não estão atrasadas (evento ainda não passou)
+                # Fase AGUARDANDO_DEVOLUCAO: todas as OS nesta fase
                 orders = (
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
-                        devolucao_date__gte=today,  # Ainda não passou da data de devolução
-                        event__event_date__gt=today,  # Evento ainda não passou
-                        event__isnull=False,  # Só OS com evento vinculado
+                    )
+                    .select_related(
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
+                        "justification_reason",
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
+                )
+
+            elif phase.name == "EM_PRODUCAO":
+                # Fase EM_PRODUCAO: todas as OS nesta fase
+                orders = (
+                    ServiceOrder.objects.filter(
+                        service_order_phase=phase,
                     )
                     .select_related(
                         "renter",
@@ -2625,14 +2638,10 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 )
 
             elif phase.name == "AGUARDANDO_RETIRADA":
-                # Fase AGUARDANDO_RETIRADA: apenas as que ainda respeitam a data de retirada
-                # E que não estão atrasadas (evento ainda não passou)
+                # Fase AGUARDANDO_RETIRADA: todas as OS nesta fase
                 orders = (
                     ServiceOrder.objects.filter(
                         service_order_phase=phase,
-                        retirada_date__gte=today,  # Ainda não passou da data de retirada
-                        event__event_date__gt=today,  # Evento ainda não passou
-                        event__isnull=False,  # Só OS com evento vinculado
                     )
                     .select_related(
                         "renter",
