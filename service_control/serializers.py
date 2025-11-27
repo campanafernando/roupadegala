@@ -370,12 +370,17 @@ class FrontendPaymentItemSerializer(serializers.Serializer):
     """Serializer para item individual de pagamento"""
 
     amount = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, allow_null=True,
-        help_text="Valor do pagamento"
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        help_text="Valor do pagamento",
     )
     forma_pagamento = serializers.CharField(
-        required=False, allow_null=True, allow_blank=True,
-        help_text="Forma de pagamento (credito, dinheiro, etc)"
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text="Forma de pagamento (credito, dinheiro, etc)",
     )
 
 
