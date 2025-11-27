@@ -2773,6 +2773,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "prova_date": order.prova_date,
                     "retirada_date": order.retirada_date,
                     "devolucao_date": order.devolucao_date,
+                    "production_date": order.production_date,
                     "client": client_data,
                     "justification_refusal": order.justification_refusal,
                     "justification_reason": (
