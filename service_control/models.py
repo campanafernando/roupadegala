@@ -97,10 +97,10 @@ class ServiceOrder(BaseModel):
         default=False,
         help_text="Flag indicando se a OS está atrasada (retirada ou devolução)",
     )
-    production_date = models.DateTimeField(
+    production_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Data e hora em que a OS foi movida para produção",
+        help_text="Data em que a OS foi movida para produção",
     )
 
     class Meta:

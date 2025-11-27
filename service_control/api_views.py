@@ -613,7 +613,7 @@ class ServiceOrderUpdateAPIView(APIView):
                         "RECUSADA",
                     ]:
                         service_order.service_order_phase = em_producao_phase
-                        service_order.production_date = timezone.now()
+                        service_order.production_date = timezone.now().date()
                         service_order.save()
                         print(
                             f"OS {service_order.id} movida automaticamente para EM_PRODUCAO após atualização completa"
@@ -2983,7 +2983,6 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     ),
                     "data_retirada": order.retirada_date,
                     "data_devolucao": order.devolucao_date,
-                    "production_date": order.production_date,
                     "modalidade": order.service_type or "Aluguel",
                     "itens": itens,
                     "acessorios": acessorios,
@@ -3235,7 +3234,6 @@ class ServiceOrderListByClientAPIView(APIView):
                     ),
                     "data_retirada": order.retirada_date,
                     "data_devolucao": order.devolucao_date,
-                    "production_date": order.production_date,
                     "modalidade": order.service_type or "Aluguel",
                     "itens": itens,
                     "acessorios": acessorios,

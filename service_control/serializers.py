@@ -237,8 +237,8 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     devolucao_date = serializers.DateField(
         help_text="Data de devolução", allow_null=True
     )
-    production_date = serializers.DateTimeField(
-        help_text="Data e hora em que a OS foi movida para produção", allow_null=True
+    production_date = serializers.DateField(
+        help_text="Data em que a OS foi movida para produção", allow_null=True
     )
     justificativa_atraso = serializers.CharField(
         help_text="Justificativa do atraso (quando aplicável)",
