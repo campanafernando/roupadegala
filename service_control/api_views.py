@@ -339,6 +339,10 @@ class ServiceOrderUpdateAPIView(APIView):
                     service_order.retirada_date = os_data["data_retirada"]
                 if "data_devolucao" in os_data:
                     service_order.devolucao_date = os_data["data_devolucao"]
+                if "data_prova" in os_data:
+                    service_order.prova_date = os_data["data_prova"]
+                if "ocasiao" in os_data:
+                    service_order.came_from = os_data["ocasiao"]
 
                 # Atualizar informações básicas
                 if "modalidade" in os_data:
@@ -371,10 +375,18 @@ class ServiceOrderUpdateAPIView(APIView):
                     pagamento = os_data["pagamento"]
                     if "total" in pagamento:
                         service_order.total_value = pagamento["total"]
-                    if "sinal" in pagamento:
-                        service_order.advance_payment = pagamento["sinal"]
                     if "restante" in pagamento:
                         service_order.remaining_payment = pagamento["restante"]
+
+                    # Processar sinal - pode ser um número ou um objeto com total e pagamentos
+                    if "sinal" in pagamento:
+                        sinal_data = pagamento["sinal"]
+                        if isinstance(sinal_data, dict) and "total" in sinal_data:
+                            # Novo formato: objeto com total
+                            service_order.advance_payment = sinal_data["total"]
+                        else:
+                            # Formato antigo: apenas número
+                            service_order.advance_payment = sinal_data
 
             # Processar dados do cliente
             if "cliente" in data:

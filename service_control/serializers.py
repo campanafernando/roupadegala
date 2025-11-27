@@ -363,17 +363,37 @@ class FrontendAccessorySerializer(serializers.Serializer):
     )
 
 
+class FrontendPaymentItemSerializer(serializers.Serializer):
+    """Serializer para item individual de pagamento"""
+
+    amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor do pagamento"
+    )
+    forma_pagamento = serializers.CharField(
+        help_text="Forma de pagamento (credito, dinheiro, etc)"
+    )
+
+
+class FrontendSignalSerializer(serializers.Serializer):
+    """Serializer para dados do sinal"""
+
+    total = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor total do sinal"
+    )
+    pagamentos = FrontendPaymentItemSerializer(
+        many=True, help_text="Lista de pagamentos do sinal"
+    )
+
+
 class FrontendPaymentSerializer(serializers.Serializer):
     """Serializer para dados de pagamento do payload do frontend"""
 
     total = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, help_text="Valor total"
+        max_digits=10, decimal_places=2, help_text="Valor total"
     )
-    sinal = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, help_text="Valor do sinal"
-    )
+    sinal = FrontendSignalSerializer(help_text="Dados do sinal")
     restante = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, help_text="Valor restante"
+        max_digits=10, decimal_places=2, help_text="Valor restante"
     )
 
 
@@ -383,8 +403,12 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
     data_pedido = serializers.DateField(required=False, help_text="Data do pedido")
     data_evento = serializers.DateField(required=False, help_text="Data do evento")
     data_retirada = serializers.DateField(required=False, help_text="Data de retirada")
+    data_prova = serializers.DateField(required=False, help_text="Data da prova")
     data_devolucao = serializers.DateField(
         required=False, help_text="Data de devolução"
+    )
+    ocasiao = serializers.CharField(
+        required=False, allow_blank=True, help_text="Ocasião do evento"
     )
     modalidade = serializers.ChoiceField(
         choices=[
