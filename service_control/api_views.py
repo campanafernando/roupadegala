@@ -8,7 +8,7 @@ from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, OpenApiExample
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -3087,6 +3087,34 @@ class ServiceOrderListByPhaseV2APIView(APIView):
         ),
     ],
     responses={200: ServiceOrderFinanceSummarySerializer},
+    examples=[
+        OpenApiExample(
+            "Exemplo de resposta",
+            value={
+                "total_transactions": 2,
+                "total_amount": "350.50",
+                "transactions": [
+                    {
+                        "order_id": 123,
+                        "transaction_type": "sinal",
+                        "amount": "100.00",
+                        "payment_method": "CARTAO",
+                        "date": "2025-11-10",
+                    },
+                    {
+                        "order_id": 124,
+                        "transaction_type": "restante",
+                        "amount": "250.50",
+                        "payment_method": "PIX",
+                        "date": "2025-11-12",
+                    },
+                ],
+                "totals_by_method": {"CARTAO": "100.00", "PIX": "250.50"},
+            },
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
 )
 class ServiceOrderFinanceSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
