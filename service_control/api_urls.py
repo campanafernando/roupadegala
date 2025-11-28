@@ -22,6 +22,7 @@ from .api_views import (
     ServiceOrderListByClientAPIView,
     ServiceOrderListByPhaseAPIView,
     ServiceOrderListByPhaseV2APIView,
+    ServiceOrderFinanceSummaryAPIView,
     ServiceOrderMarkPaidAPIView,
     ServiceOrderMarkReadyAPIView,
     ServiceOrderMarkRetrievedAPIView,
@@ -150,5 +151,11 @@ urlpatterns = [
         "service-orders/pre-triage/",
         ServiceOrderPreTriageAPIView.as_view(),
         name="api_service_order_pre_triage",
+    ),
+    # Finance tab
+    path(
+        "service-orders/finance/",
+        ServiceOrderFinanceSummaryAPIView.as_view(),
+        name="api_service_order_finance_summary",
     ),
 ]

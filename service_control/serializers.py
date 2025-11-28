@@ -502,6 +502,28 @@ class FrontendServiceOrderUpdateSerializer(serializers.Serializer):
     )
     cliente = FrontendClientSerializer(required=False, help_text="Dados do cliente")
 
+    # Serializers for finance summary endpoint
+class ServiceOrderFinanceTransactionSerializer(serializers.Serializer):
+    order_id = serializers.IntegerField(help_text="ID da ordem de serviço")
+    transaction_type = serializers.CharField(
+        help_text="Tipo da transação (sinal/restante)")
+    amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, help_text="Valor da transação")
+    payment_method = serializers.CharField(
+        allow_null=True, required=False, help_text="Forma de pagamento")
+    date = serializers.DateField(allow_null=True, required=False, help_text="Data da transação")
+
+
+class ServiceOrderFinanceSummarySerializer(serializers.Serializer):
+    total_transactions = serializers.IntegerField(help_text="Número total de transações")
+    total_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=2, help_text="Valor total somado das transações")
+    transactions = ServiceOrderFinanceTransactionSerializer(many=True)
+    totals_by_method = serializers.DictField(
+        child=serializers.DecimalField(max_digits=14, decimal_places=2),
+        help_text="Totais agrupados por forma de pagamento",
+    )
+
 
 # --- Eventos ---
 

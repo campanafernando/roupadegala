@@ -41,6 +41,7 @@ from .serializers import (
     ServiceOrderMarkRetrievedSerializer,
     ServiceOrderRefuseSerializer,
     ServiceOrderSerializer,
+        ServiceOrderFinanceSummarySerializer,
 )
 from django.core.paginator import Paginator, EmptyPage
 
@@ -3059,6 +3060,140 @@ class ServiceOrderListByPhaseAPIView(APIView):
 )
 class ServiceOrderListByPhaseV2APIView(APIView):
     """Versão V2 com paginação simples para a listagem por fase.
+
+@extend_schema(
+    tags=["service-orders"],
+    summary="Resumo financeiro - transações por forma de pagamento",
+    description=(
+        "Retorna resumo financeiro com lista de transações e suas formas de pagamento. "
+        "Considera 'sinal' (advance_payment) sempre que presente e 'restante' "
+        "(remaining_payment) apenas quando a OS estiver em fase FINALIZADO. "
+        "Opcionalmente filtra por intervalo de `start_date` e `end_date` (YYYY-MM-DD) aplicados sobre `order_date`."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="start_date",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Filtrar ordens a partir desta data (inclusive)",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="end_date",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Filtrar ordens até esta data (inclusive)",
+            required=False,
+        ),
+    ],
+    responses={200: ServiceOrderFinanceSummarySerializer},
+)
+class ServiceOrderFinanceSummaryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceOrderFinanceSummarySerializer
+
+    def get(self, request):
+        """Retorna total de transações e forma de pagamento de cada uma"""
+        from decimal import Decimal
+
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        orders = ServiceOrder.objects.select_related("service_order_phase")
+
+        if start_date:
+            orders = orders.filter(order_date__gte=start_date)
+        if end_date:
+            orders = orders.filter(order_date__lte=end_date)
+
+        transactions = []
+        total_amount = Decimal("0")
+
+        # Determine which phase names correspond to refused/cancelled in this installation.
+        # Use a small set of candidate names and only exclude those that exist in DB.
+        CANDIDATE_EXCLUDED = {"RECUSADA", "CANCELADO", "CANCELADA", "CONCLUÍDO"}
+        existing_excluded = set(
+            ServiceOrderPhase.objects.filter(name__in=CANDIDATE_EXCLUDED).values_list(
+                "name", flat=True
+            )
+        )
+
+        # Fallback to 'RECUSADA' if nothing found (defensive)
+        EXCLUDED_PHASES = existing_excluded or {"RECUSADA"}
+
+        for order in orders:
+            # ignore refused/cancelled orders from all financial calculations
+            if order.service_order_phase and order.service_order_phase.name in EXCLUDED_PHASES:
+                continue
+            # sinal (advance_payment) counted as a transaction if > 0
+            try:
+                adv = order.advance_payment if order.advance_payment is not None else 0
+            except Exception:
+                adv = 0
+
+            if adv and float(adv) > 0:
+                amt = Decimal(str(float(adv)))
+                pm = order.payment_method or "NÃO INFORMADO"
+                transactions.append(
+                    {
+                        "order_id": order.id,
+                        "transaction_type": "sinal",
+                        "amount": amt,
+                        "payment_method": pm,
+                        "date": order.order_date,
+                    }
+                )
+                total_amount += amt
+                # accumulate totals by method
+                # using string key for serializer compatibility
+                # initialize if missing
+                
+                
+
+            # restante (remaining_payment) is considered received only if FINALIZADO
+            if (
+                order.service_order_phase
+                and order.service_order_phase.name == "FINALIZADO"
+            ):
+                try:
+                    rem = order.remaining_payment if order.remaining_payment is not None else 0
+                except Exception:
+                    rem = 0
+
+                if rem and float(rem) > 0:
+                    amt = Decimal(str(float(rem)))
+                    pm = order.payment_method or "NÃO INFORMADO"
+                    transactions.append(
+                        {
+                            "order_id": order.id,
+                            "transaction_type": "restante",
+                            "amount": amt,
+                            "payment_method": pm,
+                            "date": order.data_devolvido or order.order_date,
+                        }
+                    )
+                    total_amount += amt
+                    
+                    
+                    
+
+        # build totals_by_method
+        totals_by_method = {}
+        for t in transactions:
+            key = t.get("payment_method") or "NÃO INFORMADO"
+            if key not in totals_by_method:
+                totals_by_method[key] = Decimal("0")
+            totals_by_method[key] += Decimal(str(t.get("amount")))
+
+        # convert Decimal keys/values to ensure serializer handles them
+        summary = {
+            "total_transactions": len(transactions),
+            "total_amount": total_amount,
+            "transactions": transactions,
+            "totals_by_method": totals_by_method,
+        }
+
+        return Response(summary)
 
     Query params:
     - page: número da página (padrão 1)
