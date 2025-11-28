@@ -21,6 +21,7 @@ from .api_views import (
     ServiceOrderListAPIView,
     ServiceOrderListByClientAPIView,
     ServiceOrderListByPhaseAPIView,
+    ServiceOrderListByPhaseV2APIView,
     ServiceOrderMarkPaidAPIView,
     ServiceOrderMarkReadyAPIView,
     ServiceOrderMarkRetrievedAPIView,
@@ -133,6 +134,11 @@ urlpatterns = [
         "service-orders/phase/<str:phase_name>/",
         ServiceOrderListByPhaseAPIView.as_view(),
         name="api_service_order_by_phase",
+    ),
+    path(
+        "service-orders/v2/phase/<str:phase_name>/",
+        ServiceOrderListByPhaseV2APIView.as_view(),
+        name="api_service_order_by_phase_v2",
     ),
     # Listagem por cliente
     path(
