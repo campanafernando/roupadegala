@@ -3059,7 +3059,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
     },
 )
 class ServiceOrderListByPhaseV2APIView(APIView):
-    """Versão V2 com paginação simples para a listagem por fase.
+    """Versão V2 com paginação simples para a listagem por fase."""
 
 @extend_schema(
     tags=["service-orders"],
@@ -3194,11 +3194,6 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
         }
 
         return Response(summary)
-
-    Query params:
-    - page: número da página (padrão 1)
-    - page_size: itens por página (padrão 20)
-    """
 
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceOrderListByPhaseSerializer
