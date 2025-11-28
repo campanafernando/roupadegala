@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field, OpenApiTypes
 
 from accounts.serializers import PersonSerializer
 from products.serializers import (
@@ -54,6 +55,7 @@ class ServiceOrderSerializer(serializers.ModelSerializer):
         model = ServiceOrder
         fields = "__all__"
 
+    @extend_schema_field(OpenApiTypes.DATE)
     def get_event_date(self, obj):
         """Retorna a data do evento vinculado"""
         if obj.event and obj.event.event_date:
@@ -62,6 +64,7 @@ class ServiceOrderSerializer(serializers.ModelSerializer):
             return obj.event.event_date
         return None
 
+    @extend_schema_field(OpenApiTypes.STR)
     def get_event_name(self, obj):
         """Retorna o nome do evento vinculado"""
         return obj.event.name if obj.event else None

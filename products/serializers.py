@@ -110,7 +110,32 @@ class TemporaryProductSerializer(serializers.ModelSerializer):
 class CatalogListSerializer(serializers.Serializer):
     """Serializer para listagem de catálogos"""
 
-    pass
+    brands = BrandSerializer(many=True)
+    fabrics = FabricSerializer(many=True)
+    colors = ColorCatalogueSerializer(many=True)
+    patterns = PatternSerializer(many=True)
+    buttons = ButtonSerializer(many=True)
+    lapels = LapelSerializer(many=True)
+    models = ModelSerializer(many=True)
+    product_types = ProductTypeSerializer(many=True)
+
+
+class ColorCombinationSerializer(serializers.Serializer):
+    """Serializer para combinação de cor + intensidade"""
+
+    color = serializers.CharField(help_text="Nome da cor")
+    intensity = serializers.CharField(allow_null=True, help_text="Intensidade")
+    combined = serializers.CharField(help_text="String combinada para pesquisa")
+
+
+class ColorWithIntensitySerializer(serializers.Serializer):
+    """Serializer para a listagem de combinações de cor e intensidade (Color model)"""
+
+    id = serializers.IntegerField()
+    color_id = serializers.IntegerField()
+    color = serializers.CharField()
+    intensity_id = serializers.IntegerField()
+    intensity = serializers.CharField()
 
 
 class ProductUpdateSerializer(serializers.Serializer):

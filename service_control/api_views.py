@@ -1356,6 +1356,7 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
 )
 class ServiceOrderMarkReadyAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = ServiceOrderMarkRetrievedSerializer
 
     def post(self, request, order_id):
         """Marcar ordem de serviço como pronta para retirada"""
@@ -3050,13 +3051,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
     responses={
         200: {
             "type": "object",
-            "properties": {
-                "count": {"type": "integer"},
-                "page": {"type": "integer"},
-                "page_size": {"type": "integer"},
-                "total_pages": {"type": "integer"},
-                "results": ServiceOrderListByPhaseSerializer(many=True),
-            },
+            "description": "Objeto paginado contendo os resultados e metadados de paginação",
         },
         404: {"description": "Fase não encontrada"},
         500: {"description": "Erro interno do servidor"},

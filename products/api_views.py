@@ -34,6 +34,7 @@ from .serializers import (
     ButtonSerializer,
     CatalogListSerializer,
     ColorCatalogueSerializer,
+    ColorCombinationSerializer,
     FabricSerializer,
     LapelSerializer,
     ModelSerializer,
@@ -43,6 +44,7 @@ from .serializers import (
     ProductUpdateSerializer,
     TemporaryProductCreateSerializer,
     TemporaryProductSerializer,
+    ColorWithIntensitySerializer,
 )
 
 
@@ -627,6 +629,7 @@ class ProductQRCodeAPIView(APIView):
 )
 class ColorListAPIView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = ColorCombinationSerializer
 
     def get(self, request):
         """Lista todas as cores e combinações possíveis com intensidades"""
@@ -718,6 +721,7 @@ class ColorListAPIView(APIView):
 )
 class BrandListAPIView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = BrandSerializer
 
     def get(self, request):
         """Lista todas as marcas disponíveis"""
@@ -734,6 +738,7 @@ class BrandListAPIView(APIView):
 
 class ColorWithIntensityListAPIView(APIView):
     permission_classes = [AllowAny]
+    serializer_class = ColorWithIntensitySerializer
 
     def get(self, request):
         """Lista todas as combinações de cor e intensidade"""
