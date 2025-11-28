@@ -93,6 +93,14 @@ class ServiceOrder(BaseModel):
     data_retirado = models.DateTimeField(
         null=True, blank=True, help_text="Data e hora em que foi retirado"
     )
+    # Data e hora em que a OS foi recusada (quando fase passa para RECUSADA)
+    data_recusa = models.DateTimeField(
+        null=True, blank=True, help_text="Data e hora em que a OS foi recusada"
+    )
+    # Data e hora em que a OS foi finalizada (quando marcada como paga / FINALIZADO)
+    data_finalizado = models.DateTimeField(
+        null=True, blank=True, help_text="Data e hora em que a OS foi finalizada"
+    )
     esta_atrasada = models.BooleanField(
         default=False,
         help_text="Flag indicando se a OS está atrasada (retirada ou devolução)",

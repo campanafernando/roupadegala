@@ -781,6 +781,8 @@ class ServiceOrderDetailAPIView(APIView):
                 "retirada_date": order.retirada_date,
                 "devolucao_date": order.devolucao_date,
                 "production_date": order.production_date,
+                "data_recusa": order.data_recusa,
+                "data_finalizado": order.data_finalizado,
                 "client": client_data,
                 "justification_refusal": order.justification_refusal,
                 "event_date": (
@@ -1037,7 +1039,10 @@ class ServiceOrderMarkPaidAPIView(APIView):
 
             # Marcar como paga e finalizada
             service_order.service_order_phase = finalizado_phase
-            service_order.data_devolvido = timezone.now()
+            now_ts = timezone.now()
+            service_order.data_devolvido = now_ts
+            # também registrar data/hora de finalização explicitamente
+            service_order.data_finalizado = now_ts
             service_order.save()
 
             return Response(
@@ -1155,6 +1160,8 @@ class ServiceOrderRefuseAPIView(APIView):
             service_order.service_order_phase = refused_phase
             service_order.justification_refusal = justification
             service_order.justification_reason = refusal_reason
+            # Registrar data/hora da recusa e cancelar (cancel() fará o save())
+            service_order.data_recusa = timezone.now()
             service_order.cancel(request.user)  # Atualiza date_canceled e canceled_by
 
             return Response(
