@@ -16,18 +16,18 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="serviceorder",
             name="data_recusa",
-            field=models.DateTimeField(
+            field=models.DateField(
                 blank=True,
-                help_text="Data e hora em que a OS foi recusada",
+                help_text="Data em que a OS foi recusada",
                 null=True,
             ),
         ),
         migrations.AddField(
             model_name="serviceorder",
             name="data_finalizado",
-            field=models.DateTimeField(
+            field=models.DateField(
                 blank=True,
-                help_text="Data e hora em que a OS foi finalizada",
+                help_text="Data em que a OS foi finalizada",
                 null=True,
             ),
         ),

@@ -259,11 +259,11 @@ class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     )
 
     # Datas adicionais
-    data_recusa = serializers.DateTimeField(
-        help_text="Data e hora em que a OS foi recusada", allow_null=True
+    data_recusa = serializers.DateField(
+        help_text="Data em que a OS foi recusada", allow_null=True
     )
-    data_finalizado = serializers.DateTimeField(
-        help_text="Data e hora em que a OS foi finalizada", allow_null=True
+    data_finalizado = serializers.DateField(
+        help_text="Data em que a OS foi finalizada", allow_null=True
     )
 
     # Dados do evento vinculado

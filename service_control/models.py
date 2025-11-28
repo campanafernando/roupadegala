@@ -94,12 +94,12 @@ class ServiceOrder(BaseModel):
         null=True, blank=True, help_text="Data e hora em que foi retirado"
     )
     # Data e hora em que a OS foi recusada (quando fase passa para RECUSADA)
-    data_recusa = models.DateTimeField(
-        null=True, blank=True, help_text="Data e hora em que a OS foi recusada"
+    data_recusa = models.DateField(
+        null=True, blank=True, help_text="Data em que a OS foi recusada"
     )
-    # Data e hora em que a OS foi finalizada (quando marcada como paga / FINALIZADO)
-    data_finalizado = models.DateTimeField(
-        null=True, blank=True, help_text="Data e hora em que a OS foi finalizada"
+    # Data em que a OS foi finalizada (quando marcada como paga / FINALIZADO)
+    data_finalizado = models.DateField(
+        null=True, blank=True, help_text="Data em que a OS foi finalizada"
     )
     esta_atrasada = models.BooleanField(
         default=False,
