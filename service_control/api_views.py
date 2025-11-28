@@ -2780,6 +2780,8 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     "retirada_date": order.retirada_date,
                     "devolucao_date": order.devolucao_date,
                     "production_date": order.production_date,
+                    "data_recusa": order.data_recusa,
+                    "data_finalizado": order.data_finalizado,
                     "client": client_data,
                     "justification_refusal": order.justification_refusal,
                     "justification_reason": (
@@ -3075,6 +3077,8 @@ class ServiceOrderListByClientAPIView(APIView):
                     "prova_date": order.prova_date,
                     "retirada_date": order.retirada_date,
                     "devolucao_date": order.devolucao_date,
+                    "data_recusa": order.data_recusa,
+                    "data_finalizado": order.data_finalizado,
                     "justification_refusal": order.justification_refusal,
                     "phase": (
                         order.service_order_phase.name
