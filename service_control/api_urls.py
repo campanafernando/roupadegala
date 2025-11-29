@@ -141,12 +141,6 @@ urlpatterns = [
         ServiceOrderListByPhaseV2APIView.as_view(),
         name="api_service_order_by_phase_v2",
     ),
-    # Accept calls without trailing slash to avoid 405 from clients that omit it
-    path(
-        "service-orders/v2/phase/<str:phase_name>",
-        ServiceOrderListByPhaseV2APIView.as_view(),
-        name="api_service_order_by_phase_v2_noslash",
-    ),
     # Listagem por cliente
     path(
         "service-orders/renter/<int:renter_id>/",
