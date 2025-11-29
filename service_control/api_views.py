@@ -3049,6 +3049,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
             required=False,
         ),
     ],
+    methods=["GET"],
     responses={
         200: {
             "type": "object",
@@ -3057,9 +3058,354 @@ class ServiceOrderListByPhaseAPIView(APIView):
         404: {"description": "Fase não encontrada"},
         500: {"description": "Erro interno do servidor"},
     },
+    examples=[
+        OpenApiExample(
+            "Exemplo paginado (v2)",
+            value={
+                "count": 2,
+                "page": 1,
+                "page_size": 20,
+                "total_pages": 1,
+                "results": [
+                    {
+                        "id": 123,
+                        "total_value": "150.00",
+                        "advance_payment": "50.00",
+                        "remaining_payment": "100.00",
+                        "esta_atrasada": False,
+                        "employee_name": "Fulano",
+                        "attendant_name": "Beltrano",
+                        "order_date": "2025-11-10",
+                        "prova_date": None,
+                        "retirada_date": None,
+                        "devolucao_date": None,
+                        "data_recusa": None,
+                        "data_finalizado": None,
+                        "client": {"id": 1, "name": "Cliente Exemplo", "cpf": "00000000000"},
+                        "justification_refusal": None,
+                    }
+                ],
+            },
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
 )
 class ServiceOrderListByPhaseV2APIView(APIView):
     """Versão V2 com paginação simples para a listagem por fase."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceOrderListByPhaseSerializer
+
+    def get(self, request, phase_name):
+        try:
+            # Params de paginação
+            try:
+                page = int(request.GET.get("page", 1))
+            except (TypeError, ValueError):
+                page = 1
+
+            try:
+                page_size = int(request.GET.get("page_size", 20))
+            except (TypeError, ValueError):
+                page_size = 20
+
+            if page_size <= 0:
+                page_size = 20
+
+            today = date.today()
+
+            # Reaplicar a mesma lógica automática de recusa por evento passado
+            def move_to_refused_if_event_passed():
+                refused_phase = ServiceOrderPhase.objects.filter(
+                    name="RECUSADA"
+                ).first()
+                if not refused_phase:
+                    return
+
+                overdue_orders = ServiceOrder.objects.filter(
+                    event__event_date__lt=today,
+                    data_retirado__isnull=True,
+                    service_order_phase__name__in=[
+                        "PENDENTE",
+                        "EM_PRODUCAO",
+                        "AGUARDANDO_DEVOLUCAO",
+                        "FINALIZADO",
+                        "AGUARDANDO_RETIRADA",
+                    ],
+                    event__isnull=False,
+                ).exclude(service_order_phase__name="RECUSADA")
+
+                for order in overdue_orders:
+                    order.service_order_phase = refused_phase
+                    order.justification_refusal = "Cliente não retirou o produto"
+                    order.save()
+
+            move_to_refused_if_event_passed()
+
+            phase = ServiceOrderPhase.objects.filter(name__icontains=phase_name).first()
+            if not phase:
+                return Response(
+                    {"error": "Fase não encontrada"}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Filtrar orders baseado na fase (mesma lógica que V1)
+            if phase.name == "ATRASADO":
+                aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
+                    name="AGUARDANDO_DEVOLUCAO"
+                ).first()
+
+                orders_qs = (
+                    ServiceOrder.objects.filter(
+                        models.Q(
+                            service_order_phase=aguardando_devolucao_phase,
+                            devolucao_date__lt=today,
+                            event__event_date__gt=today,
+                            event__isnull=False,
+                        )
+                        | models.Q(
+                            service_order_phase=aguardando_devolucao_phase,
+                            data_devolvido__isnull=True,
+                            event__event_date__lt=today,
+                            event__isnull=False,
+                        )
+                    )
+                    .select_related(
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
+                        "justification_reason",
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
+                )
+
+            elif phase.name in ["AGUARDANDO_DEVOLUCAO", "EM_PRODUCAO", "AGUARDANDO_RETIRADA"]:
+                orders_qs = (
+                    ServiceOrder.objects.filter(
+                        service_order_phase=phase,
+                    )
+                    .select_related(
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
+                        "justification_reason",
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
+                )
+
+                # Para AGUARDANDO_RETIRADA atualizar flag de atraso globalmente
+                if phase.name == "AGUARDANDO_RETIRADA":
+                    for order in orders_qs:
+                        esta_atrasada = False
+
+                        if order.retirada_date and order.retirada_date < today:
+                            esta_atrasada = True
+
+                        if (
+                            order.event
+                            and order.event.event_date
+                            and order.event.event_date < today
+                            and not order.data_retirado
+                        ):
+                            esta_atrasada = True
+
+                        if order.esta_atrasada != esta_atrasada:
+                            order.esta_atrasada = esta_atrasada
+                            order.save()
+
+            else:
+                orders_qs = (
+                    ServiceOrder.objects.filter(service_order_phase=phase)
+                    .select_related(
+                        "renter",
+                        "employee",
+                        "attendant",
+                        "renter__person_type",
+                        "event",
+                        "justification_reason",
+                    )
+                    .prefetch_related("items__temporary_product", "items__product")
+                )
+
+            # Paginação
+            paginator = Paginator(orders_qs, page_size)
+            try:
+                page_obj = paginator.page(page)
+            except EmptyPage:
+                return Response({"error": "Página não encontrada"}, status=404)
+
+            results = []
+            for order in page_obj.object_list:
+                # Reaproveitar construção do payload igual ao V1
+                client_data = {
+                    "id": order.renter.id,
+                    "name": order.renter.name,
+                    "cpf": order.renter.cpf,
+                    "person_type": (
+                        {
+                            "id": order.renter.person_type.id,
+                            "type": order.renter.person_type.type,
+                        }
+                        if order.renter.person_type
+                        else None
+                    ),
+                }
+
+                contact = order.renter.contacts.order_by("-date_created").first()
+                client_data["contacts"] = []
+                if contact:
+                    client_data["contacts"].append(
+                        {"id": contact.id, "email": contact.email, "phone": contact.phone}
+                    )
+
+                address = order.renter.personsadresses_set.order_by("-date_created").first()
+                client_data["addresses"] = []
+                if address:
+                    city_data = None
+                    if address.city:
+                        city_data = {"id": address.city.id, "name": address.city.name, "uf": address.city.uf}
+
+                    client_data["addresses"].append(
+                        {
+                            "id": address.id,
+                            "cep": address.cep,
+                            "rua": address.street,
+                            "numero": address.number,
+                            "bairro": address.neighborhood,
+                            "complemento": address.complemento or "",
+                            "cidade": city_data,
+                        }
+                    )
+
+                order_data = {
+                    "id": order.id,
+                    "total_value": order.total_value,
+                    "advance_payment": order.advance_payment,
+                    "remaining_payment": order.remaining_payment,
+                    "esta_atrasada": order.esta_atrasada,
+                    "employee_name": order.employee.name if order.employee else "",
+                    "attendant_name": order.attendant.name if order.attendant else "",
+                    "order_date": order.order_date,
+                    "prova_date": order.prova_date,
+                    "retirada_date": order.retirada_date,
+                    "devolucao_date": order.devolucao_date,
+                    "production_date": order.production_date,
+                    "data_recusa": order.data_recusa,
+                    "data_finalizado": order.data_finalizado,
+                    "client": client_data,
+                    "justification_refusal": order.justification_refusal,
+                    "justification_reason": (
+                        order.justification_reason.name if order.justification_reason else None
+                    ),
+                    "event_date": (
+                        order.event.event_date.date()
+                        if order.event and order.event.event_date and hasattr(order.event.event_date, "date")
+                        else order.event.event_date if order.event else None
+                    ),
+                    "event_name": order.event.name if order.event else None,
+                }
+
+                # Calcular justificativa do atraso como no V1
+                if phase.name == "ATRASADO":
+                    event_date = None
+                    if order.event and order.event.event_date:
+                        if hasattr(order.event.event_date, "date"):
+                            event_date = order.event.event_date.date()
+                        else:
+                            event_date = order.event.event_date
+
+                    if (
+                        order.devolucao_date
+                        and order.devolucao_date < today
+                        and event_date
+                        and event_date > today
+                    ):
+                        order_data["justificativa_atraso"] = "Cliente ainda não devolveu"
+                    elif (
+                        order.retirada_date
+                        and order.retirada_date < today
+                        and event_date
+                        and event_date > today
+                    ):
+                        order_data["justificativa_atraso"] = "Cliente não retirou"
+                    elif (
+                        order.data_devolvido is None and event_date and event_date < today
+                    ):
+                        order_data["justificativa_atraso"] = "Cliente ainda não devolveu (evento passou)"
+                    else:
+                        order_data["justificativa_atraso"] = None
+                else:
+                    order_data["justificativa_atraso"] = None
+
+                # Itens e acessórios (mesma lógica resumida)
+                itens = []
+                acessorios = []
+                for item in order.items.all():
+                    temp_product = item.temporary_product
+                    product = item.product
+
+                    if temp_product:
+                        if temp_product.product_type in ["paleto", "camisa", "calca", "colete"]:
+                            item_data = {
+                                "tipo": temp_product.product_type,
+                                "cor": temp_product.color or "",
+                                "extras": temp_product.extras or temp_product.description or "",
+                                "venda": temp_product.venda or False,
+                                "extensor": False,
+                            }
+                            if temp_product.product_type in ["paleto", "camisa"]:
+                                item_data.update({"numero": temp_product.size or "", "manga": temp_product.sleeve_length or "", "marca": temp_product.brand or "", "ajuste": item.adjustment_notes or ""})
+                            elif temp_product.product_type == "calca":
+                                item_data.update({"numero": temp_product.size, "cintura": temp_product.waist_size or "", "perna": temp_product.leg_length or "", "marca": temp_product.brand or "", "ajuste_cintura": temp_product.ajuste_cintura or "", "ajuste_comprimento": temp_product.ajuste_comprimento or ""})
+                            elif temp_product.product_type == "colete":
+                                item_data.update({"marca": temp_product.brand or ""})
+                            itens.append(item_data)
+                        else:
+                            acessorio_data = {"tipo": temp_product.product_type, "numero": temp_product.size or "", "cor": temp_product.color or "", "descricao": temp_product.description or "", "marca": temp_product.brand or "", "extensor": temp_product.extensor or False, "venda": temp_product.venda or False}
+                            acessorios.append(acessorio_data)
+                    elif product:
+                        if product.tipo.lower() in ["paleto", "camisa", "calça", "colete"]:
+                            item_data = {"tipo": product.tipo.lower(), "cor": product.cor or "", "extras": product.nome_produto or "", "venda": False, "extensor": False}
+                            if product.tipo.lower() in ["paleto", "camisa"]:
+                                item_data.update({"numero": str(product.tamanho) if product.tamanho else "", "manga": "", "marca": product.marca or "", "ajuste": item.adjustment_notes or ""})
+                            elif product.tipo.lower() == "calça":
+                                item_data.update({"numero": str(product.tamanho) if product.tamanho else "", "cintura": "", "perna": "", "marca": product.marca or "", "ajuste_cintura": "", "ajuste_comprimento": ""})
+                            elif product.tipo.lower() == "colete":
+                                item_data.update({"marca": product.marca or ""})
+                            itens.append(item_data)
+                        else:
+                            acessorio_data = {"tipo": product.tipo.lower(), "numero": (str(product.tamanho) if product.tamanho else ""), "cor": product.cor or "", "descricao": product.nome_produto or "", "marca": product.marca or "", "extensor": False, "venda": False}
+                            acessorios.append(acessorio_data)
+
+                ordem_servico_data = {
+                    "data_pedido": order.order_date,
+                    "data_evento": (order.event.event_date.date() if order.event and order.event.event_date and hasattr(order.event.event_date, "date") else order.event.event_date if order.event else None),
+                    "data_retirada": order.retirada_date,
+                    "data_devolucao": order.devolucao_date,
+                    "modalidade": order.service_type or "Aluguel",
+                    "itens": itens,
+                    "acessorios": acessorios,
+                    "pagamento": {"total": float(order.total_value) if order.total_value else 0, "sinal": (float(order.advance_payment) if order.advance_payment else 0), "restante": (float(order.remaining_payment) if order.remaining_payment else 0)},
+                }
+
+                order_data.update({"ordem_servico": ordem_servico_data})
+                results.append(order_data)
+
+            response = {
+                "count": paginator.count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": paginator.num_pages,
+                "results": results,
+            }
+
+            return Response(response)
+
+        except Exception as e:
+            return Response({"error": f"Erro ao listar OS (v2): {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @extend_schema(
     tags=["service-orders"],
