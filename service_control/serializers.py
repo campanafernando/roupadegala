@@ -212,7 +212,15 @@ class ServiceOrderRefuseSerializer(serializers.Serializer):
 class ServiceOrderMarkRetrievedSerializer(serializers.Serializer):
     """Serializer para marcar ordem de serviço como retirada"""
 
-    pass
+    receive_remaining_payment = serializers.BooleanField(
+        required=False, default=False, help_text="Indica se o cliente está pagando o restante na retirada"
+    )
+    payment_method = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, help_text="Forma de pagamento do restante"
+    )
+    remaining_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True, help_text="Valor sendo pago na retirada"
+    )
 
 
 class ServiceOrderListByPhaseSerializer(serializers.Serializer):

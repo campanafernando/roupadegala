@@ -1283,7 +1283,31 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-            # Marcar como retirada
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+
+            if data.get("receive_remaining_payment"):
+                remaining_amount = data.get("remaining_amount") or service_order.remaining_payment or Decimal("0")
+                payment_method = data.get("payment_method")
+
+                service_order.advance_payment = (service_order.advance_payment or Decimal("0")) + remaining_amount
+
+                if payment_method:
+                    current_details = service_order.payment_details or []
+                    current_details.append({
+                        "amount": float(remaining_amount),
+                        "forma_pagamento": payment_method,
+                        "tipo": "restante"
+                    })
+                    service_order.payment_details = current_details
+
+                    if service_order.payment_method:
+                        if payment_method not in service_order.payment_method:
+                            service_order.payment_method = f"{service_order.payment_method}, {payment_method}"
+                    else:
+                        service_order.payment_method = payment_method
+
             service_order.service_order_phase = aguardando_devolucao_phase
             service_order.data_retirado = timezone.now()
             service_order.save()
@@ -3680,10 +3704,11 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                     for pag in order.payment_details:
                         amt = Decimal(str(pag.get("amount", 0)))
                         pm = pag.get("forma_pagamento", "NÃO INFORMADO")
+                        tipo = pag.get("tipo", "sinal")
                         if amt > 0:
                             transactions.append({
                                 "order_id": order.id,
-                                "transaction_type": "sinal",
+                                "transaction_type": tipo,
                                 "amount": amt,
                                 "payment_method": pm,
                                 "date": order.order_date,
