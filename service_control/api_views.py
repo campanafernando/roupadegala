@@ -373,23 +373,30 @@ class ServiceOrderUpdateAPIView(APIView):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                # Atualizar pagamento
                 if "pagamento" in os_data:
                     pagamento = os_data["pagamento"]
+
                     if "total" in pagamento:
                         service_order.total_value = pagamento["total"]
-                    if "restante" in pagamento:
-                        service_order.remaining_payment = pagamento["restante"]
 
-                    # Processar sinal - pode ser um número ou um objeto com total e pagamentos
                     if "sinal" in pagamento:
                         sinal_data = pagamento["sinal"]
-                        if isinstance(sinal_data, dict) and "total" in sinal_data:
-                            # Novo formato: objeto com total
-                            service_order.advance_payment = sinal_data["total"]
-                        else:
-                            # Formato antigo: apenas número
-                            service_order.advance_payment = sinal_data
+                        if isinstance(sinal_data, dict):
+                            if "total" in sinal_data:
+                                service_order.advance_payment = sinal_data["total"]
+                            if "pagamentos" in sinal_data and sinal_data["pagamentos"]:
+                                formas = []
+                                for pag in sinal_data["pagamentos"]:
+                                    forma = pag.get("forma_pagamento")
+                                    if forma and forma not in formas:
+                                        formas.append(forma)
+                                if formas:
+                                    service_order.payment_method = ", ".join(formas)
+                        elif isinstance(sinal_data, (int, float, Decimal)):
+                            service_order.advance_payment = Decimal(str(sinal_data))
+
+                    if "forma_pagamento" in pagamento and pagamento["forma_pagamento"]:
+                        service_order.payment_method = pagamento["forma_pagamento"]
 
             # Processar dados do cliente
             if "cliente" in data:
@@ -493,38 +500,24 @@ class ServiceOrderUpdateAPIView(APIView):
             # Remover itens existentes
             service_order.items.all().delete()
 
-            # Processar itens (roupas)
             if "ordem_servico" in data and "itens" in data["ordem_servico"]:
                 for item in data["ordem_servico"]["itens"]:
-                    # Tratar campos vazios convertendo para None
                     def clean_field(value):
-                        """Limpa campos vazios convertendo para None"""
                         if value is None:
                             return None
                         if isinstance(value, str):
-                            cleaned = value.strip() if value.strip() else None
-                            return cleaned
+                            return value.strip() if value.strip() else None
                         return value
-
-                    # Criar produto temporário com campos básicos
-                    numero_value = clean_field(item.get("numero"))
-                    print(
-                        f"DEBUG ITEM: Criando produto temporário - tipo: {item['tipo']}, numero: '{item.get('numero')}' -> limpo: '{numero_value}'"
-                    )
 
                     temp_product = TemporaryProduct.objects.create(
                         product_type=item["tipo"],
-                        size=numero_value,  # ✅ Campo "numero" mapeia para "size" no banco
+                        size=clean_field(item.get("numero")),
                         sleeve_length=clean_field(item.get("manga")),
                         color=clean_field(item.get("cor")),
                         brand=clean_field(item.get("marca")),
                         description=clean_field(item.get("extras")),
                         venda=item.get("venda", False),
                         created_by=request.user,
-                    )
-
-                    print(
-                        f"DEBUG ITEM: Produto temporário criado com ID: {temp_product.id}, size salvo: '{temp_product.size}'"
                     )
 
                     # Campos específicos para calça
@@ -548,37 +541,24 @@ class ServiceOrderUpdateAPIView(APIView):
                         created_by=request.user,
                     )
 
-            # Processar acessórios
             if "ordem_servico" in data and "acessorios" in data["ordem_servico"]:
                 for acessorio in data["ordem_servico"]["acessorios"]:
-                    # Tratar campos vazios convertendo para None
                     def clean_field(value):
-                        """Limpa campos vazios convertendo para None"""
                         if value is None:
                             return None
                         if isinstance(value, str):
-                            cleaned = value.strip() if value.strip() else None
-                            return cleaned
+                            return value.strip() if value.strip() else None
                         return value
-
-                    numero_value = clean_field(acessorio.get("numero"))
-                    print(
-                        f"DEBUG ACESSORIO: Criando produto temporário - tipo: {acessorio['tipo']}, numero: '{acessorio.get('numero')}' -> limpo: '{numero_value}'"
-                    )
 
                     temp_product = TemporaryProduct.objects.create(
                         product_type=acessorio["tipo"],
-                        size=numero_value,  # ✅ Campo "numero" mapeia para "size" no banco
+                        size=clean_field(acessorio.get("numero")),
                         color=clean_field(acessorio.get("cor")),
                         brand=clean_field(acessorio.get("marca")),
                         description=clean_field(acessorio.get("descricao")),
                         extensor=acessorio.get("extensor", False),
                         venda=acessorio.get("venda", False),
                         created_by=request.user,
-                    )
-
-                    print(
-                        f"DEBUG ACESSORIO: Produto temporário criado com ID: {temp_product.id}, size salvo: '{temp_product.size}'"
                     )
 
                     # Criar item da OS
@@ -618,9 +598,6 @@ class ServiceOrderUpdateAPIView(APIView):
                         service_order.service_order_phase = em_producao_phase
                         service_order.production_date = date.today()
                         service_order.save()
-                        print(
-                            f"OS {service_order.id} movida automaticamente para EM_PRODUCAO após atualização completa"
-                        )
 
             service_order.update(request.user)
 
@@ -947,6 +924,7 @@ class ServiceOrderDetailAPIView(APIView):
                     "restante": (
                         float(order.remaining_payment) if order.remaining_payment else 0
                     ),
+                    "forma_pagamento": order.payment_method or "",
                 },
             }
 
@@ -990,21 +968,18 @@ class ServiceOrderMarkPaidAPIView(APIView):
         try:
             service_order = get_object_or_404(ServiceOrder, id=order_id)
 
-            # Verificar se a OS pode ser marcada como paga
             if not service_order.service_order_phase:
                 return Response(
                     {"error": "OS não possui fase definida."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Verificar se já está finalizada
             if service_order.service_order_phase.name == "FINALIZADO":
                 return Response(
                     {"error": "OS já está finalizada."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Verificar se está na fase AGUARDANDO_DEVOLUCAO
             if service_order.service_order_phase.name != "AGUARDANDO_DEVOLUCAO":
                 return Response(
                     {
@@ -1013,12 +988,10 @@ class ServiceOrderMarkPaidAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Buscar ou criar fase "FINALIZADO"
             finalizado_phase, created = ServiceOrderPhase.objects.get_or_create(
                 name="FINALIZADO", defaults={"created_by": request.user}
             )
 
-            # Verificar permissões
             user_person = getattr(request.user, "person", None)
             is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
             is_employee = (
@@ -1040,9 +1013,7 @@ class ServiceOrderMarkPaidAPIView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-            # Marcar como paga e finalizada
             service_order.service_order_phase = finalizado_phase
-            # data_devolvido continua como DateTime, mas data_finalizado é apenas a data
             service_order.data_devolvido = timezone.now()
             service_order.data_finalizado = date.today()
             service_order.save()
@@ -1100,20 +1071,17 @@ class ServiceOrderRefuseAPIView(APIView):
 
             service_order = get_object_or_404(ServiceOrder, id=order_id)
 
-            # Justificativa detalhada é opcional
             justification_raw = request.data.get("justification_refusal")
             justification = justification_raw.strip() if justification_raw else None
 
             reason_id = request.data.get("justification_reason_id")
 
-            # Motivo de recusa obrigatório
             if not reason_id:
                 return Response(
                     {"error": "Motivo de recusa é obrigatório."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Validar se o motivo existe
             try:
                 refusal_reason = RefusalReason.objects.get(id=reason_id)
             except RefusalReason.DoesNotExist:
@@ -1122,16 +1090,13 @@ class ServiceOrderRefuseAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Buscar ou criar fase "RECUSADA"
             refused_phase, created = ServiceOrderPhase.objects.get_or_create(
                 name="RECUSADA", defaults={"created_by": request.user}
             )
 
-            # Verificar se a OS pode ser recusada
             current_phase = service_order.service_order_phase
             allowed_phases = ["PENDENTE", "EM_PRODUCAO", "AGUARDANDO_RETIRADA"]
 
-            # Permitir recusar OS sem fase (caso de OS recusadas na triagem)
             if current_phase and current_phase.name not in allowed_phases:
                 return Response(
                     {
@@ -1140,7 +1105,6 @@ class ServiceOrderRefuseAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Permissão: só atendente responsável ou administrador pode recusar OS
             user_person = getattr(request.user, "person", None)
             is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
             is_employee = (
@@ -1149,7 +1113,6 @@ class ServiceOrderRefuseAPIView(APIView):
                 and user_person.id == service_order.employee.id
             )
 
-            # Permitir recusar se for admin OU se for atendente responsável OU se a OS não tem atendente (caso de triagem)
             if not (is_admin or is_employee or not service_order.employee):
                 return Response(
                     {
@@ -1158,11 +1121,9 @@ class ServiceOrderRefuseAPIView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-            # Recusar OS
             service_order.service_order_phase = refused_phase
             service_order.justification_refusal = justification
             service_order.justification_reason = refusal_reason
-            # Registrar data da recusa como DateField e cancelar (cancel() fará o save())
             service_order.data_recusa = date.today()
             service_order.cancel(request.user)  # Atualiza date_canceled e canceled_by
 
@@ -3575,6 +3536,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                             if order.remaining_payment
                             else 0
                         ),
+                        "forma_pagamento": order.payment_method or "",
                     },
                 }
 
@@ -3998,6 +3960,7 @@ class ServiceOrderListByClientAPIView(APIView):
                             if order.remaining_payment
                             else 0
                         ),
+                        "forma_pagamento": order.payment_method or "",
                     },
                 }
 

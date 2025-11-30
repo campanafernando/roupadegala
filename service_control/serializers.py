@@ -412,9 +412,15 @@ class FrontendPaymentSerializer(serializers.Serializer):
     total = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor total"
     )
-    sinal = FrontendSignalSerializer(help_text="Dados do sinal")
+    sinal = FrontendSignalSerializer(required=False, help_text="Dados do sinal")
     restante = serializers.DecimalField(
         max_digits=10, decimal_places=2, help_text="Valor restante"
+    )
+    forma_pagamento = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Forma de pagamento principal (fallback se não vier nos pagamentos do sinal)",
     )
 
 
