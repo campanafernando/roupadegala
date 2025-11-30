@@ -3048,6 +3048,27 @@ class ServiceOrderListByPhaseAPIView(APIView):
             description="Número de itens por página",
             required=False,
         ),
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filtrar ordens a partir desta data (inclusive) - formato YYYY-MM-DD",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filtrar ordens até esta data (inclusive) - formato YYYY-MM-DD",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Pesquisa livre (ILIKE) em id (quando numérico), nome do cliente, CPF, nome do evento, funcionário ou atendente",
+                required=False,
+            ),
     ],
     methods=["GET"],
     responses={
@@ -3229,6 +3250,48 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                     )
                     .prefetch_related("items__temporary_product", "items__product")
                 )
+
+            # Aplicar filtros opcionais de data e pesquisa livre antes da paginação
+            start_date = request.GET.get("start_date")
+            end_date = request.GET.get("end_date")
+            if start_date:
+                try:
+                    orders_qs = orders_qs.filter(order_date__gte=start_date)
+                except Exception:
+                    pass
+            if end_date:
+                try:
+                    orders_qs = orders_qs.filter(order_date__lte=end_date)
+                except Exception:
+                    pass
+
+            # Pesquisa livre (ILIKE) em campos principais
+            search = request.GET.get("search")
+            if search:
+                search = search.strip()
+                # Reuse Q and include contacts (phone/email) and product fields (temporary or real)
+                q = (
+                    models.Q(renter__name__icontains=search)
+                    | models.Q(renter__cpf__icontains=search)
+                    | models.Q(event__name__icontains=search)
+                    | models.Q(employee__name__icontains=search)
+                    | models.Q(attendant__name__icontains=search)
+                    | models.Q(renter__contacts__phone__icontains=search)
+                    | models.Q(renter__contacts__email__icontains=search)
+                    | models.Q(items__temporary_product__description__icontains=search)
+                    | models.Q(items__temporary_product__extras__icontains=search)
+                    | models.Q(items__temporary_product__brand__icontains=search)
+                    | models.Q(items__product__nome_produto__icontains=search)
+                    | models.Q(items__product__marca__icontains=search)
+                )
+                if search.isdigit():
+                    try:
+                        q |= models.Q(id=int(search))
+                    except Exception:
+                        pass
+
+                # Use distinct to avoid duplicate ServiceOrder rows due to joins
+                orders_qs = orders_qs.filter(q).distinct()
 
             # Paginação
             paginator = Paginator(orders_qs, page_size)
