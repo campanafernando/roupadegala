@@ -386,12 +386,21 @@ class ServiceOrderUpdateAPIView(APIView):
                                 service_order.advance_payment = sinal_data["total"]
                             if "pagamentos" in sinal_data and sinal_data["pagamentos"]:
                                 formas = []
+                                payment_details = []
                                 for pag in sinal_data["pagamentos"]:
                                     forma = pag.get("forma_pagamento")
-                                    if forma and forma not in formas:
-                                        formas.append(forma)
+                                    amount = pag.get("amount", 0)
+                                    if forma:
+                                        if forma not in formas:
+                                            formas.append(forma)
+                                        payment_details.append({
+                                            "amount": float(amount),
+                                            "forma_pagamento": forma
+                                        })
                                 if formas:
                                     service_order.payment_method = ", ".join(formas)
+                                if payment_details:
+                                    service_order.payment_details = payment_details
                         elif isinstance(sinal_data, (int, float, Decimal)):
                             service_order.advance_payment = Decimal(str(sinal_data))
 
@@ -3590,25 +3599,32 @@ class ServiceOrderListByPhaseV2APIView(APIView):
         OpenApiExample(
             "Exemplo de resposta",
             value={
-                "total_transactions": 2,
-                "total_amount": "350.50",
+                "total_transactions": 3,
+                "total_amount": "450.00",
                 "transactions": [
                     {
                         "order_id": 123,
                         "transaction_type": "sinal",
-                        "amount": "100.00",
-                        "payment_method": "CARTAO",
+                        "amount": "150.00",
+                        "payment_method": "debito",
                         "date": "2025-11-10",
                     },
                     {
-                        "order_id": 124,
+                        "order_id": 123,
+                        "transaction_type": "sinal",
+                        "amount": "150.00",
+                        "payment_method": "pix",
+                        "date": "2025-11-10",
+                    },
+                    {
+                        "order_id": 123,
                         "transaction_type": "restante",
-                        "amount": "250.50",
-                        "payment_method": "PIX",
+                        "amount": "150.00",
+                        "payment_method": "pix",
                         "date": "2025-11-12",
                     },
                 ],
-                "totals_by_method": {"CARTAO": "100.00", "PIX": "250.50"},
+                "totals_by_method": {"debito": "150.00", "pix": "300.00"},
             },
             response_only=True,
             status_codes=["200"],
@@ -3648,36 +3664,43 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
         EXCLUDED_PHASES = existing_excluded or {"RECUSADA"}
 
         for order in orders:
-            # ignore refused/cancelled orders from all financial calculations
             if (
                 order.service_order_phase
                 and order.service_order_phase.name in EXCLUDED_PHASES
             ):
                 continue
-            # sinal (advance_payment) counted as a transaction if > 0
+
             try:
                 adv = order.advance_payment if order.advance_payment is not None else 0
             except Exception:
                 adv = 0
 
             if adv and float(adv) > 0:
-                amt = Decimal(str(float(adv)))
-                pm = order.payment_method or "NÃO INFORMADO"
-                transactions.append(
-                    {
+                if order.payment_details and isinstance(order.payment_details, list):
+                    for pag in order.payment_details:
+                        amt = Decimal(str(pag.get("amount", 0)))
+                        pm = pag.get("forma_pagamento", "NÃO INFORMADO")
+                        if amt > 0:
+                            transactions.append({
+                                "order_id": order.id,
+                                "transaction_type": "sinal",
+                                "amount": amt,
+                                "payment_method": pm,
+                                "date": order.order_date,
+                            })
+                            total_amount += amt
+                else:
+                    amt = Decimal(str(float(adv)))
+                    pm = order.payment_method or "NÃO INFORMADO"
+                    transactions.append({
                         "order_id": order.id,
                         "transaction_type": "sinal",
                         "amount": amt,
                         "payment_method": pm,
                         "date": order.order_date,
-                    }
-                )
-                total_amount += amt
-                # accumulate totals by method
-                # using string key for serializer compatibility
-                # initialize if missing
+                    })
+                    total_amount += amt
 
-            # restante (remaining_payment) is considered received only if FINALIZADO
             if (
                 order.service_order_phase
                 and order.service_order_phase.name == "FINALIZADO"

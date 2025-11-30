@@ -62,6 +62,7 @@ class ServiceOrder(BaseModel):
     )
     max_payment_date = models.DateField(null=True, default=None)
     payment_method = models.CharField(max_length=255, null=True)
+    payment_details = models.JSONField(null=True, blank=True, help_text="Detalhes dos pagamentos [{amount, forma_pagamento}]")
     adjustment_needed = models.BooleanField(default=None, null=True)
     came_from = models.CharField(max_length=255, default=None, null=True)
     purchase = models.BooleanField(default=False)
