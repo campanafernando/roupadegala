@@ -43,6 +43,7 @@ from .serializers import (
     ServiceOrderRefuseSerializer,
     ServiceOrderSerializer,
     ServiceOrderFinanceSummarySerializer,
+    VirtualServiceOrderCreateSerializer,
 )
 from django.core.paginator import Paginator, EmptyPage
 
@@ -387,6 +388,7 @@ class ServiceOrderUpdateAPIView(APIView):
                             if "pagamentos" in sinal_data and sinal_data["pagamentos"]:
                                 formas = []
                                 payment_details = []
+                                data_sinal = timezone.now().isoformat()
                                 for pag in sinal_data["pagamentos"]:
                                     forma = pag.get("forma_pagamento")
                                     amount = pag.get("amount", 0)
@@ -395,7 +397,9 @@ class ServiceOrderUpdateAPIView(APIView):
                                             formas.append(forma)
                                         payment_details.append({
                                             "amount": float(amount),
-                                            "forma_pagamento": forma
+                                            "forma_pagamento": forma,
+                                            "tipo": "sinal",
+                                            "data": data_sinal
                                         })
                                 if formas:
                                     service_order.payment_method = ", ".join(formas)
@@ -1298,7 +1302,8 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
                     current_details.append({
                         "amount": float(remaining_amount),
                         "forma_pagamento": payment_method,
-                        "tipo": "restante"
+                        "tipo": "restante",
+                        "data": timezone.now().isoformat()
                     })
                     service_order.payment_details = current_details
 
@@ -2586,6 +2591,9 @@ class ServiceOrderListByPhaseAPIView(APIView):
                     {"error": "Fase não encontrada"}, status=status.HTTP_404_NOT_FOUND
                 )
 
+            # Base queryset - exclui OSs virtuais
+            base_qs = ServiceOrder.objects.filter(is_virtual=False)
+
             # Filtrar orders baseado na fase
             if phase.name == "ATRASADO":
                 # Fase ATRASADO: SOMENTE OS em AGUARDANDO_DEVOLUCAO que estão atrasadas na devolução
@@ -2595,7 +2603,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 ).first()
 
                 orders = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         models.Q(
                             service_order_phase=aguardando_devolucao_phase,
                             devolucao_date__lt=today,  # Passou da data de devolução
@@ -2623,7 +2631,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
             elif phase.name == "AGUARDANDO_DEVOLUCAO":
                 # Fase AGUARDANDO_DEVOLUCAO: todas as OS nesta fase
                 orders = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         service_order_phase=phase,
                     )
                     .select_related(
@@ -2640,7 +2648,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
             elif phase.name == "EM_PRODUCAO":
                 # Fase EM_PRODUCAO: todas as OS nesta fase
                 orders = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         service_order_phase=phase,
                     )
                     .select_related(
@@ -2658,7 +2666,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 # Fase AGUARDANDO_RETIRADA: todas as OS nesta fase
                 # Marcar com flag esta_atrasada=True as que estão atrasadas
                 orders = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         service_order_phase=phase,
                     )
                     .select_related(
@@ -2697,7 +2705,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
             else:
                 # Outras fases: comportamento normal
                 orders = (
-                    ServiceOrder.objects.filter(service_order_phase=phase)
+                    base_qs.filter(service_order_phase=phase)
                     .select_related(
                         "renter",
                         "employee",
@@ -3169,6 +3177,9 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                     {"error": "Fase não encontrada"}, status=status.HTTP_404_NOT_FOUND
                 )
 
+            # Base queryset - exclui OSs virtuais
+            base_qs = ServiceOrder.objects.filter(is_virtual=False)
+
             # Filtrar orders baseado na fase (mesma lógica que V1)
             if phase.name == "ATRASADO":
                 aguardando_devolucao_phase = ServiceOrderPhase.objects.filter(
@@ -3176,7 +3187,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                 ).first()
 
                 orders_qs = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         models.Q(
                             service_order_phase=aguardando_devolucao_phase,
                             devolucao_date__lt=today,
@@ -3207,7 +3218,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                 "AGUARDANDO_RETIRADA",
             ]:
                 orders_qs = (
-                    ServiceOrder.objects.filter(
+                    base_qs.filter(
                         service_order_phase=phase,
                     )
                     .select_related(
@@ -3243,7 +3254,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
 
             else:
                 orders_qs = (
-                    ServiceOrder.objects.filter(service_order_phase=phase)
+                    base_qs.filter(service_order_phase=phase)
                     .select_related(
                         "renter",
                         "employee",
@@ -3595,6 +3606,128 @@ class ServiceOrderListByPhaseV2APIView(APIView):
 
 @extend_schema(
     tags=["service-orders"],
+    summary="Criar OS virtual para lançamento de pagamento",
+    description="Cria uma OS virtual apenas para registro de pagamento. Não aparece em listagens de fases ou histórico, apenas no endpoint de finanças.",
+    request=VirtualServiceOrderCreateSerializer,
+    responses={
+        201: {"description": "OS virtual criada com sucesso"},
+        400: {"description": "Dados inválidos"},
+        404: {"description": "Cliente não encontrado"},
+        500: {"description": "Erro interno do servidor"},
+    },
+    examples=[
+        OpenApiExample(
+            "Exemplo de requisição",
+            value={
+                "renter_id": 123,
+                "total_value": "500.00",
+                "sinal": {
+                    "amount": "200.00",
+                    "forma_pagamento": "pix",
+                    "data": "2025-11-10T10:00:00"
+                },
+                "restante": {
+                    "amount": "300.00",
+                    "forma_pagamento": "debito",
+                    "data": "2025-11-15T14:30:00"
+                },
+                "observations": "Pagamento retroativo"
+            },
+            request_only=True,
+        )
+    ],
+)
+class VirtualServiceOrderCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = VirtualServiceOrderCreateSerializer
+
+    def post(self, request):
+        """Criar OS virtual para lançamento de pagamento"""
+        try:
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+
+            try:
+                renter = Person.objects.get(id=data["renter_id"])
+            except Person.DoesNotExist:
+                return Response(
+                    {"error": "Cliente não encontrado"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            payment_details = []
+            advance_payment = Decimal("0")
+            payment_methods = []
+
+            if data.get("sinal"):
+                sinal = data["sinal"]
+                sinal_amount = Decimal(str(sinal["amount"]))
+                sinal_data = sinal.get("data") or timezone.now()
+                if isinstance(sinal_data, str):
+                    sinal_data_str = sinal_data
+                else:
+                    sinal_data_str = sinal_data.isoformat()
+
+                payment_details.append({
+                    "amount": float(sinal_amount),
+                    "forma_pagamento": sinal["forma_pagamento"],
+                    "tipo": "sinal",
+                    "data": sinal_data_str
+                })
+                advance_payment += sinal_amount
+                if sinal["forma_pagamento"] not in payment_methods:
+                    payment_methods.append(sinal["forma_pagamento"])
+
+            if data.get("restante"):
+                restante = data["restante"]
+                restante_amount = Decimal(str(restante["amount"]))
+                restante_data = restante.get("data") or timezone.now()
+                if isinstance(restante_data, str):
+                    restante_data_str = restante_data
+                else:
+                    restante_data_str = restante_data.isoformat()
+
+                payment_details.append({
+                    "amount": float(restante_amount),
+                    "forma_pagamento": restante["forma_pagamento"],
+                    "tipo": "restante",
+                    "data": restante_data_str
+                })
+                advance_payment += restante_amount
+                if restante["forma_pagamento"] not in payment_methods:
+                    payment_methods.append(restante["forma_pagamento"])
+
+            service_order = ServiceOrder.objects.create(
+                renter=renter,
+                order_date=timezone.now().date(),
+                total_value=data["total_value"],
+                advance_payment=advance_payment,
+                payment_details=payment_details,
+                payment_method=", ".join(payment_methods) if payment_methods else None,
+                observations=data.get("observations", ""),
+                is_virtual=True,
+                created_by=request.user,
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS virtual criada com sucesso",
+                    "service_order_id": service_order.id,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao criar OS virtual: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
     summary="Resumo financeiro - transações por forma de pagamento",
     description=(
         "Retorna resumo financeiro com lista de transações e suas formas de pagamento. "
@@ -3705,13 +3838,21 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                         amt = Decimal(str(pag.get("amount", 0)))
                         pm = pag.get("forma_pagamento", "NÃO INFORMADO")
                         tipo = pag.get("tipo", "sinal")
+                        pag_data = pag.get("data")
+                        if pag_data:
+                            if isinstance(pag_data, str):
+                                pag_date = pag_data[:10]
+                            else:
+                                pag_date = str(pag_data)[:10]
+                        else:
+                            pag_date = str(order.order_date)
                         if amt > 0:
                             transactions.append({
                                 "order_id": order.id,
                                 "transaction_type": tipo,
                                 "amount": amt,
                                 "payment_method": pm,
-                                "date": order.order_date,
+                                "date": pag_date,
                             })
                             total_amount += amt
                 else:
@@ -3798,9 +3939,9 @@ class ServiceOrderListByClientAPIView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Buscar todas as OS do cliente
+            # Buscar todas as OS do cliente (exceto virtuais)
             orders = (
-                ServiceOrder.objects.filter(renter=client)
+                ServiceOrder.objects.filter(renter=client, is_virtual=False)
                 .select_related(
                     "renter",
                     "employee",

@@ -111,6 +111,10 @@ class ServiceOrder(BaseModel):
         blank=True,
         help_text="Data em que a OS foi movida para produção",
     )
+    is_virtual = models.BooleanField(
+        default=False,
+        help_text="OS virtual apenas para registro de pagamento",
+    )
 
     class Meta:
         db_table = "service_orders"

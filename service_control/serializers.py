@@ -223,6 +223,22 @@ class ServiceOrderMarkRetrievedSerializer(serializers.Serializer):
     )
 
 
+class VirtualPaymentItemSerializer(serializers.Serializer):
+    """Item de pagamento para OS virtual"""
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Valor do pagamento")
+    forma_pagamento = serializers.CharField(max_length=50, help_text="Forma de pagamento")
+    data = serializers.DateTimeField(required=False, allow_null=True, help_text="Data do pagamento")
+
+
+class VirtualServiceOrderCreateSerializer(serializers.Serializer):
+    """Serializer para criar OS virtual de lançamento de pagamento"""
+    renter_id = serializers.IntegerField(help_text="ID do cliente")
+    total_value = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Valor total")
+    sinal = VirtualPaymentItemSerializer(required=False, allow_null=True, help_text="Pagamento do sinal")
+    restante = VirtualPaymentItemSerializer(required=False, allow_null=True, help_text="Pagamento do restante")
+    observations = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text="Observações")
+
+
 class ServiceOrderListByPhaseSerializer(serializers.Serializer):
     """Serializer para listagem de ordens por fase com dados do cliente"""
 
