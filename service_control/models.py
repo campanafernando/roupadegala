@@ -28,7 +28,7 @@ class RefusalReason(BaseModel):
 
 class ServiceOrder(BaseModel):
     renter = models.ForeignKey(
-        Person, on_delete=models.CASCADE, related_name="service_orders"
+        Person, on_delete=models.CASCADE, related_name="service_orders", null=True, blank=True
     )
     employee = models.ForeignKey(
         Person,

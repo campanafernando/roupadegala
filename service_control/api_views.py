@@ -3648,13 +3648,15 @@ class VirtualServiceOrderCreateAPIView(APIView):
             serializer.is_valid(raise_exception=True)
             data = serializer.validated_data
 
-            try:
-                renter = Person.objects.get(id=data["renter_id"])
-            except Person.DoesNotExist:
-                return Response(
-                    {"error": "Cliente não encontrado"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            renter = None
+            if data.get("renter_id"):
+                try:
+                    renter = Person.objects.get(id=data["renter_id"])
+                except Person.DoesNotExist:
+                    return Response(
+                        {"error": "Cliente não encontrado"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
 
             payment_details = []
             advance_payment = Decimal("0")
