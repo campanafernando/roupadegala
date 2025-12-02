@@ -3810,8 +3810,6 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
         transactions = []
         total_amount = Decimal("0")
 
-        # Determine which phase names correspond to refused/cancelled in this installation.
-        # Use a small set of candidate names and only exclude those that exist in DB.
         CANDIDATE_EXCLUDED = {"RECUSADA", "CANCELADO", "CANCELADA", "CONCLUÍDO"}
         existing_excluded = set(
             ServiceOrderPhase.objects.filter(name__in=CANDIDATE_EXCLUDED).values_list(
@@ -3855,6 +3853,7 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                                 "amount": amt,
                                 "payment_method": pm,
                                 "date": pag_date,
+                                "is_virtual": order.is_virtual,
                             })
                             total_amount += amt
                 else:
@@ -3866,6 +3865,7 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                         "amount": amt,
                         "payment_method": pm,
                         "date": order.order_date,
+                        "is_virtual": order.is_virtual,
                     })
                     total_amount += amt
 

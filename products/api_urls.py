@@ -2,9 +2,8 @@
 URLs da API para o app products
 """
 
-from django.urls import path
-
-from .api_views import ColorWithIntensityListAPIView  # ADICIONADO
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .api_views import (
     BrandListAPIView,
     CatalogListAPIView,
@@ -15,7 +14,16 @@ from .api_views import (
     ProductStockUpdateAPIView,
     ProductUpdateAPIView,
     TemporaryProductCreateAPIView,
+    BrandViewSet,
+    ColorCatalogueViewSet,
+    ColorIntensityViewSet,
+    ColorWithIntensityListAPIView,
 )
+
+router = DefaultRouter()
+router.register(r'brands', BrandViewSet, basename='brand')
+router.register(r'color-catalogues', ColorCatalogueViewSet, basename='color-catalogue')
+router.register(r'color-intensities', ColorIntensityViewSet, basename='color-intensity')
 
 urlpatterns = [
     # Dashboard e estatísticas
@@ -48,6 +56,7 @@ urlpatterns = [
         ColorWithIntensityListAPIView.as_view(),
         name="api_color_with_intensity_list",
     ),
+    path('colors-with-intensities/', ColorWithIntensityListAPIView.as_view(), name='colors-with-intensities'),
     # Marcas
     path("brands/", BrandListAPIView.as_view(), name="api_brand_list"),
     # Produtos temporários
@@ -58,4 +67,5 @@ urlpatterns = [
     ),
     # Catálogos
     path("catalogs/", CatalogListAPIView.as_view(), name="api_catalog_list"),
+    path("", include(router.urls)),
 ]

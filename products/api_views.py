@@ -10,7 +10,7 @@ import pandas as pd
 import qrcode
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.generics import ListAPIView
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -22,6 +22,7 @@ from .models import (
     Button,
     Color,
     ColorCatalogue,
+    ColorIntensity,
     Fabric,
     Lapel,
     Model,
@@ -35,6 +36,7 @@ from .serializers import (
     CatalogListSerializer,
     ColorCatalogueSerializer,
     ColorCombinationSerializer,
+    ColorIntensitySerializer,
     FabricSerializer,
     LapelSerializer,
     ModelSerializer,
@@ -815,3 +817,24 @@ class CatalogListAPIView(APIView):
         }
 
         return Response(catalogs)
+
+
+class BrandViewSet(viewsets.ModelViewSet):
+    """CRUD for Brand model"""
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class ColorCatalogueViewSet(viewsets.ModelViewSet):
+    """CRUD for ColorCatalogue model"""
+    queryset = ColorCatalogue.objects.all()
+    serializer_class = ColorCatalogueSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class ColorIntensityViewSet(viewsets.ModelViewSet):
+    """CRUD for ColorIntensity model"""
+    queryset = ColorIntensity.objects.all()
+    serializer_class = ColorIntensitySerializer
+    permission_classes = [IsAuthenticated]
