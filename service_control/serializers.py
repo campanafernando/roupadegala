@@ -542,16 +542,22 @@ class ServiceOrderFinanceTransactionSerializer(serializers.Serializer):
     payment_method = serializers.CharField(
         allow_null=True, required=False, help_text="Forma de pagamento")
     date = serializers.DateField(allow_null=True, required=False, help_text="Data da transação")
+    is_virtual = serializers.BooleanField(
+        required=False, default=False, help_text="Indica se a transação é de uma OS virtual")
 
 
 class ServiceOrderFinanceSummarySerializer(serializers.Serializer):
+    count = serializers.IntegerField(help_text="Número total de transações (mesmo que total_transactions)")
+    page = serializers.IntegerField(help_text="Página atual (1-based)")
+    page_size = serializers.IntegerField(help_text="Quantidade de itens por página")
+    total_pages = serializers.IntegerField(help_text="Total de páginas disponíveis")
     total_transactions = serializers.IntegerField(help_text="Número total de transações")
     total_amount = serializers.DecimalField(
-        max_digits=14, decimal_places=2, help_text="Valor total somado das transações")
-    transactions = ServiceOrderFinanceTransactionSerializer(many=True)
+        max_digits=14, decimal_places=2, help_text="Valor total somado de TODAS as transações (não paginado)")
+    transactions = ServiceOrderFinanceTransactionSerializer(many=True, help_text="Lista de transações da página atual")
     totals_by_method = serializers.DictField(
         child=serializers.DecimalField(max_digits=14, decimal_places=2),
-        help_text="Totais agrupados por forma de pagamento",
+        help_text="Totais agrupados por forma de pagamento (de TODAS as transações)",
     )
 
 

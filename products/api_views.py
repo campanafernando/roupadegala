@@ -819,6 +819,7 @@ class CatalogListAPIView(APIView):
         return Response(catalogs)
 
 
+@extend_schema(tags=["Brands"])
 class BrandViewSet(viewsets.ModelViewSet):
     """CRUD for Brand model"""
     queryset = Brand.objects.all()
@@ -826,6 +827,7 @@ class BrandViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=["Color Catalogues"])
 class ColorCatalogueViewSet(viewsets.ModelViewSet):
     """CRUD for ColorCatalogue model"""
     queryset = ColorCatalogue.objects.all()
@@ -833,6 +835,7 @@ class ColorCatalogueViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=["Color Intensities"])
 class ColorIntensityViewSet(viewsets.ModelViewSet):
     """CRUD for ColorIntensity model"""
     queryset = ColorIntensity.objects.all()

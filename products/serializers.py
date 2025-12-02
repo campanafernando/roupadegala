@@ -19,7 +19,7 @@ from .models import (
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
-        fields = "__all__"
+        fields = ['id', 'description']
 
 
 class FabricSerializer(serializers.ModelSerializer):
@@ -31,13 +31,13 @@ class FabricSerializer(serializers.ModelSerializer):
 class ColorIntensitySerializer(serializers.ModelSerializer):
     class Meta:
         model = ColorIntensity
-        fields = "__all__"
+        fields = ['id', 'description']
 
 
 class ColorCatalogueSerializer(serializers.ModelSerializer):
     class Meta:
         model = ColorCatalogue
-        fields = "__all__"
+        fields = ['id', 'description']
 
 
 class ColorSerializer(serializers.ModelSerializer):

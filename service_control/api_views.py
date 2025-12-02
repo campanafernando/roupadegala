@@ -3800,6 +3800,21 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
+        # Paginação
+        try:
+            page = int(request.GET.get("page", 1))
+        except ValueError:
+            page = 1
+        if page <= 0:
+            page = 1
+
+        try:
+            page_size = int(request.GET.get("page_size", 50))
+        except ValueError:
+            page_size = 50
+        if page_size <= 0:
+            page_size = 50
+
         orders = ServiceOrder.objects.select_related("service_order_phase")
 
         if start_date:
@@ -3892,11 +3907,12 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                             "amount": amt,
                             "payment_method": pm,
                             "date": order.data_devolvido or order.order_date,
+                            "is_virtual": order.is_virtual,
                         }
                     )
                     total_amount += amt
 
-        # build totals_by_method
+        # build totals_by_method (sobre TODAS as transações, não paginado)
         totals_by_method = {}
         for t in transactions:
             key = t.get("payment_method") or "NÃO INFORMADO"
@@ -3904,11 +3920,22 @@ class ServiceOrderFinanceSummaryAPIView(APIView):
                 totals_by_method[key] = Decimal("0")
             totals_by_method[key] += Decimal(str(t.get("amount")))
 
-        # convert Decimal keys/values to ensure serializer handles them
+        # Aplicar paginação às transações
+        total_transactions = len(transactions)
+        total_pages = (total_transactions + page_size - 1) // page_size if page_size > 0 else 1
+
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_transactions = transactions[start_idx:end_idx]
+
         summary = {
-            "total_transactions": len(transactions),
+            "count": total_transactions,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "total_transactions": total_transactions,
             "total_amount": total_amount,
-            "transactions": transactions,
+            "transactions": paginated_transactions,
             "totals_by_method": totals_by_method,
         }
 
