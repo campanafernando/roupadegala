@@ -135,41 +135,113 @@ class ChannelMetricsSerializer(serializers.Serializer):
     percentual = serializers.FloatField(help_text="Percentual do canal")
 
 
+# ========== NOVOS SERIALIZERS PARA DASHBOARD ESTILO LOOKER ==========
+
+
+class DashboardKPISerializer(serializers.Serializer):
+    """KPIs principais do dashboard (cards superiores)"""
+
+    total_recebido = serializers.DecimalField(
+        max_digits=14, decimal_places=2, help_text="Total recebido (sinal + restante pago)"
+    )
+    total_vendido = serializers.DecimalField(
+        max_digits=14, decimal_places=2, help_text="Total vendido (valor das OS confirmadas)"
+    )
+    total_atendimentos = serializers.IntegerField(help_text="Total de atendimentos")
+    atendimentos_fechados = serializers.IntegerField(
+        help_text="Atendimentos fechados (convertidos)"
+    )
+    atendimentos_nao_fechados = serializers.IntegerField(
+        help_text="Atendimentos não fechados (recusados/pendentes)"
+    )
+    taxa_conversao = serializers.FloatField(help_text="Taxa de conversão em percentual")
+
+
+class AtendenteTaxaConversaoSerializer(serializers.Serializer):
+    """Taxa de conversão por atendente"""
+
+    id = serializers.IntegerField(help_text="ID do atendente")
+    nome = serializers.CharField(help_text="Nome do atendente")
+    taxa_conversao = serializers.FloatField(help_text="Taxa de conversão em percentual")
+    num_atendimentos = serializers.IntegerField(help_text="Número de atendimentos")
+    num_fechados = serializers.IntegerField(help_text="Número de atendimentos fechados")
+
+
+class AtendenteTotalVendidoSerializer(serializers.Serializer):
+    """Total vendido por atendente"""
+
+    id = serializers.IntegerField(help_text="ID do atendente")
+    nome = serializers.CharField(help_text="Nome do atendente")
+    total_vendido = serializers.DecimalField(
+        max_digits=14, decimal_places=2, help_text="Total vendido pelo atendente"
+    )
+    num_atendimentos = serializers.IntegerField(help_text="Número de atendimentos fechados")
+
+
+class TipoClienteChartSerializer(serializers.Serializer):
+    """Dados para gráfico de atendimentos por tipo de cliente (renter_role)"""
+
+    tipo = serializers.CharField(help_text="Tipo de cliente (PADRINHO, NOIVO, etc.)")
+    atendimentos_fechados = serializers.IntegerField(help_text="Atendimentos fechados")
+    total_vendido = serializers.DecimalField(
+        max_digits=14, decimal_places=2, help_text="Total vendido para esse tipo"
+    )
+
+
+class CanalOrigemChartSerializer(serializers.Serializer):
+    """Dados para gráfico de atendimentos por canal de origem (came_from)"""
+
+    canal = serializers.CharField(help_text="Canal de origem (INDICAÇÃO, FACEBOOK, etc.)")
+    atendimentos = serializers.IntegerField(help_text="Total de atendimentos")
+    atendimentos_fechados = serializers.IntegerField(help_text="Atendimentos fechados")
+
+
+class DashboardFiltersSerializer(serializers.Serializer):
+    """Filtros disponíveis no dashboard"""
+
+    atendentes = serializers.ListField(
+        child=serializers.DictField(), help_text="Lista de atendentes disponíveis"
+    )
+    tipos_cliente = serializers.ListField(
+        child=serializers.CharField(), help_text="Lista de tipos de cliente disponíveis"
+    )
+    formas_pagamento = serializers.ListField(
+        child=serializers.CharField(), help_text="Lista de formas de pagamento disponíveis"
+    )
+    canais_origem = serializers.ListField(
+        child=serializers.CharField(), help_text="Lista de canais de origem disponíveis"
+    )
+
+
 class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
-    """Serializer para resposta completa do dashboard analítico"""
+    """Serializer para resposta completa do dashboard analítico estilo Looker"""
 
-    status = serializers.DictField(
-        child=StatusMetricsSerializer(),
-        help_text="Status das OS por período (em_atraso, hoje, proximos_10_dias)",
+    # KPIs principais (cards superiores)
+    kpis = DashboardKPISerializer(help_text="KPIs principais do dashboard")
+
+    # Tabelas de atendentes
+    atendentes_taxa_conversao = AtendenteTaxaConversaoSerializer(
+        many=True, help_text="Taxa de conversão por atendente (ordenado por taxa)"
+    )
+    atendentes_total_vendido = AtendenteTotalVendidoSerializer(
+        many=True, help_text="Total vendido por atendente (ordenado por valor)"
     )
 
-    resultados = serializers.DictField(
-        child=FinancialMetricsSerializer(),
-        help_text="Resultados financeiros por período (dia, semana, mes)",
+    # Gráficos
+    grafico_tipo_cliente = TipoClienteChartSerializer(
+        many=True, help_text="Dados para gráfico por tipo de cliente"
+    )
+    grafico_canal_origem = CanalOrigemChartSerializer(
+        many=True, help_text="Dados para gráfico por canal de origem"
     )
 
-    vendas = serializers.DictField(
-        child=SalesMetricsSerializer(),
-        help_text="Métricas de vendas por período (dia, semana, mes)",
+    # Filtros disponíveis
+    filtros_disponiveis = DashboardFiltersSerializer(
+        help_text="Opções de filtros disponíveis"
     )
 
-    atendimentos = serializers.DictField(
-        child=ServiceMetricsSerializer(),
-        help_text="Métricas de atendimento por período (dia, semana, mes)",
-    )
-
-    conversao = serializers.DictField(
-        child=ConversionMetricsSerializer(),
-        help_text="Métricas de conversão por período (dia, semana, mes)",
-    )
-
-    canais = serializers.DictField(
-        child=serializers.DictField(
-            child=ChannelMetricsSerializer(),
-            help_text="Métricas por canal de aquisição",
-        ),
-        help_text="Distribuição por canal de origem (Instagram, Facebook, etc.) por período",
-    )
+    # Período aplicado
+    periodo = serializers.DictField(help_text="Período dos dados (data_inicio, data_fim)")
 
 
 # Serializers adicionais para corrigir erros do Swagger

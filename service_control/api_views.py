@@ -1433,14 +1433,83 @@ class ServiceOrderMarkReadyAPIView(APIView):
 
 @extend_schema(
     tags=["service-orders"],
-    summary="Dashboard de ordens de serviço",
-    description="Retorna métricas e estatísticas das ordens de serviço com status e resultados financeiros",
+    summary="Dashboard de ordens de serviço - Relatório de Atendimentos",
+    description="""
+    Dashboard analítico completo estilo Looker com métricas de atendimentos.
+    
+    Retorna:
+    - KPIs principais: Total Recebido, Total Vendido, Total de Atendimentos, Atendimentos Fechados, Taxa de Conversão
+    - Tabela de Taxa de Conversão por Atendente
+    - Tabela de Total Vendido por Atendente
+    - Gráfico de Atendimentos por Tipo de Cliente (renter_role)
+    - Gráfico de Atendimentos por Canal de Origem (came_from)
+    
+    Filtros disponíveis via query params:
+    - data_inicio: Data inicial do período (YYYY-MM-DD)
+    - data_fim: Data final do período (YYYY-MM-DD)
+    - atendente_id: ID do atendente para filtrar
+    - tipo_cliente: Tipo de cliente (PADRINHO, NOIVO, etc.)
+    - forma_pagamento: Forma de pagamento
+    - canal_origem: Canal de origem (INDICAÇÃO, FACEBOOK, etc.)
+    """,
+    parameters=[
+        OpenApiParameter(
+            name="data_inicio",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Data inicial do período (YYYY-MM-DD). Default: início do mês atual",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="data_fim",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Data final do período (YYYY-MM-DD). Default: hoje",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="atendente_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description="ID do atendente para filtrar",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="tipo_cliente",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Tipo de cliente (renter_role) para filtrar",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="forma_pagamento",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Forma de pagamento para filtrar",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="canal_origem",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Canal de origem (came_from) para filtrar",
+            required=False,
+        ),
+    ],
     responses={
         200: ServiceOrderDashboardResponseSerializer,
         500: {"description": "Erro interno do servidor"},
     },
 )
 class ServiceOrderDashboardAPIView(APIView):
+    """
+    Dashboard analítico completo estilo Looker - Relatório de Atendimentos
+    
+    Espelha o dashboard do Looker com:
+    - Cards KPIs superiores
+    - Tabelas de atendentes (conversão e vendas)
+    - Gráficos por tipo de cliente e canal de origem
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1448,905 +1517,408 @@ class ServiceOrderDashboardAPIView(APIView):
         try:
             # Executar função de avanço de fases
             from .views import advance_service_order_phases
-
             advance_service_order_phases()
 
-            today = date.today()
-            week_start = today - timedelta(days=today.weekday())
-            month_start = today.replace(day=1)
-            in_10_days = today + timedelta(days=10)
-
-            # ========== AGENDA E STATUS ==========
-            status = self._calculate_status_metrics(today, in_10_days)
-
-            # ========== RESULTADOS FINANCEIROS ==========
-            resultados = self._calculate_financial_metrics(
-                today, week_start, month_start
-            )
-
-            # ========== ANALYTICS COMPLETOS ==========
-            analytics = {
-                "vendas_por_tipo": self._calculate_sales_by_type(
-                    today, week_start, month_start
-                ),
-                "clientes_atendidos": self._calculate_client_analytics(
-                    today, week_start, month_start
-                ),
-                "conversao": self._calculate_conversion_analytics(
-                    today, week_start, month_start
-                ),
-                "ticket_medio": self._calculate_ticket_medio(
-                    today, week_start, month_start
-                ),
-                "vendas_por_canal": self._calculate_acquisition_channels_analytics(
-                    today, week_start, month_start
-                ),
-                "tipo_cliente": self._calculate_client_types_analytics(
-                    today, week_start, month_start
-                ),
-                "motivos_recusa": self._calculate_refusal_reasons_analytics(
-                    today, week_start, month_start
-                ),
-                "resumo": self._calculate_summary_metrics(
-                    today, week_start, month_start
-                ),
-            }
+            # ========== PROCESSAR FILTROS ==========
+            filters = self._parse_filters(request)
+            
+            # ========== BUSCAR DADOS BASE ==========
+            base_queryset = self._get_base_queryset(filters)
+            
+            # ========== CALCULAR MÉTRICAS ==========
+            kpis = self._calculate_kpis(base_queryset, filters)
+            atendentes_conversao = self._calculate_atendentes_taxa_conversao(base_queryset, filters)
+            atendentes_vendido = self._calculate_atendentes_total_vendido(base_queryset, filters)
+            grafico_tipo_cliente = self._calculate_grafico_tipo_cliente(base_queryset, filters)
+            grafico_canal_origem = self._calculate_grafico_canal_origem(base_queryset, filters)
+            filtros_disponiveis = self._get_available_filters()
 
             return Response(
                 {
                     "status": 200,
                     "message": "Dados analíticos recuperados com sucesso",
                     "data": {
-                        "status": status,
-                        "resultados": resultados,
-                        "analytics": analytics,
+                        "kpis": kpis,
+                        "atendentes_taxa_conversao": atendentes_conversao,
+                        "atendentes_total_vendido": atendentes_vendido,
+                        "grafico_tipo_cliente": grafico_tipo_cliente,
+                        "grafico_canal_origem": grafico_canal_origem,
+                        "filtros_disponiveis": filtros_disponiveis,
+                        "periodo": {
+                            "data_inicio": filters["data_inicio"].isoformat(),
+                            "data_fim": filters["data_fim"].isoformat(),
+                        },
                     },
                 }
             )
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response(
                 {"error": f"Erro ao gerar dashboard: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _calculate_status_metrics(self, today, in_10_days):
-        """Calcula métricas de status e agenda"""
-        refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
-
-        status = {
-            "em_atraso": {"provas": 0, "retiradas": 0, "devolucoes": 0},
-            "hoje": {"provas": 0, "retiradas": 0, "devolucoes": 0},
-            "proximos_10_dias": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+    def _parse_filters(self, request):
+        """Parse query parameters para filtros"""
+        today = date.today()
+        month_start = today.replace(day=1)
+        
+        # Período
+        data_inicio_str = request.query_params.get("data_inicio")
+        data_fim_str = request.query_params.get("data_fim")
+        
+        if data_inicio_str:
+            try:
+                data_inicio = date.fromisoformat(data_inicio_str)
+            except ValueError:
+                data_inicio = month_start
+        else:
+            data_inicio = month_start
+            
+        if data_fim_str:
+            try:
+                data_fim = date.fromisoformat(data_fim_str)
+            except ValueError:
+                data_fim = today
+        else:
+            data_fim = today
+        
+        # Outros filtros
+        atendente_id = request.query_params.get("atendente_id")
+        tipo_cliente = request.query_params.get("tipo_cliente")
+        forma_pagamento = request.query_params.get("forma_pagamento")
+        canal_origem = request.query_params.get("canal_origem")
+        
+        return {
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+            "atendente_id": int(atendente_id) if atendente_id else None,
+            "tipo_cliente": tipo_cliente.upper() if tipo_cliente else None,
+            "forma_pagamento": forma_pagamento.upper() if forma_pagamento else None,
+            "canal_origem": canal_origem.upper() if canal_origem else None,
         }
 
-        # OS em atraso (RECUSADA)
-        if refused_phase:
-            status["em_atraso"]["provas"] = ServiceOrder.objects.filter(
-                service_order_phase=refused_phase, order_date__isnull=False
-            ).count()
-            status["em_atraso"]["retiradas"] = ServiceOrder.objects.filter(
-                service_order_phase=refused_phase, retirada_date__isnull=False
-            ).count()
-            status["em_atraso"]["devolucoes"] = ServiceOrder.objects.filter(
-                service_order_phase=refused_phase, devolucao_date__isnull=False
-            ).count()
+    def _get_base_queryset(self, filters):
+        """Retorna queryset base com filtros aplicados"""
+        qs = ServiceOrder.objects.filter(
+            order_date__gte=filters["data_inicio"],
+            order_date__lte=filters["data_fim"],
+        ).select_related("service_order_phase", "employee", "renter")
+        
+        # Aplicar filtros opcionais
+        if filters["atendente_id"]:
+            qs = qs.filter(employee_id=filters["atendente_id"])
+            
+        if filters["tipo_cliente"]:
+            qs = qs.filter(renter_role__iexact=filters["tipo_cliente"])
+            
+        if filters["forma_pagamento"]:
+            qs = qs.filter(payment_method__icontains=filters["forma_pagamento"])
+            
+        if filters["canal_origem"]:
+            qs = qs.filter(came_from__iexact=filters["canal_origem"])
+        
+        return qs
 
-        # OS de hoje
-        active_phases = [
-            "PENDENTE",
-            "EM_PRODUCAO",
-            "AGUARDANDO_RETIRADA",
-            "AGUARDANDO_DEVOLUCAO",
-        ]
-        status["hoje"]["provas"] = ServiceOrder.objects.filter(
-            order_date=today, service_order_phase__name__in=active_phases
-        ).count()
-        status["hoje"]["retiradas"] = ServiceOrder.objects.filter(
-            retirada_date=today, service_order_phase__name__in=active_phases
-        ).count()
-        status["hoje"]["devolucoes"] = ServiceOrder.objects.filter(
-            devolucao_date=today, service_order_phase__name__in=active_phases
-        ).count()
-
-        # OS próximos 10 dias
-        status["proximos_10_dias"]["provas"] = ServiceOrder.objects.filter(
-            order_date__gt=today,
-            order_date__lte=in_10_days,
-            service_order_phase__name__in=active_phases,
-        ).count()
-        status["proximos_10_dias"]["retiradas"] = ServiceOrder.objects.filter(
-            retirada_date__gt=today,
-            retirada_date__lte=in_10_days,
-            service_order_phase__name__in=active_phases,
-        ).count()
-        status["proximos_10_dias"]["devolucoes"] = ServiceOrder.objects.filter(
-            devolucao_date__gt=today,
-            devolucao_date__lte=in_10_days,
-            service_order_phase__name__in=active_phases,
-        ).count()
-
-        return status
-
-    def _calculate_financial_metrics(self, today, week_start, month_start):
-        """Calcula métricas financeiras - apenas OS confirmadas (EM_PRODUCAO em diante)"""
-        finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
-
-        # Fases consideradas como confirmadas
-        confirmed_phases = [
+    def _calculate_kpis(self, queryset, filters):
+        """
+        Calcula KPIs principais do dashboard:
+        - Total Recebido: soma de advance_payment + remaining_payment (para OS finalizadas)
+        - Total Vendido: soma de total_value das OS confirmadas
+        - Total de Atendimentos: contagem total de OS no período
+        - Atendimentos Fechados: OS confirmadas (não recusadas/pendentes)
+        - Atendimentos Não Fechados: OS recusadas
+        - Taxa de Conversão: (fechados / total) * 100
+        """
+        # Fases que consideramos como "fechado/convertido"
+        fases_fechadas = [
             "EM_PRODUCAO",
             "AGUARDANDO_RETIRADA",
             "AGUARDANDO_DEVOLUCAO",
             "FINALIZADO",
         ]
-
-        resultados = {
-            "dia": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
-            "semana": {
-                "total_pedidos": 0.00,
-                "total_recebido": 0.00,
-                "numero_pedidos": 0,
-            },
-            "mes": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
-        }
-
-        # Dia - apenas OS confirmadas
-        today_orders = ServiceOrder.objects.filter(
-            order_date=today,
-            service_order_phase__name__in=confirmed_phases,
-        )
-        for order in today_orders:
+        
+        total_atendimentos = queryset.count()
+        
+        # Atendimentos fechados (confirmados)
+        qs_fechados = queryset.filter(service_order_phase__name__in=fases_fechadas)
+        atendimentos_fechados = qs_fechados.count()
+        
+        # Atendimentos não fechados (recusados)
+        atendimentos_nao_fechados = queryset.filter(
+            service_order_phase__name="RECUSADA"
+        ).count()
+        
+        # Total Vendido (valor das OS confirmadas)
+        total_vendido = Decimal("0.00")
+        for order in qs_fechados:
             if order.total_value:
-                resultados["dia"]["total_pedidos"] += float(order.total_value)
-                resultados["dia"]["numero_pedidos"] += 1
+                total_vendido += order.total_value
+        
+        # Total Recebido (sinal + restante para OS finalizadas)
+        total_recebido = Decimal("0.00")
+        for order in qs_fechados:
             if order.advance_payment:
-                resultados["dia"]["total_recebido"] += float(order.advance_payment)
-            if order.service_order_phase == finished_phase and order.remaining_payment:
-                resultados["dia"]["total_recebido"] += float(order.remaining_payment)
-
-        # Semana - apenas OS confirmadas
-        week_orders = ServiceOrder.objects.filter(
-            order_date__gte=week_start,
-            order_date__lte=today,
-            service_order_phase__name__in=confirmed_phases,
+                total_recebido += order.advance_payment
+            # Só soma remaining_payment se a OS estiver finalizada
+            if order.service_order_phase and order.service_order_phase.name == "FINALIZADO":
+                if order.remaining_payment:
+                    total_recebido += order.remaining_payment
+        
+        # Taxa de conversão
+        taxa_conversao = round(
+            (atendimentos_fechados / total_atendimentos * 100) if total_atendimentos > 0 else 0,
+            2
         )
-        for order in week_orders:
-            if order.total_value:
-                resultados["semana"]["total_pedidos"] += float(order.total_value)
-                resultados["semana"]["numero_pedidos"] += 1
-            if order.advance_payment:
-                resultados["semana"]["total_recebido"] += float(order.advance_payment)
-            if order.service_order_phase == finished_phase and order.remaining_payment:
-                resultados["semana"]["total_recebido"] += float(order.remaining_payment)
-
-        # Mês - apenas OS confirmadas
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start,
-            order_date__lte=today,
-            service_order_phase__name__in=confirmed_phases,
-        )
-        for order in month_orders:
-            if order.total_value:
-                resultados["mes"]["total_pedidos"] += float(order.total_value)
-                resultados["mes"]["numero_pedidos"] += 1
-            if order.advance_payment:
-                resultados["mes"]["total_recebido"] += float(order.advance_payment)
-            if order.service_order_phase == finished_phase and order.remaining_payment:
-                resultados["mes"]["total_recebido"] += float(order.remaining_payment)
-
-        return resultados
-
-    def _calculate_sales_metrics(self, today, week_start, month_start):
-        """Calcula métricas de vendas (itens marcados como venda) - excluindo OS recusadas"""
-        vendas = {
-            "dia": {"total_vendido": 0.00, "numero_itens": 0},
-            "semana": {"total_vendido": 0.00, "numero_itens": 0},
-            "mes": {"total_vendido": 0.00, "numero_itens": 0},
-        }
-
-        # Buscar itens marcados como venda por período (excluindo OS recusadas)
-        for periodo, data_inicio in [
-            ("dia", today),
-            ("semana", week_start),
-            ("mes", month_start),
-        ]:
-            # Items de produtos temporários marcados como venda (excluindo OS recusadas)
-            temp_items = (
-                ServiceOrderItem.objects.filter(
-                    service_order__order_date__gte=data_inicio,
-                    service_order__order_date__lte=today,
-                    temporary_product__isnull=False,
-                    temporary_product__venda=True,
-                )
-                .exclude(service_order__service_order_phase__name="RECUSADA")
-                .select_related("temporary_product", "service_order")
-            )
-
-            for item in temp_items:
-                vendas[periodo]["numero_itens"] += 1
-                # Calcular valor proporcional baseado no total da OS
-                if (
-                    item.service_order.total_value
-                    and item.service_order.items.count() > 0
-                ):
-                    valor_item = (
-                        float(item.service_order.total_value)
-                        / item.service_order.items.count()
-                    )
-                    vendas[periodo]["total_vendido"] += valor_item
-
-        return vendas
-
-    def _calculate_service_metrics(self, today, week_start, month_start):
-        """Calcula métricas de atendimento"""
-        atendimentos = {
-            "dia": {
-                "total_atendimentos": 0,
-                "atendimentos_finalizados": 0,
-                "atendimentos_cancelados": 0,
-                "em_andamento": 0,
-            },
-            "semana": {
-                "total_atendimentos": 0,
-                "atendimentos_finalizados": 0,
-                "atendimentos_cancelados": 0,
-                "em_andamento": 0,
-            },
-            "mes": {
-                "total_atendimentos": 0,
-                "atendimentos_finalizados": 0,
-                "atendimentos_cancelados": 0,
-                "em_andamento": 0,
-            },
-        }
-
-        for periodo, data_inicio in [
-            ("dia", today),
-            ("semana", week_start),
-            ("mes", month_start),
-        ]:
-            orders = ServiceOrder.objects.filter(
-                order_date__gte=data_inicio, order_date__lte=today
-            )
-
-            atendimentos[periodo]["total_atendimentos"] = orders.count()
-            atendimentos[periodo]["atendimentos_finalizados"] = orders.filter(
-                service_order_phase__name="FINALIZADO"
-            ).count()
-            atendimentos[periodo]["atendimentos_cancelados"] = orders.filter(
-                service_order_phase__name="RECUSADA"
-            ).count()
-            atendimentos[periodo]["em_andamento"] = orders.filter(
-                service_order_phase__name__in=[
-                    "PENDENTE",
-                    "EM_PRODUCAO",
-                    "AGUARDANDO_RETIRADA",
-                    "AGUARDANDO_DEVOLUCAO",
-                ]
-            ).count()
-
-        return atendimentos
-
-    def _calculate_conversion_metrics(self, today, week_start, month_start):
-        """Calcula taxa de conversão"""
-        conversao = {
-            "dia": {
-                "taxa_conversao": 0.0,
-                "atendimentos_iniciados": 0,
-                "concluidos_sucesso": 0,
-            },
-            "semana": {
-                "taxa_conversao": 0.0,
-                "atendimentos_iniciados": 0,
-                "concluidos_sucesso": 0,
-            },
-            "mes": {
-                "taxa_conversao": 0.0,
-                "atendimentos_iniciados": 0,
-                "concluidos_sucesso": 0,
-            },
-        }
-
-        for periodo, data_inicio in [
-            ("dia", today),
-            ("semana", week_start),
-            ("mes", month_start),
-        ]:
-            orders = ServiceOrder.objects.filter(
-                order_date__gte=data_inicio, order_date__lte=today
-            )
-
-            iniciados = orders.count()
-            # Consideramos "sucesso" OS finalizadas, aguardando devolução (já foram retiradas)
-            # ou aguardando retirada (confirmadas) ou em produção
-            sucesso = orders.filter(
-                service_order_phase__name__in=[
-                    "FINALIZADO",
-                    "AGUARDANDO_DEVOLUCAO",
-                    "AGUARDANDO_RETIRADA",
-                    "EM_PRODUCAO",
-                ]
-            ).count()
-
-            conversao[periodo]["atendimentos_iniciados"] = iniciados
-            conversao[periodo]["concluidos_sucesso"] = sucesso
-            conversao[periodo]["taxa_conversao"] = round(
-                (sucesso / iniciados * 100) if iniciados > 0 else 0.0, 2
-            )
-
-        return conversao
-
-    def _calculate_acquisition_channels(self, today, week_start, month_start):
-        """Calcula taxa de aquisição por canal (came_from)"""
-        canais = {"dia": {}, "semana": {}, "mes": {}}
-
-        for periodo, data_inicio in [
-            ("dia", today),
-            ("semana", week_start),
-            ("mes", month_start),
-        ]:
-            # Agrupar por canal de aquisição
-            canal_counts = (
-                ServiceOrder.objects.filter(
-                    order_date__gte=data_inicio,
-                    order_date__lte=today,
-                    came_from__isnull=False,
-                )
-                .values("came_from")
-                .annotate(total=models.Count("id"))
-                .order_by("-total")
-            )
-
-            total_period = ServiceOrder.objects.filter(
-                order_date__gte=data_inicio, order_date__lte=today
-            ).count()
-
-            for item in canal_counts:
-                canal = item["came_from"] or "NÃO INFORMADO"
-                total = item["total"]
-                percentual = round(
-                    (total / total_period * 100) if total_period > 0 else 0.0, 2
-                )
-
-                canais[periodo][canal] = {"total": total, "percentual": percentual}
-
-        return canais
-
-    def _calculate_sales_by_type(self, today, week_start, month_start):
-        """Calcula vendas por tipo (locação vs venda) - excluindo OS recusadas"""
-        # Buscar apenas OS do mês que têm service_type definido e não foram recusadas
-        month_orders = (
-            ServiceOrder.objects.filter(
-                order_date__gte=month_start,
-                order_date__lte=today,
-                service_type__isnull=False,
-            )
-            .exclude(service_type="")
-            .exclude(service_order_phase__name="RECUSADA")
-        )
-
-        locacao_count = 0
-        venda_count = 0
-
-        for order in month_orders:
-            service_type = order.service_type.upper() if order.service_type else ""
-
-            # Verificar se tem termos de locação
-            has_locacao = (
-                "ALUGUEL" in service_type
-                or "LOCAÇÃO" in service_type
-                or "LOCACAO" in service_type
-            )
-
-            # Verificar se tem termos de venda
-            has_venda = "COMPRA" in service_type or "VENDA" in service_type
-
-            # Se tem ambos (ex: "Aluguel + Venda"), conta nos dois
-            if has_locacao and has_venda:
-                locacao_count += 1
-                venda_count += 1
-            # Se tem apenas locação
-            elif has_locacao:
-                locacao_count += 1
-            # Se tem apenas venda
-            elif has_venda:
-                venda_count += 1
-            # Se não tem nenhum termo claro, verificar itens marcados como venda
-            else:
-                has_sale_items = order.items.filter(
-                    temporary_product__isnull=False, temporary_product__venda=True
-                ).exists()
-
-                if has_sale_items:
-                    venda_count += 1
-                else:
-                    locacao_count += 1
-
-        # Nota: total_vendas pode ser maior que o número de OS se houver casos mistos
-        total_vendas = locacao_count + venda_count
-        percentual_locacao = round(
-            (locacao_count / total_vendas * 100) if total_vendas > 0 else 0, 1
-        )
-        percentual_venda = round(
-            (venda_count / total_vendas * 100) if total_vendas > 0 else 0, 1
-        )
-
+        
         return {
-            "locacao": locacao_count,
-            "venda": venda_count,
-            "total_vendas": total_vendas,
-            "percentual_locacao": percentual_locacao,
-            "percentual_venda": percentual_venda,
+            "total_recebido": float(total_recebido),
+            "total_vendido": float(total_vendido),
+            "total_atendimentos": total_atendimentos,
+            "atendimentos_fechados": atendimentos_fechados,
+            "atendimentos_nao_fechados": atendimentos_nao_fechados,
+            "taxa_conversao": taxa_conversao,
         }
 
-    def _calculate_client_analytics(self, today, week_start, month_start):
-        """Calcula analytics de clientes (novos, recorrentes, por período)"""
-        # Clientes únicos do mês
-        month_clients = (
-            ServiceOrder.objects.filter(
-                order_date__gte=month_start, order_date__lte=today
+    def _calculate_atendentes_taxa_conversao(self, queryset, filters):
+        """
+        Calcula taxa de conversão por atendente
+        Ordenado por taxa de conversão (maior primeiro)
+        """
+        from accounts.models import Person, PersonType
+        
+        # Buscar atendentes
+        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
+        if not atendente_type:
+            return []
+        
+        atendentes = Person.objects.filter(person_type=atendente_type)
+        
+        fases_fechadas = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+        
+        result = []
+        for atendente in atendentes:
+            qs_atendente = queryset.filter(employee=atendente)
+            num_atendimentos = qs_atendente.count()
+            
+            if num_atendimentos == 0:
+                continue
+            
+            num_fechados = qs_atendente.filter(
+                service_order_phase__name__in=fases_fechadas
+            ).count()
+            
+            taxa = round(
+                (num_fechados / num_atendimentos * 100) if num_atendimentos > 0 else 0,
+                2
             )
-            .values_list("renter_id", flat=True)
+            
+            result.append({
+                "id": atendente.id,
+                "nome": atendente.name,
+                "taxa_conversao": taxa,
+                "num_atendimentos": num_atendimentos,
+                "num_fechados": num_fechados,
+            })
+        
+        # Ordenar por taxa de conversão (maior primeiro)
+        result.sort(key=lambda x: x["taxa_conversao"], reverse=True)
+        
+        return result
+
+    def _calculate_atendentes_total_vendido(self, queryset, filters):
+        """
+        Calcula total vendido por atendente
+        Ordenado por total vendido (maior primeiro)
+        """
+        from accounts.models import Person, PersonType
+        
+        # Buscar atendentes
+        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
+        if not atendente_type:
+            return []
+        
+        atendentes = Person.objects.filter(person_type=atendente_type)
+        
+        fases_fechadas = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+        
+        result = []
+        for atendente in atendentes:
+            qs_atendente = queryset.filter(
+                employee=atendente,
+                service_order_phase__name__in=fases_fechadas,
+            )
+            
+            num_atendimentos = qs_atendente.count()
+            
+            if num_atendimentos == 0:
+                continue
+            
+            total_vendido = Decimal("0.00")
+            for order in qs_atendente:
+                if order.total_value:
+                    total_vendido += order.total_value
+            
+            result.append({
+                "id": atendente.id,
+                "nome": atendente.name,
+                "total_vendido": float(total_vendido),
+                "num_atendimentos": num_atendimentos,
+            })
+        
+        # Ordenar por total vendido (maior primeiro)
+        result.sort(key=lambda x: x["total_vendido"], reverse=True)
+        
+        return result
+
+    def _calculate_grafico_tipo_cliente(self, queryset, filters):
+        """
+        Calcula dados para gráfico de atendimentos por tipo de cliente (renter_role)
+        Similar ao gráfico inferior esquerdo do Looker
+        """
+        fases_fechadas = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+        
+        # Agrupar por renter_role
+        tipo_counts = {}
+        
+        for order in queryset:
+            tipo = order.renter_role.upper() if order.renter_role else "NÃO INFORMADO"
+            
+            if tipo not in tipo_counts:
+                tipo_counts[tipo] = {
+                    "atendimentos_fechados": 0,
+                    "total_vendido": Decimal("0.00"),
+                }
+            
+            # Verificar se está fechado
+            if order.service_order_phase and order.service_order_phase.name in fases_fechadas:
+                tipo_counts[tipo]["atendimentos_fechados"] += 1
+                if order.total_value:
+                    tipo_counts[tipo]["total_vendido"] += order.total_value
+        
+        # Converter para lista ordenada
+        result = []
+        for tipo, dados in tipo_counts.items():
+            result.append({
+                "tipo": tipo,
+                "atendimentos_fechados": dados["atendimentos_fechados"],
+                "total_vendido": float(dados["total_vendido"]),
+            })
+        
+        # Ordenar por atendimentos fechados (maior primeiro)
+        result.sort(key=lambda x: x["atendimentos_fechados"], reverse=True)
+        
+        return result
+
+    def _calculate_grafico_canal_origem(self, queryset, filters):
+        """
+        Calcula dados para gráfico de atendimentos por canal de origem (came_from)
+        Similar ao gráfico inferior direito do Looker
+        """
+        fases_fechadas = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+        
+        # Agrupar por canal
+        canal_counts = {}
+        
+        for order in queryset:
+            canal = order.came_from.upper() if order.came_from else "NÃO INFORMADO"
+            
+            if canal not in canal_counts:
+                canal_counts[canal] = {
+                    "atendimentos": 0,
+                    "atendimentos_fechados": 0,
+                }
+            
+            canal_counts[canal]["atendimentos"] += 1
+            
+            # Verificar se está fechado
+            if order.service_order_phase and order.service_order_phase.name in fases_fechadas:
+                canal_counts[canal]["atendimentos_fechados"] += 1
+        
+        # Converter para lista ordenada
+        result = []
+        for canal, dados in canal_counts.items():
+            result.append({
+                "canal": canal,
+                "atendimentos": dados["atendimentos"],
+                "atendimentos_fechados": dados["atendimentos_fechados"],
+            })
+        
+        # Ordenar por atendimentos (maior primeiro)
+        result.sort(key=lambda x: x["atendimentos"], reverse=True)
+        
+        return result
+
+    def _get_available_filters(self):
+        """
+        Retorna opções de filtros disponíveis para o frontend
+        """
+        from accounts.models import Person, PersonType
+        
+        # Atendentes
+        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
+        atendentes = []
+        if atendente_type:
+            for p in Person.objects.filter(person_type=atendente_type):
+                atendentes.append({"id": p.id, "nome": p.name})
+        
+        # Tipos de cliente (valores únicos de renter_role)
+        tipos_cliente = list(
+            ServiceOrder.objects.exclude(renter_role__isnull=True)
+            .exclude(renter_role="")
+            .values_list("renter_role", flat=True)
             .distinct()
         )
-
-        total_clients = len(month_clients)
-
-        # Clientes novos (primeira OS no mês)
-        new_clients = 0
-        for client_id in month_clients:
-            first_order = (
-                ServiceOrder.objects.filter(renter_id=client_id)
-                .order_by("order_date")
-                .first()
-            )
-
-            if first_order and first_order.order_date >= month_start:
-                new_clients += 1
-
-        recurring_clients = total_clients - new_clients
-
-        # Clientes por semana do mês
-        clients_by_week = []
-        current_week = week_start
-        week_num = 1
-
-        while current_week <= today:
-            week_end = min(current_week + timedelta(days=6), today)
-
-            week_clients = (
-                ServiceOrder.objects.filter(
-                    order_date__gte=current_week, order_date__lte=week_end
-                )
-                .values_list("renter_id", flat=True)
-                .distinct()
-                .count()
-            )
-
-            clients_by_week.append(
-                {"periodo": f"Semana {week_num}", "clientes": week_clients}
-            )
-
-            current_week += timedelta(days=7)
-            week_num += 1
-
+        tipos_cliente = [t.upper() for t in tipos_cliente if t]
+        tipos_cliente = sorted(list(set(tipos_cliente)))
+        
+        # Formas de pagamento (valores únicos de payment_method)
+        formas_pagamento = list(
+            ServiceOrder.objects.exclude(payment_method__isnull=True)
+            .exclude(payment_method="")
+            .values_list("payment_method", flat=True)
+            .distinct()
+        )
+        formas_pagamento = [f.upper() for f in formas_pagamento if f]
+        formas_pagamento = sorted(list(set(formas_pagamento)))
+        
+        # Canais de origem (valores únicos de came_from)
+        canais_origem = list(
+            ServiceOrder.objects.exclude(came_from__isnull=True)
+            .exclude(came_from="")
+            .values_list("came_from", flat=True)
+            .distinct()
+        )
+        canais_origem = [c.upper() for c in canais_origem if c]
+        canais_origem = sorted(list(set(canais_origem)))
+        
         return {
-            "total": total_clients,
-            "novos": new_clients,
-            "recorrentes": recurring_clients,
-            "por_periodo": clients_by_week,
-        }
-
-    def _calculate_conversion_analytics(self, today, week_start, month_start):
-        """Calcula analytics de conversão com dados por atendente"""
-        # Conversão geral do mês
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start, order_date__lte=today
-        )
-
-        total_orders = month_orders.count()
-        # Considera sucesso: OS confirmadas (EM_PRODUCAO, AGUARDANDO_RETIRADA), retiradas ou finalizadas
-        successful_orders = month_orders.filter(
-            service_order_phase__name__in=[
-                "FINALIZADO",
-                "AGUARDANDO_DEVOLUCAO",
-                "AGUARDANDO_RETIRADA",
-                "EM_PRODUCAO",
-            ]
-        ).count()
-
-        general_conversion = round(
-            (successful_orders / total_orders * 100) if total_orders > 0 else 0, 1
-        )
-
-        # Conversão por atendente
-        from accounts.models import Person, PersonType
-
-        attendant_type = PersonType.objects.filter(type="ATENDENTE").first()
-        attendants = (
-            Person.objects.filter(person_type=attendant_type) if attendant_type else []
-        )
-
-        attendant_conversions = []
-        for attendant in attendants:
-            attendant_orders = month_orders.filter(employee=attendant)
-            attendant_total = attendant_orders.count()
-            attendant_success = attendant_orders.filter(
-                service_order_phase__name__in=[
-                    "FINALIZADO",
-                    "AGUARDANDO_DEVOLUCAO",
-                    "AGUARDANDO_RETIRADA",
-                    "EM_PRODUCAO",
-                ]
-            ).count()
-
-            conversion_rate = round(
-                (
-                    (attendant_success / attendant_total * 100)
-                    if attendant_total > 0
-                    else 0
-                ),
-                1,
-            )
-
-            attendant_conversions.append(
-                {
-                    "id": attendant.id,
-                    "nome": attendant.name,
-                    "atendimentos": attendant_total,
-                    "conversoes": attendant_success,
-                    "taxa": conversion_rate,
-                }
-            )
-
-        # Ordenar por taxa de conversão
-        attendant_conversions.sort(key=lambda x: x["taxa"], reverse=True)
-
-        return {
-            "geral": general_conversion,
-            "loja": general_conversion,  # Mesmo valor para loja
-            "atendentes": attendant_conversions,
-        }
-
-    def _calculate_ticket_medio(self, today, week_start, month_start):
-        """Calcula ticket médio e evolução"""
-        # Ticket médio geral do mês - apenas OS confirmadas (AGUARDANDO_RETIRADA em diante)
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start,
-            order_date__lte=today,
-            total_value__isnull=False,
-            service_order_phase__name__in=[
-                "EM_PRODUCAO",
-                "AGUARDANDO_RETIRADA",
-                "AGUARDANDO_DEVOLUCAO",
-                "FINALIZADO",
-            ],
-        )
-
-        total_value = sum(
-            float(order.total_value) for order in month_orders if order.total_value
-        )
-        total_orders = month_orders.count()
-        general_ticket = round(total_value / total_orders, 2) if total_orders > 0 else 0
-
-        # Ticket médio por tipo - baseado no service_type
-        locacao_orders = []
-        venda_orders = []
-
-        for order in month_orders:
-            if not order.total_value or not order.service_type:
-                continue
-
-            service_type = order.service_type.upper()
-
-            # Verificar se tem termos de locação
-            has_locacao = (
-                "ALUGUEL" in service_type
-                or "LOCAÇÃO" in service_type
-                or "LOCACAO" in service_type
-            )
-
-            # Verificar se tem termos de venda
-            has_venda = "COMPRA" in service_type or "VENDA" in service_type
-
-            # Se tem ambos (ex: "Aluguel + Venda"), adiciona em ambos
-            if has_locacao and has_venda:
-                locacao_orders.append(float(order.total_value))
-                venda_orders.append(float(order.total_value))
-            # Se tem apenas locação
-            elif has_locacao:
-                locacao_orders.append(float(order.total_value))
-            # Se tem apenas venda
-            elif has_venda:
-                venda_orders.append(float(order.total_value))
-            # Fallback: verificar itens marcados como venda
-            else:
-                has_sale_items = order.items.filter(
-                    temporary_product__isnull=False, temporary_product__venda=True
-                ).exists()
-
-                if has_sale_items:
-                    venda_orders.append(float(order.total_value))
-                else:
-                    locacao_orders.append(float(order.total_value))
-
-        locacao_ticket = (
-            round(sum(locacao_orders) / len(locacao_orders), 2) if locacao_orders else 0
-        )
-        venda_ticket = (
-            round(sum(venda_orders) / len(venda_orders), 2) if venda_orders else 0
-        )
-
-        # Evolução por semana - apenas OS confirmadas
-        evolution = []
-        current_week = week_start
-        week_num = 1
-
-        while current_week <= today:
-            week_end = min(current_week + timedelta(days=6), today)
-
-            week_orders = ServiceOrder.objects.filter(
-                order_date__gte=current_week,
-                order_date__lte=week_end,
-                total_value__isnull=False,
-                service_order_phase__name__in=[
-                    "EM_PRODUCAO",
-                    "AGUARDANDO_RETIRADA",
-                    "AGUARDANDO_DEVOLUCAO",
-                    "FINALIZADO",
-                ],
-            )
-
-            week_value = sum(
-                float(order.total_value) for order in week_orders if order.total_value
-            )
-            week_count = week_orders.count()
-            week_ticket = round(week_value / week_count, 2) if week_count > 0 else 0
-
-            evolution.append({"periodo": f"Semana {week_num}", "valor": week_ticket})
-
-            current_week += timedelta(days=7)
-            week_num += 1
-
-        return {
-            "geral": general_ticket,
-            "locacao": locacao_ticket,
-            "venda": venda_ticket,
-            "evolucao": evolution,
-        }
-
-    def _calculate_acquisition_channels_analytics(self, today, week_start, month_start):
-        """Calcula canais de aquisição no formato do exemplo (excluindo OS recusadas)"""
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start, order_date__lte=today
-        ).exclude(service_order_phase__name="RECUSADA")
-
-        # Mapear canais conhecidos
-        channel_mapping = {
-            "instagram": {"id": "instagram", "label": "Instagram"},
-            "google": {"id": "google", "label": "Google"},
-            "facebook": {"id": "facebook", "label": "Facebook"},
-            "indicacao": {"id": "indicacao", "label": "Indicação"},
-            "site": {"id": "site", "label": "Site Próprio"},
-        }
-
-        # Contar por canal
-        channel_counts = {}
-        for order in month_orders:
-            if order.came_from:
-                channel = order.came_from.lower()
-                channel_counts[channel] = channel_counts.get(channel, 0) + 1
-
-        total_orders = month_orders.count()
-
-        # Formatar resultado
-        channels = []
-        for channel_key, count in channel_counts.items():
-            if channel_key in channel_mapping:
-                channel_info = channel_mapping[channel_key]
-            else:
-                channel_info = {"id": channel_key, "label": channel_key.title()}
-
-            percentual = round(
-                (count / total_orders * 100) if total_orders > 0 else 0, 1
-            )
-
-            channels.append(
-                {
-                    "id": channel_info["id"],
-                    "label": channel_info["label"],
-                    "value": count,
-                    "percentual": percentual,
-                }
-            )
-
-        # Ordenar por quantidade
-        channels.sort(key=lambda x: x["value"], reverse=True)
-
-        return channels
-
-    def _calculate_client_types_analytics(self, today, week_start, month_start):
-        """Calcula analytics por tipo de cliente (excluindo OS recusadas)"""
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start,
-            order_date__lte=today,
-            renter_role__isnull=False,
-        ).exclude(service_order_phase__name="RECUSADA")
-
-        # Mapear todos os tipos de cliente possíveis
-        type_mapping = {
-            "noivo": {"id": "noivo", "label": "Noivo"},
-            "padrinho": {"id": "padrinho", "label": "Padrinho"},
-            "pai": {"id": "pai", "label": "Pai"},
-            "convidado": {"id": "convidado", "label": "Convidado"},
-            "pajem": {"id": "pajem", "label": "Pajem"},
-            "familia": {"id": "familia", "label": "Família"},
-            "outro": {"id": "outro", "label": "Outro"},
-            "outros": {"id": "outro", "label": "Outro"},  # Alias
-        }
-
-        # Contar por tipo - agrupando corretamente
-        type_counts = {}
-        for order in month_orders:
-            role = order.renter_role.lower() if order.renter_role else "outro"
-
-            # Normalizar "outro" e "outros" para o mesmo ID
-            if role in type_mapping:
-                mapped_id = type_mapping[role]["id"]
-            else:
-                mapped_id = "outro"
-
-            type_counts[mapped_id] = type_counts.get(mapped_id, 0) + 1
-
-        total_orders = month_orders.count()
-
-        # Formatar resultado (sem duplicação)
-        client_types = []
-        for type_id, count in type_counts.items():
-            # Buscar label correto
-            label = next(
-                (v["label"] for k, v in type_mapping.items() if v["id"] == type_id),
-                "Outro",
-            )
-
-            percentual = round(
-                (count / total_orders * 100) if total_orders > 0 else 0, 1
-            )
-
-            client_types.append(
-                {
-                    "id": type_id,
-                    "label": label,
-                    "value": count,
-                    "percentual": percentual,
-                }
-            )
-
-        # Ordenar por quantidade
-        client_types.sort(key=lambda x: x["value"], reverse=True)
-
-        return client_types
-
-    def _calculate_refusal_reasons_analytics(self, today, week_start, month_start):
-        """Calcula motivos de recusa usando os motivos estruturados"""
-
-        # Buscar OS recusadas no período
-        refused_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start,
-            order_date__lte=today,
-            service_order_phase__name="RECUSADA",
-        ).select_related("justification_reason")
-
-        total_refused = refused_orders.count()
-
-        # Se não houver recusas, retornar lista vazia
-        if total_refused == 0:
-            return []
-
-        # Contar por motivo estruturado
-        reason_counts = {}
-
-        for order in refused_orders:
-            if order.justification_reason:
-                # Usar motivo estruturado
-                reason_name = order.justification_reason.name
-            elif order.justification_refusal:
-                # Fallback para OS antigas com texto livre (antes da implementação)
-                reason_name = "Outros (texto livre)"
-            else:
-                # Sem motivo informado
-                reason_name = "Não informado"
-
-            reason_counts[reason_name] = reason_counts.get(reason_name, 0) + 1
-
-        # Formatar resultado com ID para facilitar visualização em gráficos
-        reasons = []
-        for reason, count in reason_counts.items():
-            percentual = round((count / total_refused * 100), 1)
-
-            # Criar ID amigável (slug) a partir do motivo
-            reason_id = (
-                reason.lower()
-                .replace(" ", "_")
-                .replace("ç", "c")
-                .replace("ã", "a")
-                .replace("õ", "o")
-                .replace("é", "e")
-                .replace("ê", "e")
-                .replace("í", "i")
-                .replace("ó", "o")
-                .replace("ú", "u")
-                .replace("(", "")
-                .replace(")", "")
-            )
-
-            reasons.append(
-                {
-                    "id": reason_id,
-                    "motivo": reason,
-                    "quantidade": count,
-                    "percentual": percentual,
-                }
-            )
-
-        # Ordenar por quantidade (maior primeiro)
-        reasons.sort(key=lambda x: x["quantidade"], reverse=True)
-
-        return reasons
-
-    def _calculate_summary_metrics(self, today, week_start, month_start):
-        """Calcula métricas de resumo"""
-        # Buscar apenas OS confirmadas para métricas financeiras
-        month_orders_confirmed = ServiceOrder.objects.filter(
-            order_date__gte=month_start,
-            order_date__lte=today,
-            service_order_phase__name__in=[
-                "EM_PRODUCAO",
-                "AGUARDANDO_RETIRADA",
-                "AGUARDANDO_DEVOLUCAO",
-                "FINALIZADO",
-            ],
-        )
-
-        # Ticket médio - apenas OS confirmadas
-        total_value = sum(
-            float(order.total_value)
-            for order in month_orders_confirmed
-            if order.total_value
-        )
-        total_orders = month_orders_confirmed.count()
-        ticket_medio = round(total_value / total_orders, 2) if total_orders > 0 else 0
-
-        # Buscar todas as OS para cálculo de conversão
-        month_orders = ServiceOrder.objects.filter(
-            order_date__gte=month_start, order_date__lte=today
-        )
-
-        # Taxa de conversão
-        # Considera sucesso: OS confirmadas (EM_PRODUCAO, AGUARDANDO_RETIRADA), retiradas ou finalizadas
-        successful_orders = month_orders.filter(
-            service_order_phase__name__in=[
-                "FINALIZADO",
-                "AGUARDANDO_DEVOLUCAO",
-                "AGUARDANDO_RETIRADA",
-                "EM_PRODUCAO",
-            ]
-        ).count()
-        conversao_geral = round(
-            (successful_orders / total_orders * 100) if total_orders > 0 else 0, 1
-        )
-
-        # Satisfação (simulado - não temos dados reais)
-        satisfacao_cliente = 4.6
-
-        # NPS (simulado - não temos dados reais)
-        nps = 72
-
-        return {
-            "ticket_medio": ticket_medio,
-            "conversao_geral": conversao_geral,
-            "satisfacao_cliente": satisfacao_cliente,
-            "nps": nps,
+            "atendentes": atendentes,
+            "tipos_cliente": tipos_cliente,
+            "formas_pagamento": formas_pagamento,
+            "canais_origem": canais_origem,
         }
 
 
