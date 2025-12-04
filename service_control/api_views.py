@@ -345,8 +345,13 @@ class ServiceOrderUpdateAPIView(APIView):
                     service_order.devolucao_date = os_data["data_devolucao"]
                 if "data_prova" in os_data:
                     service_order.prova_date = os_data["data_prova"]
-                if "ocasiao" in os_data:
-                    service_order.came_from = os_data["ocasiao"]
+                # NOTA: "ocasiao" é o papel do cliente no evento (renter_role), não o canal de origem
+                # O campo came_from (canal de origem) é definido no pre-triage e não deve ser sobrescrito aqui
+                if "ocasiao" in os_data and os_data["ocasiao"]:
+                    service_order.renter_role = os_data["ocasiao"].upper()
+                # Atualizar canal de origem (came_from) - se fornecido explicitamente
+                if "origem" in os_data and os_data["origem"]:
+                    service_order.came_from = os_data["origem"].upper()
 
                 # Atualizar informações básicas
                 if "modalidade" in os_data:
@@ -1522,22 +1527,33 @@ class ServiceOrderDashboardAPIView(APIView):
             # ========== PROCESSAR FILTROS ==========
             filters = self._parse_filters(request)
             
+            # Datas para cálculos de período
+            today = date.today()
+            week_start = today - timedelta(days=today.weekday())
+            month_start = today.replace(day=1)
+            in_10_days = today + timedelta(days=10)
+            
             # ========== BUSCAR DADOS BASE ==========
             base_queryset = self._get_base_queryset(filters)
             
-            # ========== CALCULAR MÉTRICAS ==========
+            # ========== CALCULAR MÉTRICAS NOVAS (estilo Looker) ==========
             kpis = self._calculate_kpis(base_queryset, filters)
             atendentes_conversao = self._calculate_atendentes_taxa_conversao(base_queryset, filters)
             atendentes_vendido = self._calculate_atendentes_total_vendido(base_queryset, filters)
             grafico_tipo_cliente = self._calculate_grafico_tipo_cliente(base_queryset, filters)
             grafico_canal_origem = self._calculate_grafico_canal_origem(base_queryset, filters)
             filtros_disponiveis = self._get_available_filters()
+            
+            # ========== CALCULAR MÉTRICAS LEGADAS (agenda e resultados) ==========
+            status_metrics = self._calculate_status_metrics(today, in_10_days)
+            resultados = self._calculate_financial_metrics(today, week_start, month_start)
 
             return Response(
                 {
                     "status": 200,
                     "message": "Dados analíticos recuperados com sucesso",
                     "data": {
+                        # Métricas novas (estilo Looker)
                         "kpis": kpis,
                         "atendentes_taxa_conversao": atendentes_conversao,
                         "atendentes_total_vendido": atendentes_vendido,
@@ -1548,6 +1564,9 @@ class ServiceOrderDashboardAPIView(APIView):
                             "data_inicio": filters["data_inicio"].isoformat(),
                             "data_fim": filters["data_fim"].isoformat(),
                         },
+                        # Métricas legadas (agenda e resultados financeiros)
+                        "status": status_metrics,
+                        "resultados": resultados,
                     },
                 }
             )
@@ -1920,6 +1939,150 @@ class ServiceOrderDashboardAPIView(APIView):
             "formas_pagamento": formas_pagamento,
             "canais_origem": canais_origem,
         }
+
+    def _calculate_status_metrics(self, today, in_10_days):
+        """Calcula métricas de status e agenda (provas, retiradas, devoluções)"""
+        refused_phase = ServiceOrderPhase.objects.filter(name="RECUSADA").first()
+        atrasado_phase = ServiceOrderPhase.objects.filter(name="ATRASADO").first()
+
+        status = {
+            "em_atraso": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+            "hoje": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+            "proximos_10_dias": {"provas": 0, "retiradas": 0, "devolucoes": 0},
+        }
+
+        # Fases ativas para contagem
+        active_phases = [
+            "PENDENTE",
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+        ]
+
+        # OS em atraso (fase ATRASADO ou RECUSADA com datas)
+        atraso_phases = []
+        if refused_phase:
+            atraso_phases.append(refused_phase)
+        if atrasado_phase:
+            atraso_phases.append(atrasado_phase)
+            
+        if atraso_phases:
+            for phase in atraso_phases:
+                status["em_atraso"]["provas"] += ServiceOrder.objects.filter(
+                    service_order_phase=phase, prova_date__isnull=False
+                ).count()
+                status["em_atraso"]["retiradas"] += ServiceOrder.objects.filter(
+                    service_order_phase=phase, retirada_date__isnull=False
+                ).count()
+                status["em_atraso"]["devolucoes"] += ServiceOrder.objects.filter(
+                    service_order_phase=phase, devolucao_date__isnull=False
+                ).count()
+
+        # Também contar OS atrasadas pela flag esta_atrasada
+        status["em_atraso"]["retiradas"] += ServiceOrder.objects.filter(
+            esta_atrasada=True,
+            retirada_date__lt=today,
+            service_order_phase__name__in=active_phases,
+        ).count()
+        status["em_atraso"]["devolucoes"] += ServiceOrder.objects.filter(
+            esta_atrasada=True,
+            devolucao_date__lt=today,
+            service_order_phase__name__in=active_phases,
+        ).count()
+
+        # OS de hoje
+        status["hoje"]["provas"] = ServiceOrder.objects.filter(
+            prova_date=today, service_order_phase__name__in=active_phases
+        ).count()
+        status["hoje"]["retiradas"] = ServiceOrder.objects.filter(
+            retirada_date=today, service_order_phase__name__in=active_phases
+        ).count()
+        status["hoje"]["devolucoes"] = ServiceOrder.objects.filter(
+            devolucao_date=today, service_order_phase__name__in=active_phases
+        ).count()
+
+        # OS próximos 10 dias
+        status["proximos_10_dias"]["provas"] = ServiceOrder.objects.filter(
+            prova_date__gt=today,
+            prova_date__lte=in_10_days,
+            service_order_phase__name__in=active_phases,
+        ).count()
+        status["proximos_10_dias"]["retiradas"] = ServiceOrder.objects.filter(
+            retirada_date__gt=today,
+            retirada_date__lte=in_10_days,
+            service_order_phase__name__in=active_phases,
+        ).count()
+        status["proximos_10_dias"]["devolucoes"] = ServiceOrder.objects.filter(
+            devolucao_date__gt=today,
+            devolucao_date__lte=in_10_days,
+            service_order_phase__name__in=active_phases,
+        ).count()
+
+        return status
+
+    def _calculate_financial_metrics(self, today, week_start, month_start):
+        """Calcula métricas financeiras - dia, semana, mês"""
+        finished_phase = ServiceOrderPhase.objects.filter(name="FINALIZADO").first()
+
+        # Fases consideradas como confirmadas (OS fechadas)
+        confirmed_phases = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+
+        resultados = {
+            "dia": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
+            "semana": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
+            "mes": {"total_pedidos": 0.00, "total_recebido": 0.00, "numero_pedidos": 0},
+        }
+
+        # Dia - apenas OS confirmadas
+        today_orders = ServiceOrder.objects.filter(
+            order_date=today,
+            service_order_phase__name__in=confirmed_phases,
+        )
+        for order in today_orders:
+            if order.total_value:
+                resultados["dia"]["total_pedidos"] += float(order.total_value)
+                resultados["dia"]["numero_pedidos"] += 1
+            if order.advance_payment:
+                resultados["dia"]["total_recebido"] += float(order.advance_payment)
+            if order.service_order_phase == finished_phase and order.remaining_payment:
+                resultados["dia"]["total_recebido"] += float(order.remaining_payment)
+
+        # Semana - apenas OS confirmadas
+        week_orders = ServiceOrder.objects.filter(
+            order_date__gte=week_start,
+            order_date__lte=today,
+            service_order_phase__name__in=confirmed_phases,
+        )
+        for order in week_orders:
+            if order.total_value:
+                resultados["semana"]["total_pedidos"] += float(order.total_value)
+                resultados["semana"]["numero_pedidos"] += 1
+            if order.advance_payment:
+                resultados["semana"]["total_recebido"] += float(order.advance_payment)
+            if order.service_order_phase == finished_phase and order.remaining_payment:
+                resultados["semana"]["total_recebido"] += float(order.remaining_payment)
+
+        # Mês - apenas OS confirmadas
+        month_orders = ServiceOrder.objects.filter(
+            order_date__gte=month_start,
+            order_date__lte=today,
+            service_order_phase__name__in=confirmed_phases,
+        )
+        for order in month_orders:
+            if order.total_value:
+                resultados["mes"]["total_pedidos"] += float(order.total_value)
+                resultados["mes"]["numero_pedidos"] += 1
+            if order.advance_payment:
+                resultados["mes"]["total_recebido"] += float(order.advance_payment)
+            if order.service_order_phase == finished_phase and order.remaining_payment:
+                resultados["mes"]["total_recebido"] += float(order.remaining_payment)
+
+        return resultados
 
 
 class ServiceOrderAttendantMetricsAPIView(APIView):

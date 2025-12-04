@@ -70,72 +70,7 @@ class ServiceOrderSerializer(serializers.ModelSerializer):
         return obj.event.name if obj.event else None
 
 
-class ServiceOrderDashboardSerializer(serializers.Serializer):
-    em_atraso = serializers.DictField(child=serializers.IntegerField())
-    hoje = serializers.DictField(child=serializers.IntegerField())
-    proximos_10_dias = serializers.DictField(child=serializers.IntegerField())
-
-
-class StatusMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas de status"""
-
-    provas = serializers.IntegerField(help_text="Número de provas")
-    retiradas = serializers.IntegerField(help_text="Número de retiradas")
-    devolucoes = serializers.IntegerField(help_text="Número de devoluções")
-
-
-class FinancialMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas financeiras"""
-
-    total_pedidos = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor total dos pedidos"
-    )
-    total_recebido = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor total recebido"
-    )
-    numero_pedidos = serializers.IntegerField(help_text="Número de pedidos")
-
-
-class SalesMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas de vendas"""
-
-    total_vendido = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Valor total vendido"
-    )
-    numero_itens = serializers.IntegerField(help_text="Número de itens vendidos")
-
-
-class ServiceMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas de atendimento"""
-
-    total_atendimentos = serializers.IntegerField(help_text="Total de atendimentos")
-    atendimentos_finalizados = serializers.IntegerField(
-        help_text="Atendimentos finalizados"
-    )
-    atendimentos_cancelados = serializers.IntegerField(
-        help_text="Atendimentos cancelados"
-    )
-    em_andamento = serializers.IntegerField(help_text="Atendimentos em andamento")
-
-
-class ConversionMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas de conversão"""
-
-    taxa_conversao = serializers.FloatField(help_text="Taxa de conversão em percentual")
-    atendimentos_iniciados = serializers.IntegerField(
-        help_text="Atendimentos iniciados"
-    )
-    concluidos_sucesso = serializers.IntegerField(help_text="Concluídos com sucesso")
-
-
-class ChannelMetricsSerializer(serializers.Serializer):
-    """Serializer para métricas de canal"""
-
-    total = serializers.IntegerField(help_text="Total de pedidos do canal")
-    percentual = serializers.FloatField(help_text="Percentual do canal")
-
-
-# ========== NOVOS SERIALIZERS PARA DASHBOARD ESTILO LOOKER ==========
+# ========== SERIALIZERS PARA DASHBOARD ESTILO LOOKER ==========
 
 
 class DashboardKPISerializer(serializers.Serializer):
@@ -547,7 +482,10 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
         required=False, help_text="Data de devolução"
     )
     ocasiao = serializers.CharField(
-        required=False, allow_blank=True, help_text="Ocasião do evento"
+        required=False, allow_blank=True, help_text="Papel do cliente no evento (NOIVO, PADRINHO, etc.) - Atualiza renter_role"
+    )
+    origem = serializers.CharField(
+        required=False, allow_blank=True, help_text="Canal de origem (CLIENTE, INDICAÇÃO, FACEBOOK, etc.) - Atualiza came_from"
     )
     modalidade = serializers.ChoiceField(
         choices=[
