@@ -196,21 +196,35 @@ class CanalOrigemChartSerializer(serializers.Serializer):
     atendimentos_fechados = serializers.IntegerField(help_text="Atendimentos fechados")
 
 
+class AtendenteFilterSerializer(serializers.Serializer):
+    """Serializer para opção de filtro de atendente"""
+    
+    id = serializers.IntegerField(help_text="ID do atendente")
+    nome = serializers.CharField(help_text="Nome do atendente")
+
+
 class DashboardFiltersSerializer(serializers.Serializer):
     """Filtros disponíveis no dashboard"""
 
-    atendentes = serializers.ListField(
-        child=serializers.DictField(), help_text="Lista de atendentes disponíveis"
+    atendentes = AtendenteFilterSerializer(
+        many=True, help_text="Lista de atendentes disponíveis"
     )
     tipos_cliente = serializers.ListField(
-        child=serializers.CharField(), help_text="Lista de tipos de cliente disponíveis"
+        child=serializers.CharField(), help_text="Lista de tipos de cliente disponíveis (PADRINHO, NOIVO, etc.)"
     )
     formas_pagamento = serializers.ListField(
-        child=serializers.CharField(), help_text="Lista de formas de pagamento disponíveis"
+        child=serializers.CharField(), help_text="Lista de formas de pagamento disponíveis (PIX, CARTÃO, etc.)"
     )
     canais_origem = serializers.ListField(
-        child=serializers.CharField(), help_text="Lista de canais de origem disponíveis"
+        child=serializers.CharField(), help_text="Lista de canais de origem disponíveis (INDICAÇÃO, FACEBOOK, etc.)"
     )
+
+
+class DashboardPeriodoSerializer(serializers.Serializer):
+    """Serializer para o período do dashboard"""
+    
+    data_inicio = serializers.DateField(help_text="Data inicial do período (YYYY-MM-DD)")
+    data_fim = serializers.DateField(help_text="Data final do período (YYYY-MM-DD)")
 
 
 class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
@@ -241,7 +255,7 @@ class ServiceOrderDashboardResponseSerializer(serializers.Serializer):
     )
 
     # Período aplicado
-    periodo = serializers.DictField(help_text="Período dos dados (data_inicio, data_fim)")
+    periodo = DashboardPeriodoSerializer(help_text="Período dos dados aplicado")
 
 
 # Serializers adicionais para corrigir erros do Swagger
