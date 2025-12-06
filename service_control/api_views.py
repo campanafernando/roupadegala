@@ -1705,16 +1705,10 @@ class ServiceOrderDashboardAPIView(APIView):
         """
         Calcula taxa de conversão por atendente
         Ordenado por taxa de conversão (maior primeiro)
+        
+        Considera todos os employees que têm OS no período, independente do PersonType.
+        O employee é quem está vinculado à OS como atendente responsável.
         """
-        from accounts.models import Person, PersonType
-        
-        # Buscar atendentes
-        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
-        if not atendente_type:
-            return []
-        
-        atendentes = Person.objects.filter(person_type=atendente_type)
-        
         fases_fechadas = [
             "EM_PRODUCAO",
             "AGUARDANDO_RETIRADA",
@@ -1722,9 +1716,18 @@ class ServiceOrderDashboardAPIView(APIView):
             "FINALIZADO",
         ]
         
+        # Buscar todos os employees distintos que têm OS no período
+        employee_ids = queryset.exclude(employee__isnull=True).values_list('employee_id', flat=True).distinct()
+        
         result = []
-        for atendente in atendentes:
-            qs_atendente = queryset.filter(employee=atendente)
+        for employee_id in employee_ids:
+            from accounts.models import Person
+            try:
+                atendente = Person.objects.get(id=employee_id)
+            except Person.DoesNotExist:
+                continue
+            
+            qs_atendente = queryset.filter(employee_id=employee_id)
             num_atendimentos = qs_atendente.count()
             
             if num_atendimentos == 0:
@@ -1756,16 +1759,9 @@ class ServiceOrderDashboardAPIView(APIView):
         """
         Calcula total vendido por atendente
         Ordenado por total vendido (maior primeiro)
+        
+        Considera todos os employees que têm OS fechadas no período, independente do PersonType.
         """
-        from accounts.models import Person, PersonType
-        
-        # Buscar atendentes
-        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
-        if not atendente_type:
-            return []
-        
-        atendentes = Person.objects.filter(person_type=atendente_type)
-        
         fases_fechadas = [
             "EM_PRODUCAO",
             "AGUARDANDO_RETIRADA",
@@ -1773,13 +1769,19 @@ class ServiceOrderDashboardAPIView(APIView):
             "FINALIZADO",
         ]
         
+        # Buscar todos os employees distintos que têm OS fechadas no período
+        qs_fechadas = queryset.filter(service_order_phase__name__in=fases_fechadas)
+        employee_ids = qs_fechadas.exclude(employee__isnull=True).values_list('employee_id', flat=True).distinct()
+        
         result = []
-        for atendente in atendentes:
-            qs_atendente = queryset.filter(
-                employee=atendente,
-                service_order_phase__name__in=fases_fechadas,
-            )
+        for employee_id in employee_ids:
+            from accounts.models import Person
+            try:
+                atendente = Person.objects.get(id=employee_id)
+            except Person.DoesNotExist:
+                continue
             
+            qs_atendente = qs_fechadas.filter(employee_id=employee_id)
             num_atendimentos = qs_atendente.count()
             
             if num_atendimentos == 0:
@@ -1893,15 +1895,25 @@ class ServiceOrderDashboardAPIView(APIView):
     def _get_available_filters(self):
         """
         Retorna opções de filtros disponíveis para o frontend
+        Busca atendentes a partir dos employees que têm OS, não pelo PersonType.
         """
-        from accounts.models import Person, PersonType
+        from accounts.models import Person
         
-        # Atendentes
-        atendente_type = PersonType.objects.filter(type="ATENDENTE").first()
+        # Atendentes - buscar todos os employees distintos que têm OS
+        employee_ids = ServiceOrder.objects.exclude(
+            employee__isnull=True
+        ).values_list("employee_id", flat=True).distinct()
+        
         atendentes = []
-        if atendente_type:
-            for p in Person.objects.filter(person_type=atendente_type):
+        for emp_id in employee_ids:
+            try:
+                p = Person.objects.get(id=emp_id)
                 atendentes.append({"id": p.id, "nome": p.name})
+            except Person.DoesNotExist:
+                continue
+        
+        # Ordenar atendentes por nome
+        atendentes.sort(key=lambda x: x["nome"])
         
         # Tipos de cliente (valores únicos de renter_role)
         tipos_cliente = list(
