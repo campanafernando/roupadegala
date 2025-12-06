@@ -5,7 +5,6 @@ URLs da API para o app products
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .api_views import (
-    BrandListAPIView,
     CatalogListAPIView,
     ColorListAPIView,
     ProductDashboardAPIView,
@@ -57,8 +56,6 @@ urlpatterns = [
         name="api_color_with_intensity_list",
     ),
     path('colors-with-intensities/', ColorWithIntensityListAPIView.as_view(), name='colors-with-intensities'),
-    # Marcas
-    path("brands/", BrandListAPIView.as_view(), name="api_brand_list"),
     # Produtos temporários
     path(
         "temporary-products/create/",
@@ -67,5 +64,6 @@ urlpatterns = [
     ),
     # Catálogos
     path("catalogs/", CatalogListAPIView.as_view(), name="api_catalog_list"),
+    # Router URLs (brands, color-catalogues, color-intensities)
     path("", include(router.urls)),
 ]

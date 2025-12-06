@@ -725,9 +725,26 @@ class BrandListAPIView(APIView):
     permission_classes = [AllowAny]
     serializer_class = BrandSerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Busca por nome da marca (case insensitive)",
+                required=False,
+            ),
+        ],
+    )
     def get(self, request):
-        """Lista todas as marcas disponíveis"""
+        """Lista todas as marcas disponíveis com suporte a busca"""
         brands = Brand.objects.all().order_by("description")
+        
+        # Filtro de busca
+        search = request.query_params.get("search")
+        if search:
+            brands = brands.filter(description__icontains=search)
+        
         data = [
             {
                 "id": brand.id,
@@ -819,20 +836,54 @@ class CatalogListAPIView(APIView):
         return Response(catalogs)
 
 
-@extend_schema(tags=["Brands"])
+@extend_schema(
+    tags=["Brands"],
+    parameters=[
+        OpenApiParameter(
+            name="search",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Busca por nome da marca (case insensitive)",
+            required=False,
+        ),
+    ],
+)
 class BrandViewSet(viewsets.ModelViewSet):
-    """CRUD for Brand model"""
-    queryset = Brand.objects.all()
+    """CRUD for Brand model with search support"""
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = Brand.objects.all().order_by("description")
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(description__icontains=search)
+        return queryset
 
-@extend_schema(tags=["Color Catalogues"])
+
+@extend_schema(
+    tags=["Color Catalogues"],
+    parameters=[
+        OpenApiParameter(
+            name="search",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Busca por nome da cor (case insensitive)",
+            required=False,
+        ),
+    ],
+)
 class ColorCatalogueViewSet(viewsets.ModelViewSet):
-    """CRUD for ColorCatalogue model"""
-    queryset = ColorCatalogue.objects.all()
+    """CRUD for ColorCatalogue model with search support"""
     serializer_class = ColorCatalogueSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = ColorCatalogue.objects.all().order_by("description")
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(description__icontains=search)
+        return queryset
 
 
 @extend_schema(tags=["Color Intensities"])
