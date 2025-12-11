@@ -755,6 +755,44 @@ class BrandListAPIView(APIView):
         return Response(data)
 
 
+@extend_schema(
+    tags=["Brands"],
+    parameters=[
+        OpenApiParameter(
+            name="search",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Busca por nome da marca (case insensitive)",
+            required=False,
+        ),
+    ],
+)
+class BrandListNoPaginationAPIView(ListAPIView):
+    """Lista todas as marcas sem paginação, com 'SEM MARCA' primeiro"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = BrandSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        from django.db.models import Case, When, Value
+        queryset = Brand.objects.annotate(
+            order_priority=Case(
+                When(description='SEM MARCA', then=Value(0)),
+                default=Value(1),
+            )
+        ).order_by('order_priority', 'description')
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(description__icontains=search)
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        """Lista todas as marcas sem paginação"""
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
 class ColorWithIntensityListAPIView(APIView):
     permission_classes = [AllowAny]
     serializer_class = ColorWithIntensitySerializer
@@ -854,7 +892,13 @@ class BrandViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Brand.objects.all().order_by("description")
+        from django.db.models import Case, When, Value
+        queryset = Brand.objects.annotate(
+            order_priority=Case(
+                When(description='SEM MARCA', then=Value(0)),
+                default=Value(1),
+            )
+        ).order_by('order_priority', 'description')
         search = self.request.query_params.get("search")
         if search:
             queryset = queryset.filter(description__icontains=search)
