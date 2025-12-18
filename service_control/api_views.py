@@ -279,7 +279,8 @@ class ServiceOrderCreateAPIView(APIView):
                 attendant=request.user.person,
                 order_date=date.today(),
                 renter_role=order_data["papel_evento"].upper(),
-                purchase=True if order_data["tipo_servico"] == "Compra" else False,
+                purchase=True if order_data["tipo_servico"] in ["Compra", "Venda"] else False,
+                service_type=order_data["tipo_servico"],
                 came_from=order_data["origem"].upper(),
                 service_order_phase=service_order_phase,
                 event=event_obj,  # Vincular evento à OS se fornecido
@@ -362,6 +363,8 @@ class ServiceOrderUpdateAPIView(APIView):
                         service_order.purchase = False
                     elif modalidade == "Aluguel + Venda":
                         service_order.purchase = False  # Mantém como aluguel
+                    elif modalidade == "Venda":
+                        service_order.purchase = True
 
                     # Salvar modalidade no campo específico
                     service_order.service_type = modalidade
@@ -393,7 +396,7 @@ class ServiceOrderUpdateAPIView(APIView):
                             if "pagamentos" in sinal_data and sinal_data["pagamentos"]:
                                 formas = []
                                 payment_details = []
-                                data_sinal = timezone.now().isoformat()
+                                data_sinal = str(service_order.order_date)
                                 for pag in sinal_data["pagamentos"]:
                                     forma = pag.get("forma_pagamento")
                                     amount = pag.get("amount", 0)
@@ -4191,7 +4194,8 @@ class ServiceOrderPreTriageAPIView(APIView):
                 attendant=request.user.person,
                 order_date=date.today(),
                 renter_role=data.get("papel_evento", "").upper(),
-                purchase=True if data.get("tipo_servico") == "Compra" else False,
+                purchase=True if data.get("tipo_servico") in ["Compra", "Venda"] else False,
+                service_type=data.get("tipo_servico"),
                 came_from=data.get("origem", "").upper(),
                 service_order_phase=service_order_phase,
                 event=event_obj,

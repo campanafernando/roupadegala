@@ -492,6 +492,7 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
             ("Aluguel", "Aluguel"),
             ("Compra", "Compra"),
             ("Aluguel + Venda", "Aluguel + Venda"),
+            ("Venda", "Venda"),
         ],
         required=False,
         help_text="Modalidade do serviço",
