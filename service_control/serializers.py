@@ -657,6 +657,16 @@ class EventStatusSerializer(serializers.Serializer):
     date_updated = serializers.DateTimeField(allow_null=True)
 
 
+class EventListWithStatusSerializer(serializers.Serializer):
+    """Serializer para listagem paginada de eventos com status"""
+
+    count = serializers.IntegerField(help_text="Número total de eventos")
+    page = serializers.IntegerField(help_text="Página atual (1-based)")
+    page_size = serializers.IntegerField(help_text="Quantidade de itens por página")
+    total_pages = serializers.IntegerField(help_text="Total de páginas disponíveis")
+    events = EventStatusSerializer(many=True, help_text="Lista de eventos da página atual")
+
+
 class EventServiceOrderSerializer(serializers.Serializer):
     """Serializer para dados das OS vinculadas ao evento"""
 

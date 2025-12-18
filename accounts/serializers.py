@@ -217,3 +217,24 @@ class EmployeeUpdateSerializer(serializers.Serializer):
                 "Telefone já está em uso por outro funcionário."
             )
         return value
+
+
+class ClientSerializer(serializers.Serializer):
+    """Serializer para dados de cliente na listagem"""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    cpf = serializers.CharField()
+    email = serializers.CharField()
+    phone = serializers.CharField()
+    address = serializers.DictField(required=False, allow_null=True)
+
+
+class ClientListSerializer(serializers.Serializer):
+    """Serializer para listagem paginada de clientes"""
+
+    count = serializers.IntegerField(help_text="Número total de clientes")
+    page = serializers.IntegerField(help_text="Página atual (1-based)")
+    page_size = serializers.IntegerField(help_text="Quantidade de itens por página")
+    total_pages = serializers.IntegerField(help_text="Total de páginas disponíveis")
+    clients = ClientSerializer(many=True, help_text="Lista de clientes da página atual")

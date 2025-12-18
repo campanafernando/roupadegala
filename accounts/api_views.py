@@ -6,6 +6,8 @@ import re
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.core.paginator import Paginator, EmptyPage
+from django.db import models
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
@@ -17,8 +19,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .models import City, Person, PersonsAdresses, PersonsContacts, PersonType
 from .serializers import (
+    ClientListSerializer,
     ClientRegisterSerializer,
     ClientSearchSerializer,
+    ClientSerializer,
     EmployeeRegisterSerializer,
     EmployeeToggleStatusSerializer,
     EmployeeUpdateSerializer,
@@ -1155,33 +1159,30 @@ class ClientSearchAPIView(APIView):
     tags=["accounts"],
     summary="Lista de clientes",
     description="Retorna a lista de todos os clientes com seus dados mais recentes",
-    responses={
-        200: {
-            "description": "Lista de clientes",
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "integer"},
-                    "name": {"type": "string"},
-                    "cpf": {"type": "string"},
-                    "email": {"type": "string"},
-                    "phone": {"type": "string"},
-                    "address": {
-                        "type": "object",
-                        "properties": {
-                            "street": {"type": "string"},
-                            "number": {"type": "string"},
-                            "neighborhood": {"type": "string"},
-                            "city": {"type": "string"},
-                            "cep": {"type": "string"},
-                            "complemento": {"type": "string"},
-                        },
-                    },
-                },
-            },
-        }
-    },
+    parameters=[
+        OpenApiParameter(
+            name="page",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description="Número da página (1-based)",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="page_size",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description="Número de itens por página",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="search",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Pesquisa livre (ILIKE) em nome, CPF, email ou telefone",
+            required=False,
+        ),
+    ],
+    responses={200: ClientListSerializer},
 )
 class ClientListAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1189,13 +1190,46 @@ class ClientListAPIView(APIView):
     def get(self, request):
         """Lista de clientes"""
         try:
+            # Paginação
+            try:
+                page = int(request.GET.get("page", 1))
+            except ValueError:
+                page = 1
+            if page <= 0:
+                page = 1
+
+            try:
+                page_size = int(request.GET.get("page_size", 50))
+            except ValueError:
+                page_size = 50
+            if page_size <= 0:
+                page_size = 50
+
             # Buscar todos os clientes
             clients = Person.objects.filter(person_type__type="CLIENTE").select_related(
                 "person_type"
             )
 
+            # Pesquisa livre
+            search = request.GET.get("search")
+            if search:
+                search = search.strip()
+                clients = clients.filter(
+                    models.Q(name__icontains=search)
+                    | models.Q(cpf__icontains=search)
+                    | models.Q(contacts__email__icontains=search)
+                    | models.Q(contacts__phone__icontains=search)
+                ).distinct()
+
+            # Paginação
+            paginator = Paginator(clients, page_size)
+            try:
+                page_obj = paginator.page(page)
+            except EmptyPage:
+                return Response({"error": "Página não encontrada"}, status=404)
+
             data = []
-            for client in clients:
+            for client in page_obj.object_list:
                 # Buscar contato mais recente baseado em date_created
                 contact = (
                     client.contacts.filter(date_created__isnull=False)
@@ -1238,7 +1272,15 @@ class ClientListAPIView(APIView):
 
                 data.append(client_data)
 
-            return Response(data)
+            response = {
+                "count": paginator.count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": paginator.num_pages,
+                "clients": data,
+            }
+
+            return Response(response)
 
         except Exception as e:
             return Response(

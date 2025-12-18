@@ -31,6 +31,7 @@ from .serializers import (
     EventCreateSerializer,
     EventDetailSerializer,
     EventLinkServiceOrderSerializer,
+    EventListWithStatusSerializer,
     EventSerializer,
     EventStatusSerializer,
     EventUpdateSerializer,
@@ -4421,7 +4422,44 @@ class EventListWithStatusAPIView(APIView):
         tags=["events"],
         summary="Listar eventos com status",
         description="Lista todos os eventos com contagem de ordens de serviço e status calculado",
-        responses={200: EventStatusSerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Número da página (1-based)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description="Número de itens por página",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filtrar eventos a partir desta data (inclusive) - formato YYYY-MM-DD",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filtrar eventos até esta data (inclusive) - formato YYYY-MM-DD",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Pesquisa livre (ILIKE) em nome do evento ou descrição",
+                required=False,
+            ),
+        ],
+        responses={200: EventListWithStatusSerializer},
     )
     def get(self, request):
         """Listar eventos com contagem de OS e status"""
@@ -4430,8 +4468,45 @@ class EventListWithStatusAPIView(APIView):
 
             today = date.today()
 
+            # Paginação
+            try:
+                page = int(request.GET.get("page", 1))
+            except ValueError:
+                page = 1
+            if page <= 0:
+                page = 1
+
+            try:
+                page_size = int(request.GET.get("page_size", 50))
+            except ValueError:
+                page_size = 50
+            if page_size <= 0:
+                page_size = 50
+
             # Buscar todos os eventos
             events = Event.objects.all().order_by("-date_created")
+
+            # Aplicar filtros opcionais
+            start_date = request.GET.get("start_date")
+            end_date = request.GET.get("end_date")
+            if start_date:
+                try:
+                    events = events.filter(event_date__gte=start_date)
+                except Exception:
+                    pass
+            if end_date:
+                try:
+                    events = events.filter(event_date__lte=end_date)
+                except Exception:
+                    pass
+
+            # Pesquisa livre
+            search = request.GET.get("search")
+            if search:
+                search = search.strip()
+                events = events.filter(
+                    models.Q(name__icontains=search) | models.Q(description__icontains=search)
+                )
 
             result_data = []
 
@@ -4462,7 +4537,23 @@ class EventListWithStatusAPIView(APIView):
 
                 result_data.append(event_data)
 
-            return Response(result_data)
+            # Aplicar paginação
+            total_events = len(result_data)
+            total_pages = (total_events + page_size - 1) // page_size if page_size > 0 else 1
+
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_events = result_data[start_idx:end_idx]
+
+            summary = {
+                "count": total_events,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "events": paginated_events,
+            }
+
+            return Response(summary)
 
         except Exception as e:
             return Response(
