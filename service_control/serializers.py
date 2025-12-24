@@ -230,17 +230,24 @@ class ServiceOrderRefuseSerializer(serializers.Serializer):
     )
 
 
+class PaymentFormItemSerializer(serializers.Serializer):
+    """Item de forma de pagamento"""
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, help_text="Valor do pagamento")
+    forma_pagamento = serializers.CharField(max_length=50, help_text="Forma de pagamento")
+
+
 class ServiceOrderMarkRetrievedSerializer(serializers.Serializer):
     """Serializer para marcar ordem de serviço como retirada"""
 
     receive_remaining_payment = serializers.BooleanField(
         required=False, default=False, help_text="Indica se o cliente está pagando o restante na retirada"
     )
-    payment_method = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, help_text="Forma de pagamento do restante"
-    )
     remaining_amount = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, allow_null=True, help_text="Valor sendo pago na retirada"
+        max_digits=10, decimal_places=2, required=False, allow_null=True, help_text="Valor total sendo pago na retirada"
+    )
+    payment_forms = serializers.ListField(
+        child=PaymentFormItemSerializer(),
+        required=False, allow_empty=True, help_text="Lista de formas de pagamento"
     )
 
 

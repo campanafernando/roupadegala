@@ -28,6 +28,7 @@ from .api_views import (
     ServiceOrderMarkRetrievedAPIView,
     ServiceOrderPreTriageAPIView,
     ServiceOrderRefuseAPIView,
+    ServiceOrderReturnToPendingAPIView,
     ServiceOrderUpdateAPIView,
     VirtualServiceOrderCreateAPIView,
 )
@@ -130,6 +131,11 @@ urlpatterns = [
         "service-orders/<int:order_id>/mark-retrieved/",
         ServiceOrderMarkRetrievedAPIView.as_view(),
         name="api_service_order_mark_retrieved",
+    ),
+    path(
+        "service-orders/<int:order_id>/return-to-pending/",
+        ServiceOrderReturnToPendingAPIView.as_view(),
+        name="api_service_order_return_to_pending",
     ),
     path(
         "service-orders/<int:order_id>/client/",

@@ -1302,25 +1302,42 @@ class ServiceOrderMarkRetrievedAPIView(APIView):
 
             if data.get("receive_remaining_payment"):
                 remaining_amount = data.get("remaining_amount") or service_order.remaining_payment or Decimal("0")
-                payment_method = data.get("payment_method")
+                payment_forms = data.get("payment_forms", [])
 
-                service_order.advance_payment = (service_order.advance_payment or Decimal("0")) + remaining_amount
+                if not payment_forms:
+                    return Response(
+                        {"error": "payment_forms é obrigatório quando receive_remaining_payment é True"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-                if payment_method:
-                    current_details = service_order.payment_details or []
+                total_paid = sum(Decimal(item["amount"]) for item in payment_forms)
+                if total_paid != remaining_amount:
+                    return Response(
+                        {"error": f"Total dos pagamentos ({total_paid}) não corresponde ao valor restante ({remaining_amount})"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                service_order.advance_payment = (service_order.advance_payment or Decimal("0")) + total_paid
+
+                current_details = service_order.payment_details or []
+                formas_pagamento = []
+                for item in payment_forms:
                     current_details.append({
-                        "amount": float(remaining_amount),
-                        "forma_pagamento": payment_method,
+                        "amount": float(item["amount"]),
+                        "forma_pagamento": item["forma_pagamento"],
                         "tipo": "restante",
                         "data": timezone.now().isoformat()
                     })
-                    service_order.payment_details = current_details
+                    if item["forma_pagamento"] not in formas_pagamento:
+                        formas_pagamento.append(item["forma_pagamento"])
 
-                    if service_order.payment_method:
-                        if payment_method not in service_order.payment_method:
-                            service_order.payment_method = f"{service_order.payment_method}, {payment_method}"
-                    else:
-                        service_order.payment_method = payment_method
+                service_order.payment_details = current_details
+
+                formas_str = ", ".join(formas_pagamento)
+                if service_order.payment_method:
+                    service_order.payment_method = f"{service_order.payment_method}, {formas_str}"
+                else:
+                    service_order.payment_method = formas_str
 
             service_order.service_order_phase = aguardando_devolucao_phase
             service_order.data_retirado = timezone.now()
@@ -1442,6 +1459,108 @@ class ServiceOrderMarkReadyAPIView(APIView):
 
 @extend_schema(
     tags=["service-orders"],
+    summary="Retornar ordem de serviço para pendente",
+    description="Retorna uma ordem de serviço para a fase PENDENTE, permitindo reprocessamento",
+    responses={
+        200: {
+            "description": "Ordem de serviço retornada para pendente",
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+            },
+        },
+        404: {"description": "Ordem de serviço não encontrada"},
+        400: {"description": "OS não pode ser retornada para pendente"},
+        403: {"description": "Usuário não autorizado"},
+        500: {"description": "Erro interno do servidor"},
+    },
+)
+class ServiceOrderReturnToPendingAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        """Retornar ordem de serviço para pendente"""
+        try:
+            service_order = get_object_or_404(ServiceOrder, id=order_id)
+
+            # Verificar se a OS possui fase definida
+            if not service_order.service_order_phase:
+                return Response(
+                    {"error": "OS não possui fase definida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se já está na fase PENDENTE
+            if service_order.service_order_phase.name == "PENDENTE":
+                return Response(
+                    {"error": "OS já está na fase PENDENTE."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar se está finalizada (não permitir retornar)
+            if service_order.service_order_phase.name in ["FINALIZADO"]:
+                return Response(
+                    {"error": "OS finalizada não pode ser retornada para pendente."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Buscar ou criar fase "PENDENTE"
+            pendente_phase, created = (
+                ServiceOrderPhase.objects.get_or_create(
+                    name="PENDENTE", defaults={"created_by": request.user}
+                )
+            )
+
+            user_person = getattr(request.user, "person", None)
+            is_admin = user_person and user_person.person_type.type == "ADMINISTRADOR"
+            is_employee = (
+                user_person
+                and service_order.employee
+                and user_person.id == service_order.employee.id
+            )
+            is_attendant = (
+                user_person
+                and service_order.attendant
+                and user_person.id == service_order.attendant.id
+            )
+
+            if not (is_admin or is_employee or is_attendant):
+                return Response(
+                    {
+                        "error": "Apenas o atendente responsável, recepcionista ou um administrador pode retornar uma OS para pendente."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Retornar para pendente
+            service_order.service_order_phase = pendente_phase
+            # Opcional: limpar datas de produção ou retirada se necessário
+            # service_order.production_date = None
+            # service_order.data_retirado = None
+            service_order.save()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "OS retornada para pendente com sucesso",
+                }
+            )
+
+        except ServiceOrder.DoesNotExist:
+            return Response(
+                {"error": "Ordem de serviço não encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao retornar OS para pendente: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@extend_schema(
+    tags=["service-orders"],
     summary="Dashboard de ordens de serviço - Relatório de Atendimentos",
     description="""
     Dashboard analítico completo estilo Looker com métricas de atendimentos.
@@ -1546,6 +1665,7 @@ class ServiceOrderDashboardAPIView(APIView):
             atendentes_vendido = self._calculate_atendentes_total_vendido(base_queryset, filters)
             grafico_tipo_cliente = self._calculate_grafico_tipo_cliente(base_queryset, filters)
             grafico_canal_origem = self._calculate_grafico_canal_origem(base_queryset, filters)
+            grafico_aluguel_venda = self._calculate_grafico_aluguel_venda(base_queryset, filters)
             filtros_disponiveis = self._get_available_filters()
             
             # ========== CALCULAR MÉTRICAS LEGADAS (agenda e resultados) ==========
@@ -1563,6 +1683,7 @@ class ServiceOrderDashboardAPIView(APIView):
                         "atendentes_total_vendido": atendentes_vendido,
                         "grafico_tipo_cliente": grafico_tipo_cliente,
                         "grafico_canal_origem": grafico_canal_origem,
+                        "grafico_aluguel_venda": grafico_aluguel_venda,
                         "filtros_disponiveis": filtros_disponiveis,
                         "periodo": {
                             "data_inicio": filters["data_inicio"].isoformat(),
@@ -1893,6 +2014,63 @@ class ServiceOrderDashboardAPIView(APIView):
         
         # Ordenar por atendimentos (maior primeiro)
         result.sort(key=lambda x: x["atendimentos"], reverse=True)
+        
+        return result
+
+    def _calculate_grafico_aluguel_venda(self, queryset, filters):
+        """
+        Calcula dados para gráfico de valores por tipo de serviço (aluguel vs venda)
+        Mostra valores totais de aluguel e venda no período
+        """
+        fases_fechadas = [
+            "EM_PRODUCAO",
+            "AGUARDANDO_RETIRADA",
+            "AGUARDANDO_DEVOLUCAO",
+            "FINALIZADO",
+        ]
+        
+        # Agrupar por tipo de serviço
+        tipo_counts = {}
+        
+        for order in queryset:
+            tipo = order.service_type or "ALUGUEL"  # Default para aluguel se não especificado
+            
+            # Normalizar tipos
+            if "ALUGUEL" in tipo.upper():
+                if "VENDA" in tipo.upper() or "COMPRA" in tipo.upper():
+                    tipo_key = "ALUGUEL + VENDA"
+                else:
+                    tipo_key = "ALUGUEL"
+            elif "VENDA" in tipo.upper() or "COMPRA" in tipo.upper():
+                tipo_key = "VENDA"
+            else:
+                tipo_key = "ALUGUEL"
+            
+            if tipo_key not in tipo_counts:
+                tipo_counts[tipo_key] = {
+                    "tipo": tipo_key,
+                    "valor_total": Decimal("0.00"),
+                    "quantidade_os": 0,
+                    "valor_medio": Decimal("0.00"),
+                }
+            
+            # Só contar valores de OS fechadas
+            if order.service_order_phase and order.service_order_phase.name in fases_fechadas:
+                if order.total_value:
+                    tipo_counts[tipo_key]["valor_total"] += order.total_value
+                tipo_counts[tipo_key]["quantidade_os"] += 1
+        
+        # Calcular valor médio
+        result = []
+        for tipo, dados in tipo_counts.items():
+            if dados["quantidade_os"] > 0:
+                dados["valor_medio"] = dados["valor_total"] / dados["quantidade_os"]
+            dados["valor_total"] = float(dados["valor_total"])
+            dados["valor_medio"] = float(dados["valor_medio"])
+            result.append(dados)
+        
+        # Ordenar por valor total (maior primeiro)
+        result.sort(key=lambda x: x["valor_total"], reverse=True)
         
         return result
 
