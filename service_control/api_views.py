@@ -2020,7 +2020,7 @@ class ServiceOrderDashboardAPIView(APIView):
     def _calculate_grafico_aluguel_venda(self, queryset, filters):
         """
         Calcula dados para gráfico de valores por tipo de serviço (aluguel vs venda)
-        Mostra valores totais de aluguel e venda no período
+        Mostra valores totais de aluguel e venda no período, ignorando 'Aluguel + Venda'
         """
         fases_fechadas = [
             "EM_PRODUCAO",
@@ -2033,18 +2033,15 @@ class ServiceOrderDashboardAPIView(APIView):
         tipo_counts = {}
         
         for order in queryset:
-            tipo = order.service_type or "ALUGUEL"  # Default para aluguel se não especificado
+            tipo = order.service_type
             
-            # Normalizar tipos
-            if "ALUGUEL" in tipo.upper():
-                if "VENDA" in tipo.upper() or "COMPRA" in tipo.upper():
-                    tipo_key = "ALUGUEL + VENDA"
-                else:
-                    tipo_key = "ALUGUEL"
-            elif "VENDA" in tipo.upper() or "COMPRA" in tipo.upper():
+            # Mapear apenas Aluguel e Venda, ignorar outros (como Aluguel + Venda, Compra)
+            if tipo == "Aluguel":
+                tipo_key = "ALUGUEL"
+            elif tipo == "Venda":
                 tipo_key = "VENDA"
             else:
-                tipo_key = "ALUGUEL"
+                continue  # Ignorar outros tipos
             
             if tipo_key not in tipo_counts:
                 tipo_counts[tipo_key] = {
@@ -4367,14 +4364,23 @@ class ServiceOrderPreTriageAPIView(APIView):
                 name="PENDENTE"
             ).first()
 
+            tipo_servico = data.get("tipo_servico")
+            if tipo_servico not in ["Aluguel", "Venda"]:
+                return Response(
+                    {"error": "Tipo de serviço deve ser 'Aluguel' ou 'Venda'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            purchase = tipo_servico == "Venda"
+
             service_order = ServiceOrder.objects.create(
                 renter=person,
                 employee=atendente,
                 attendant=request.user.person,
                 order_date=date.today(),
                 renter_role=data.get("papel_evento", "").upper(),
-                purchase=True if data.get("tipo_servico") in ["Compra", "Venda"] else False,
-                service_type=data.get("tipo_servico"),
+                purchase=purchase,
+                service_type=tipo_servico,
                 came_from=data.get("origem", "").upper(),
                 service_order_phase=service_order_phase,
                 event=event_obj,
