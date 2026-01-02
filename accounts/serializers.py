@@ -80,16 +80,6 @@ class EmployeeRegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("Funcionário com este CPF já existe.")
         return cpf
 
-    def validate_email(self, value):
-        if PersonsContacts.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email já está em uso.")
-        return value
-
-    def validate_phone(self, value):
-        if PersonsContacts.objects.filter(phone=value).exists():
-            raise serializers.ValidationError("Telefone já está em uso.")
-        return value
-
     def create(self, validated_data):
         import random
         import string
@@ -193,30 +183,6 @@ class EmployeeUpdateSerializer(serializers.Serializer):
         help_text="Cargo/função do funcionário",
         required=False,
     )
-
-    def validate_email(self, value):
-        # Verificar se o email já está em uso por outro funcionário
-        if (
-            PersonsContacts.objects.filter(email=value)
-            .exclude(person_id=self.context.get("person_id"))
-            .exists()
-        ):
-            raise serializers.ValidationError(
-                "Email já está em uso por outro funcionário."
-            )
-        return value
-
-    def validate_phone(self, value):
-        # Verificar se o telefone já está em uso por outro funcionário
-        if (
-            PersonsContacts.objects.filter(phone=value)
-            .exclude(person_id=self.context.get("person_id"))
-            .exists()
-        ):
-            raise serializers.ValidationError(
-                "Telefone já está em uso por outro funcionário."
-            )
-        return value
 
 
 class ClientSerializer(serializers.Serializer):
