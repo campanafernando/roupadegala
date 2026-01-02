@@ -84,7 +84,7 @@ class Person(BaseModel):
 
 class PersonsContacts(BaseModel):
     phone = models.CharField(max_length=255)
-    email = models.EmailField(unique=True, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)  # Removido unique para permitir compartilhamento
     person = models.ForeignKey(
         Person, on_delete=models.CASCADE, related_name="contacts"
     )

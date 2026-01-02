@@ -195,39 +195,11 @@ class ServiceOrderCreateAPIView(APIView):
             email = order_data.get("email", "").strip()
             telefone = order_data["telefone"]
 
-            # Tratar email vazio como None para evitar constraint unique
+            # Tratar email vazio como None
             if not email:
                 email = None
 
-            # Verificar se já existe outro cliente com o mesmo email
-            if email:
-                existing_contact_with_email = (
-                    PersonsContacts.objects.filter(email=email)
-                    .exclude(person=person)
-                    .first()
-                )
-
-                if existing_contact_with_email:
-                    return Response(
-                        {"error": f"Já existe um cliente com o email '{email}'"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-            # Verificar se já existe outro cliente com o mesmo telefone
-            if telefone:
-                existing_contact_with_phone = (
-                    PersonsContacts.objects.filter(phone=telefone)
-                    .exclude(person=person)
-                    .first()
-                )
-
-                if existing_contact_with_phone:
-                    return Response(
-                        {"error": f"Já existe um cliente com o telefone '{telefone}'"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-            # Se não existe duplicata, criar contato
+            # Criar contato (emails e telefones podem ser compartilhados)
             PersonsContacts.objects.get_or_create(
                 phone=telefone,
                 person=person,
@@ -470,7 +442,7 @@ class ServiceOrderUpdateAPIView(APIView):
 
                 # Só criar novo contato se não existir um com os mesmos dados
                 if not existing_contact and (email_cliente or telefone_cliente):
-                    # Tratar email vazio como None para evitar constraint unique
+                    # Tratar email vazio como None
                     email_final = email_cliente if email_cliente else None
                     PersonsContacts.objects.create(
                         email=email_final,
@@ -2664,7 +2636,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
                 }
 
                 # Contatos do cliente (apenas o mais recente)
-                contact = order.renter.contacts.order_by("-date_created").first()
+                contact = order.renter.contacts.order_by("-date_created", "-id").first()
                 client_data["contacts"] = []
                 if contact:
                     client_data["contacts"].append(
@@ -2677,7 +2649,7 @@ class ServiceOrderListByPhaseAPIView(APIView):
 
                 # Endereços do cliente (apenas o mais recente)
                 address = order.renter.personsadresses_set.order_by(
-                    "-date_created"
+                    "-date_created", "-id"
                 ).first()
                 client_data["addresses"] = []
                 if address:
@@ -3261,7 +3233,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                     ),
                 }
 
-                contact = order.renter.contacts.order_by("-date_created").first()
+                contact = order.renter.contacts.order_by("-date_created", "-id").first()
                 client_data["contacts"] = []
                 if contact:
                     client_data["contacts"].append(
@@ -3273,7 +3245,7 @@ class ServiceOrderListByPhaseV2APIView(APIView):
                     )
 
                 address = order.renter.personsadresses_set.order_by(
-                    "-date_created"
+                    "-date_created", "-id"
                 ).first()
                 client_data["addresses"] = []
                 if address:
@@ -4145,10 +4117,10 @@ class ServiceOrderClientAPIView(APIView):
             person = service_order.renter
 
             # Buscar contato mais recente baseado em date_created
-            contact = person.contacts.order_by("-date_created").first()
+            contact = person.contacts.order_by("-date_created", "-id").first()
 
             # Buscar endereço mais recente baseado em date_created
-            address = person.personsadresses_set.order_by("-date_created").first()
+            address = person.personsadresses_set.order_by("-date_created", "-id").first()
 
             data = {
                 "id": person.id,
@@ -4287,33 +4259,6 @@ class ServiceOrderPreTriageAPIView(APIView):
 
             email = email.strip() if email else None
             telefone = telefone.strip() if telefone else None
-
-            # Validar duplicatas apenas se fornecidos
-            if email:
-                existing_contact_with_email = (
-                    PersonsContacts.objects.filter(email=email)
-                    .exclude(person=person)
-                    .first()
-                )
-
-                if existing_contact_with_email:
-                    return Response(
-                        {"error": f"Já existe um cliente com o email '{email}'"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-            if telefone:
-                existing_contact_with_phone = (
-                    PersonsContacts.objects.filter(phone=telefone)
-                    .exclude(person=person)
-                    .first()
-                )
-
-                if existing_contact_with_phone:
-                    return Response(
-                        {"error": f"Já existe um cliente com o telefone '{telefone}'"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
 
             # Criar contato apenas se pelo menos um (email ou telefone) foi fornecido
             if email or telefone:
