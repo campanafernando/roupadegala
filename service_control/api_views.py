@@ -4367,14 +4367,9 @@ class ServiceOrderPreTriageAPIView(APIView):
                 name="PENDENTE"
             ).first()
 
+            # tipo_servico é opcional na triagem - será definido posteriormente via modalidade
             tipo_servico = data.get("tipo_servico")
-            if tipo_servico not in ["Aluguel", "Venda"]:
-                return Response(
-                    {"error": "Tipo de serviço deve ser 'Aluguel' ou 'Venda'."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            purchase = tipo_servico == "Venda"
+            purchase = tipo_servico == "Venda" if tipo_servico else False
 
             service_order = ServiceOrder.objects.create(
                 renter=person,
@@ -4383,7 +4378,7 @@ class ServiceOrderPreTriageAPIView(APIView):
                 order_date=date.today(),
                 renter_role=data.get("papel_evento", "").upper(),
                 purchase=purchase,
-                service_type=tipo_servico,
+                service_type=tipo_servico,  # Pode ser None
                 came_from=data.get("origem", "").upper(),
                 service_order_phase=service_order_phase,
                 event=event_obj,
@@ -4398,8 +4393,6 @@ class ServiceOrderPreTriageAPIView(APIView):
                 status=status.HTTP_201_CREATED,
             )
         except Exception as e:
-            logger.error(f"Erro ao criar pré-OS: {str(e)}", exc_info=True)
-            logger.error(f"Dados da requisição: {data}")
             return Response(
                 {"error": f"Erro ao criar pré-OS: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
