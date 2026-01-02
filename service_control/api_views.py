@@ -61,7 +61,7 @@ from django.core.paginator import Paginator, EmptyPage
             "type": "object",
             "properties": {
                 "cliente_nome": {"type": "string", "description": "Nome do cliente"},
-                "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "telefone": {"type": "string", "description": "Telefone do cliente (opcional)"},
                 "email": {
                     "type": "string",
                     "format": "email",
@@ -101,7 +101,6 @@ from django.core.paginator import Paginator, EmptyPage
             },
             "required": [
                 "cliente_nome",
-                "telefone",
                 "cpf",
                 "atendente",
                 "origem",
@@ -161,7 +160,7 @@ class ServiceOrderCreateAPIView(APIView):
                 )
 
             if not all(
-                [order_data["cpf"], order_data["telefone"], order_data["cliente"]]
+                [order_data["cpf"], order_data["cliente"]]
             ):
                 return Response(
                     {"error": "Dados do cliente incompletos"},
@@ -193,27 +192,28 @@ class ServiceOrderCreateAPIView(APIView):
 
             # Criar contato (verificando duplicatas)
             email = order_data.get("email", "").strip()
-            telefone = order_data["telefone"]
+            telefone = order_data.get("telefone", "") or ""
 
             # Tratar email vazio como None
             if not email:
                 email = None
 
-            # Criar contato (emails e telefones podem ser compartilhados)
-            PersonsContacts.objects.get_or_create(
-                phone=telefone,
-                person=person,
-                defaults={"email": email, "created_by": request.user},
-            )
+            # Criar contato apenas se tiver email ou telefone
+            if email or telefone:
+                PersonsContacts.objects.get_or_create(
+                    phone=telefone,
+                    person=person,
+                    defaults={"email": email, "created_by": request.user},
+                )
 
             # Criar endereço se cidade for informada
             if city_obj:
                 PersonsAdresses.objects.get_or_create(
                     person=person,
-                    street=order_data["endereco"]["rua"],
-                    number=order_data["endereco"]["numero"],
-                    cep=order_data["endereco"]["cep"],
-                    neighborhood=order_data["endereco"]["bairro"],
+                    street=order_data["endereco"].get("rua") or "",
+                    number=order_data["endereco"].get("numero") or "",
+                    cep=order_data["endereco"].get("cep") or "",
+                    neighborhood=order_data["endereco"].get("bairro") or "",
                     city=city_obj,
                     defaults={"created_by": request.user},
                 )
@@ -472,11 +472,11 @@ class ServiceOrderUpdateAPIView(APIView):
                         # Verificar se endereço já existe (incluindo complemento)
                         existing_address = PersonsAdresses.objects.filter(
                             person=person,
-                            street=endereco["rua"],
-                            number=endereco["numero"],
-                            cep=endereco["cep"],
-                            neighborhood=endereco["bairro"],
-                            complemento=endereco.get("complemento", ""),
+                            street=endereco.get("rua") or "",
+                            number=endereco.get("numero") or "",
+                            cep=endereco.get("cep") or "",
+                            neighborhood=endereco.get("bairro") or "",
+                            complemento=endereco.get("complemento") or "",
                             city=city,
                         ).first()
 
@@ -485,11 +485,11 @@ class ServiceOrderUpdateAPIView(APIView):
                             # Criar novo endereço (mantém histórico)
                             PersonsAdresses.objects.create(
                                 person=person,
-                                street=endereco["rua"],
-                                number=endereco["numero"],
-                                cep=endereco["cep"],
-                                neighborhood=endereco["bairro"],
-                                complemento=endereco.get("complemento", ""),
+                                street=endereco.get("rua") or "",
+                                number=endereco.get("numero") or "",
+                                cep=endereco.get("cep") or "",
+                                neighborhood=endereco.get("bairro") or "",
+                                complemento=endereco.get("complemento") or "",
                                 city=city,
                                 created_by=request.user,
                             )
@@ -4274,11 +4274,11 @@ class ServiceOrderPreTriageAPIView(APIView):
                 if city_obj:
                     PersonsAdresses.objects.get_or_create(
                         person=person,
-                        street=endereco.get("rua"),
-                        number=endereco.get("numero"),
-                        cep=endereco.get("cep"),
-                        complemento=endereco.get("complemento"),
-                        neighborhood=endereco.get("bairro"),
+                        street=endereco.get("rua") or "",
+                        number=endereco.get("numero") or "",
+                        cep=endereco.get("cep") or "",
+                        complemento=endereco.get("complemento") or "",
+                        neighborhood=endereco.get("bairro") or "",
                         city=city_obj,
                         defaults={"created_by": request.user},
                     )

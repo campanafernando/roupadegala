@@ -83,7 +83,7 @@ class Person(BaseModel):
 
 
 class PersonsContacts(BaseModel):
-    phone = models.CharField(max_length=255)
+    phone = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)  # Removido unique para permitir compartilhamento
     person = models.ForeignKey(
         Person, on_delete=models.CASCADE, related_name="contacts"
@@ -97,10 +97,10 @@ class PersonsContacts(BaseModel):
 
 
 class PersonsAdresses(BaseModel):
-    street = models.CharField(max_length=255)
+    street = models.CharField(max_length=255, null=True, blank=True)
     number = models.CharField(max_length=255, null=True, blank=True)
-    cep = models.CharField(max_length=255)
-    neighborhood = models.CharField(max_length=255)
+    cep = models.CharField(max_length=255, null=True, blank=True)
+    neighborhood = models.CharField(max_length=255, null=True, blank=True)
     complemento = models.CharField(max_length=255, null=True, blank=True)
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     person = models.ForeignKey(Person, on_delete=models.CASCADE)

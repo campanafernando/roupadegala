@@ -523,18 +523,18 @@ class FrontendOrderServiceSerializer(serializers.Serializer):
 class FrontendContactSerializer(serializers.Serializer):
     """Serializer para contatos do cliente do payload do frontend"""
 
-    tipo = serializers.CharField(help_text="Tipo de contato (telefone, email, etc)")
-    valor = serializers.CharField(help_text="Valor do contato")
+    tipo = serializers.CharField(help_text="Tipo de contato (telefone, email, etc)", required=False, allow_blank=True)
+    valor = serializers.CharField(help_text="Valor do contato", required=False, allow_blank=True)
 
 
 class FrontendAddressSerializer(serializers.Serializer):
     """Serializer para endereços do cliente do payload do frontend"""
 
-    cep = serializers.CharField(help_text="CEP")
-    rua = serializers.CharField(help_text="Rua")
-    numero = serializers.CharField(help_text="Número")
-    bairro = serializers.CharField(help_text="Bairro")
-    cidade = serializers.CharField(help_text="Cidade")
+    cep = serializers.CharField(help_text="CEP", required=False, allow_blank=True)
+    rua = serializers.CharField(help_text="Rua", required=False, allow_blank=True)
+    numero = serializers.CharField(help_text="Número", required=False, allow_blank=True)
+    bairro = serializers.CharField(help_text="Bairro", required=False, allow_blank=True)
+    cidade = serializers.CharField(help_text="Cidade", required=False, allow_blank=True)
     complemento = serializers.CharField(
         help_text="Complemento do endereço", allow_blank=True, required=False
     )
@@ -543,10 +543,10 @@ class FrontendAddressSerializer(serializers.Serializer):
 class FrontendClientSerializer(serializers.Serializer):
     """Serializer para dados do cliente do payload do frontend"""
 
-    nome = serializers.CharField(required=False, help_text="Nome do cliente")
-    cpf = serializers.CharField(required=False, help_text="CPF do cliente")
+    nome = serializers.CharField(required=False, help_text="Nome do cliente", allow_blank=True)
+    cpf = serializers.CharField(required=False, help_text="CPF do cliente", allow_blank=True)
     email = serializers.EmailField(
-        help_text="Email do cliente", required=False, allow_blank=True
+        help_text="Email do cliente", required=False, allow_blank=True, allow_null=True
     )
     contatos = FrontendContactSerializer(
         many=True, required=False, help_text="Lista de contatos"

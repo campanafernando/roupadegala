@@ -718,39 +718,10 @@ class UserSelfUpdateAPIView(APIView):
                 contact.updated_by = request.user
                 contact.save()
             else:
-                # Criar contato se não existir (verificando duplicatas em todos os clientes)
+                # Criar contato se não existir (emails e telefones podem ser compartilhados)
                 email = serializer.validated_data.get("email", "")
                 phone = serializer.validated_data.get("phone", "")
 
-                # Verificar se já existe outro cliente com o mesmo email
-                if email:
-                    existing_contact_with_email = (
-                        PersonsContacts.objects.filter(email=email)
-                        .exclude(person=user_person)
-                        .first()
-                    )
-
-                    if existing_contact_with_email:
-                        return Response(
-                            {"error": f"Já existe um cliente com o email '{email}'"},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                # Verificar se já existe outro cliente com o mesmo telefone
-                if phone:
-                    existing_contact_with_phone = (
-                        PersonsContacts.objects.filter(phone=phone)
-                        .exclude(person=user_person)
-                        .first()
-                    )
-
-                    if existing_contact_with_phone:
-                        return Response(
-                            {"error": f"Já existe um cliente com o telefone '{phone}'"},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                # Se não existe duplicata, criar novo contato
                 PersonsContacts.objects.create(
                     person=user_person,
                     email=email,
@@ -788,7 +759,7 @@ class UserSelfUpdateAPIView(APIView):
                     "format": "email",
                     "description": "Email do cliente (opcional)",
                 },
-                "telefone": {"type": "string", "description": "Telefone do cliente"},
+                "telefone": {"type": "string", "description": "Telefone do cliente (opcional)"},
                 "cep": {"type": "string", "description": "CEP do endereço (opcional)"},
                 "rua": {"type": "string", "description": "Rua do endereço (opcional)"},
                 "numero": {
@@ -804,7 +775,7 @@ class UserSelfUpdateAPIView(APIView):
                     "description": "Nome da cidade (opcional)",
                 },
             },
-            "required": ["nome", "cpf", "telefone"],
+            "required": ["nome", "cpf"],
         }
     },
     responses={
@@ -886,38 +857,8 @@ class ClientRegisterAPIView(APIView):
                     person.updated_by = request.user
                     person.save()
 
-            # Criar novo contato (verificando duplicatas em todos os clientes)
+            # Criar novo contato (emails e telefones podem ser compartilhados)
             if email or telefone:
-                # Verificar se já existe outro cliente com o mesmo email
-                if email:
-                    existing_contact_with_email = (
-                        PersonsContacts.objects.filter(email=email)
-                        .exclude(person=person)
-                        .first()
-                    )
-
-                    if existing_contact_with_email:
-                        return Response(
-                            {"error": f"Já existe um cliente com o email '{email}'"},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                # Verificar se já existe outro cliente com o mesmo telefone
-                if telefone:
-                    existing_contact_with_phone = (
-                        PersonsContacts.objects.filter(phone=telefone)
-                        .exclude(person=person)
-                        .first()
-                    )
-
-                    if existing_contact_with_phone:
-                        return Response(
-                            {
-                                "error": f"Já existe um cliente com o telefone '{telefone}'"
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
                 # Sempre criar novo contato para garantir que os dados mais recentes sejam considerados
                 PersonsContacts.objects.create(
                     email=email,

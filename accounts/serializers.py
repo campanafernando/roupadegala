@@ -59,8 +59,12 @@ class EmployeeRegisterSerializer(serializers.Serializer):
     cpf = serializers.CharField(
         max_length=20, help_text="CPF do funcionário (apenas números)"
     )
-    email = serializers.EmailField(help_text="Email do funcionário")
-    phone = serializers.CharField(max_length=255, help_text="Telefone do funcionário")
+    email = serializers.EmailField(
+        help_text="Email do funcionário", required=False, allow_blank=True, allow_null=True
+    )
+    phone = serializers.CharField(
+        max_length=255, help_text="Telefone do funcionário", required=False, allow_blank=True
+    )
     role = serializers.ChoiceField(
         choices=[
             ("ADMINISTRADOR", "ADMINISTRADOR"),
@@ -94,9 +98,13 @@ class EmployeeRegisterSerializer(serializers.Serializer):
             cpf=cpf,
             person_type=employee_type,
         )
-        PersonsContacts.objects.create(
-            email=validated_data["email"], phone=validated_data["phone"], person=person
-        )
+        # Email e telefone são opcionais
+        email = validated_data.get("email") or None
+        phone = validated_data.get("phone") or ""
+        if email or phone:
+            PersonsContacts.objects.create(
+                email=email, phone=phone, person=person
+            )
         return {"person": person, "password": password}
 
 
@@ -116,9 +124,11 @@ class ClientRegisterSerializer(serializers.Serializer):
     nome = serializers.CharField(max_length=255, help_text="Nome completo do cliente")
     cpf = serializers.CharField(max_length=20, help_text="CPF do cliente")
     email = serializers.EmailField(
-        help_text="Email do cliente", required=False, allow_blank=True
+        help_text="Email do cliente", required=False, allow_blank=True, allow_null=True
     )
-    telefone = serializers.CharField(max_length=255, help_text="Telefone do cliente")
+    telefone = serializers.CharField(
+        max_length=255, help_text="Telefone do cliente", required=False, allow_blank=True
+    )
     # Dados de endereço (opcionais)
     cep = serializers.CharField(
         max_length=10, help_text="CEP do endereço", required=False, allow_blank=True
@@ -170,9 +180,11 @@ class EmployeeUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(
         max_length=255, help_text="Nome completo do funcionário", required=False
     )
-    email = serializers.EmailField(help_text="Email do funcionário", required=False)
+    email = serializers.EmailField(
+        help_text="Email do funcionário", required=False, allow_blank=True, allow_null=True
+    )
     phone = serializers.CharField(
-        max_length=255, help_text="Telefone do funcionário", required=False
+        max_length=255, help_text="Telefone do funcionário", required=False, allow_blank=True
     )
     role = serializers.ChoiceField(
         choices=[
