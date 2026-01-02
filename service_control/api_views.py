@@ -2,8 +2,11 @@
 Views API para o app service_control
 """
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from django.db import models
 from django.shortcuts import get_object_or_404
@@ -4395,7 +4398,8 @@ class ServiceOrderPreTriageAPIView(APIView):
                 status=status.HTTP_201_CREATED,
             )
         except Exception as e:
-            print(e.args[0])
+            logger.error(f"Erro ao criar pré-OS: {str(e)}", exc_info=True)
+            logger.error(f"Dados da requisição: {data}")
             return Response(
                 {"error": f"Erro ao criar pré-OS: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

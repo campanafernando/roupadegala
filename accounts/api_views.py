@@ -1221,6 +1221,9 @@ class ClientListAPIView(APIView):
                     | models.Q(contacts__phone__icontains=search)
                 ).distinct()
 
+            # Ordenar para evitar warning de paginação
+            clients = clients.order_by('id')
+
             # Paginação
             paginator = Paginator(clients, page_size)
             try:
