@@ -541,10 +541,13 @@ class FrontendAddressSerializer(serializers.Serializer):
 
 
 class FrontendClientSerializer(serializers.Serializer):
-    """Serializer para dados do cliente do payload do frontend"""
+    """Serializer para dados do cliente do payload do frontend.
+    
+    CPF é obrigatório no update da OS (diferente da triagem onde é opcional).
+    """
 
     nome = serializers.CharField(required=False, help_text="Nome do cliente", allow_blank=True)
-    cpf = serializers.CharField(required=False, help_text="CPF do cliente", allow_blank=True)
+    cpf = serializers.CharField(required=True, help_text="CPF do cliente (obrigatório no update da OS)")
     email = serializers.EmailField(
         help_text="Email do cliente", required=False, allow_blank=True, allow_null=True
     )

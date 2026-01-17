@@ -282,7 +282,12 @@ class ServiceOrderCreateAPIView(APIView):
 @extend_schema(
     tags=["service-orders"],
     summary="Atualizar ordem de serviço",
-    description="Atualiza uma ordem de serviço existente com dados completos do frontend",
+    description="""Atualiza uma ordem de serviço existente com dados completos do frontend.
+    
+    **CPF do cliente é obrigatório** neste momento (diferente da triagem onde é opcional).
+    
+    Se o cliente foi criado na triagem sem CPF e o CPF informado pertencer a um cliente já existente,
+    os dados (contatos e endereços) serão transferidos para o cliente existente e a pessoa temporária será removida.""",
     request=FrontendServiceOrderUpdateSerializer,
     responses={
         200: {
@@ -294,6 +299,7 @@ class ServiceOrderCreateAPIView(APIView):
                 "service_order": {"$ref": "#/components/schemas/ServiceOrder"},
             },
         },
+        400: {"description": "CPF do cliente é obrigatório e deve conter 11 dígitos"},
         404: {"description": "Ordem de serviço não encontrada"},
         500: {"description": "Erro interno do servidor"},
     },
@@ -398,30 +404,98 @@ class ServiceOrderUpdateAPIView(APIView):
             # Processar dados do cliente
             if "cliente" in data:
                 cliente_data = data["cliente"]
-
-                # Buscar ou criar cliente
-                cpf_limpo = cliente_data["cpf"].replace(".", "").replace("-", "")
-                person, created = Person.objects.get_or_create(
-                    cpf=cpf_limpo,
-                    defaults={
-                        "name": cliente_data["nome"].upper(),
-                        "person_type": PersonType.objects.get_or_create(type="CLIENTE")[
-                            0
-                        ],
-                        "created_by": request.user,
-                    },
-                )
-
-                if not created:
-                    # Atualizar nome se mudou
-                    if person.name != cliente_data["nome"].upper():
-                        person.name = cliente_data["nome"].upper()
-                        person.save()
-
-                service_order.renter = person
+                
+                # CPF é obrigatório no update da OS
+                cpf_raw = cliente_data.get("cpf", "") or ""
+                cpf_limpo = cpf_raw.replace(".", "").replace("-", "").strip()
+                
+                if not cpf_limpo or len(cpf_limpo) != 11:
+                    return Response(
+                        {"error": "CPF do cliente é obrigatório no update da OS e deve conter 11 dígitos."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                
+                current_renter = service_order.renter
+                pessoa_temporaria = current_renter and not current_renter.cpf
+                
+                # Verificar se o CPF informado já existe em outra pessoa
+                existing_person_with_cpf = Person.objects.filter(cpf=cpf_limpo).first()
+                
+                if pessoa_temporaria:
+                    # Cliente atual foi criado na triagem sem CPF
+                    if existing_person_with_cpf:
+                        # CPF pertence a cliente já existente - transferir dados e vincular
+                        # Transferir contatos da pessoa temporária para a pessoa existente
+                        for contact in current_renter.contacts.all():
+                            # Verificar se já existe contato igual na pessoa destino
+                            existing = PersonsContacts.objects.filter(
+                                person=existing_person_with_cpf,
+                                email=contact.email,
+                                phone=contact.phone,
+                            ).exists()
+                            if not existing:
+                                contact.person = existing_person_with_cpf
+                                contact.save()
+                        
+                        # Transferir endereços da pessoa temporária para a pessoa existente
+                        for address in current_renter.personsadresses_set.all():
+                            # Verificar se já existe endereço igual na pessoa destino
+                            existing = PersonsAdresses.objects.filter(
+                                person=existing_person_with_cpf,
+                                street=address.street,
+                                number=address.number,
+                                cep=address.cep,
+                                neighborhood=address.neighborhood,
+                                complemento=address.complemento,
+                                city=address.city,
+                            ).exists()
+                            if not existing:
+                                address.person = existing_person_with_cpf
+                                address.save()
+                        
+                        # Atualizar nome se fornecido
+                        if cliente_data.get("nome"):
+                            existing_person_with_cpf.name = cliente_data["nome"].upper()
+                            existing_person_with_cpf.save()
+                        
+                        # Verificar se pessoa temporária não está vinculada a outras OS
+                        other_os_count = ServiceOrder.objects.filter(renter=current_renter).exclude(id=service_order.id).count()
+                        
+                        # Atualizar renter da OS para a pessoa existente
+                        person = existing_person_with_cpf
+                        service_order.renter = person
+                        
+                        # Se pessoa temporária não tem outras OS, pode ser removida
+                        if other_os_count == 0:
+                            current_renter.delete()
+                    else:
+                        # CPF não existe - atualizar pessoa temporária com o CPF
+                        current_renter.cpf = cpf_limpo
+                        if cliente_data.get("nome"):
+                            current_renter.name = cliente_data["nome"].upper()
+                        current_renter.save()
+                        person = current_renter
+                else:
+                    # Fluxo normal: cliente já tem CPF
+                    if existing_person_with_cpf:
+                        # Atualizar nome se mudou
+                        if cliente_data.get("nome") and existing_person_with_cpf.name != cliente_data["nome"].upper():
+                            existing_person_with_cpf.name = cliente_data["nome"].upper()
+                            existing_person_with_cpf.save()
+                        person = existing_person_with_cpf
+                    else:
+                        # Criar nova pessoa com o CPF
+                        person = Person.objects.create(
+                            cpf=cpf_limpo,
+                            name=cliente_data.get("nome", "").upper(),
+                            person_type=PersonType.objects.get_or_create(type="CLIENTE")[0],
+                            created_by=request.user,
+                        )
+                    service_order.renter = person
 
                 # Processar email e telefone do cliente
-                email_cliente = cliente_data.get("email", "").strip()
+                email_cliente = cliente_data.get("email", "")
+                email_cliente = email_cliente.strip() if email_cliente else ""
                 telefone_cliente = ""
 
                 # Pegar telefone dos contatos
@@ -4169,7 +4243,7 @@ class ServiceOrderClientAPIView(APIView):
                     "format": "email",
                     "description": "Email do cliente (opcional)",
                 },
-                "cpf": {"type": "string", "description": "CPF do cliente"},
+                "cpf": {"type": "string", "description": "CPF do cliente (opcional na triagem - será obrigatório no update da OS)"},
                 "atendente_id": {
                     "type": "integer",
                     "description": "ID do atendente responsável (opcional)",
@@ -4206,7 +4280,6 @@ class ServiceOrderClientAPIView(APIView):
             },
             "required": [
                 "cliente_nome",
-                "cpf",
                 "origem",
                 "data_evento",
                 "tipo_servico",
@@ -4237,21 +4310,37 @@ class ServiceOrderPreTriageAPIView(APIView):
         """Criação de pré-ordem de serviço pela recepção ou administrador"""
         try:
             data = request.data
-            cpf = data.get("cpf", "").replace(".", "").replace("-", "")
-            if len(cpf) != 11:
+            cpf_raw = data.get("cpf", "") or ""
+            cpf = cpf_raw.replace(".", "").replace("-", "").strip()
+            
+            # CPF é opcional na triagem - se fornecido, deve ser válido
+            if cpf and len(cpf) != 11:
                 return Response(
-                    {"error": "CPF inválido."}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": "CPF inválido. Deve conter 11 dígitos ou ser deixado em branco."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             pt, _ = PersonType.objects.get_or_create(type="CLIENTE")
-            person, _ = Person.objects.get_or_create(
-                cpf=cpf,
-                defaults={
-                    "name": data.get("cliente_nome", "").upper(),
-                    "person_type": pt,
-                    "created_by": request.user,
-                },
-            )
+            
+            # Se CPF foi fornecido, buscar ou criar pessoa por CPF
+            # Se não, criar nova pessoa sem CPF (temporária até update da OS)
+            if cpf:
+                person, _ = Person.objects.get_or_create(
+                    cpf=cpf,
+                    defaults={
+                        "name": data.get("cliente_nome", "").upper(),
+                        "person_type": pt,
+                        "created_by": request.user,
+                    },
+                )
+            else:
+                # Criar pessoa temporária sem CPF
+                person = Person.objects.create(
+                    name=data.get("cliente_nome", "").upper(),
+                    cpf=None,  # Será preenchido no update da OS
+                    person_type=pt,
+                    created_by=request.user,
+                )
 
             # Processar contatos apenas se fornecidos
             email = data.get("email") or ""
